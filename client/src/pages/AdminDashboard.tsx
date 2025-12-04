@@ -10,8 +10,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { useStore, User } from '@/lib/mockData';
-import { Plus, Pencil, Trash2, Save, Mail, Users, Settings } from 'lucide-react';
+import { Plus, Pencil, Trash2, Save, Mail, Users, Settings, Camera } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
+import WebcamCapture from '@/components/WebcamCapture';
 
 export default function AdminDashboard() {
   const { users, addUser, updateUser, deleteUser, settings, updateSettings } = useStore();
@@ -21,6 +22,7 @@ export default function AdminDashboard() {
   const [isUserDialogOpen, setIsUserDialogOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<Partial<User>>({});
   const [isEditing, setIsEditing] = useState(false);
+  const [isCapturingPhoto, setIsCapturingPhoto] = useState(false);
 
   // Settings State
   const [emailSettings, setEmailSettings] = useState(settings.email);
@@ -35,12 +37,18 @@ export default function AdminDashboard() {
       updateUser(currentUser as User);
       toast({ title: "User Updated", description: `${currentUser.name} has been updated.` });
     } else {
-      addUser({ ...currentUser, role: 'worker', photoUrl: 'https://github.com/shadcn.png' } as User);
+      addUser({ ...currentUser, role: 'worker', photoUrl: currentUser.photoUrl || 'https://github.com/shadcn.png' } as User);
       toast({ title: "User Created", description: `${currentUser.name} has been added.` });
     }
     setIsUserDialogOpen(false);
     setCurrentUser({});
     setIsEditing(false);
+    setIsCapturingPhoto(false);
+  };
+
+  const handlePhotoCapture = (imageSrc: string) => {
+    setCurrentUser({ ...currentUser, photoUrl: imageSrc });
+    setIsCapturingPhoto(false);
   };
 
   const handleDeleteUser = (id: string) => {
@@ -216,6 +224,47 @@ export default function AdminDashboard() {
                   onChange={(e) => setCurrentUser({...currentUser, department: e.target.value})}
                   className="col-span-3" 
                 />
+              </div>
+              <div className="grid grid-cols-4 items-start gap-4 pt-2">
+                <Label className="text-right pt-2">Profile Photo</Label>
+                <div className="col-span-3 space-y-3">
+                  {currentUser.photoUrl ? (
+                    <div className="flex items-center gap-4">
+                      <div className="h-20 w-20 rounded-full overflow-hidden border-2 border-slate-200">
+                        <img src={currentUser.photoUrl} alt="Preview" className="h-full w-full object-cover" />
+                      </div>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => setIsCapturingPhoto(true)}
+                      >
+                        <Camera className="mr-2 h-4 w-4" /> Retake Photo
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button 
+                      variant="outline" 
+                      className="w-full border-dashed py-8"
+                      onClick={() => setIsCapturingPhoto(true)}
+                    >
+                      <Camera className="mr-2 h-5 w-5" /> Take Photo for Facial Rec
+                    </Button>
+                  )}
+                  
+                  {isCapturingPhoto && (
+                     <div className="border rounded-lg p-2 bg-slate-50 mt-2">
+                        <WebcamCapture onCapture={handlePhotoCapture} label="Capture Profile Photo" />
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="w-full mt-2 text-red-500 hover:text-red-600"
+                          onClick={() => setIsCapturingPhoto(false)}
+                        >
+                          Cancel Camera
+                        </Button>
+                     </div>
+                  )}
+                </div>
               </div>
             </div>
             <DialogFooter>
