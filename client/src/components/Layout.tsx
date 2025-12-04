@@ -71,15 +71,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <div className="font-heading text-2xl mb-8 px-4 text-primary">FACTORY FLOW</div>
                 <nav className="space-y-2 flex-1">
                   {navItems.map((item) => (
-                    <Link key={item.href} href={item.href}>
-                      <a className={`flex items-center gap-3 px-4 py-3 rounded-md transition-colors ${
-                        location === item.href 
-                          ? 'bg-primary text-primary-foreground font-medium' 
-                          : 'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-                      }`}>
-                        <item.icon className="h-5 w-5" />
-                        {item.label}
-                      </a>
+                    <Link key={item.href} href={item.href} className={`flex items-center gap-3 px-4 py-3 rounded-md transition-colors ${
+                      location === item.href 
+                        ? 'bg-primary text-primary-foreground font-medium' 
+                        : 'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+                    }`}>
+                      <item.icon className="h-5 w-5" />
+                      {item.label}
                     </Link>
                   ))}
                 </nav>
@@ -114,15 +112,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <aside className="hidden md:flex w-64 flex-col bg-card border-r border-border shadow-sm z-40">
           <nav className="flex-1 p-4 space-y-2">
             {navItems.map((item) => (
-              <Link key={item.href} href={item.href}>
-                <a className={`flex items-center gap-3 px-4 py-3 rounded-md transition-all duration-200 ${
-                  location === item.href 
-                    ? 'bg-primary/10 text-primary font-medium border-l-4 border-primary' 
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                }`}>
-                  <item.icon className="h-5 w-5" />
-                  {item.label}
-                </a>
+              <Link key={item.href} href={item.href} className={`flex items-center gap-3 px-4 py-3 rounded-md transition-all duration-200 ${
+                location === item.href 
+                  ? 'bg-primary/10 text-primary font-medium border-l-4 border-primary' 
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}>
+                <item.icon className="h-5 w-5" />
+                {item.label}
               </Link>
             ))}
           </nav>
