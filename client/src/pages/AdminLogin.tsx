@@ -5,31 +5,32 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { ShieldCheck, Mail, Lock, ArrowRight } from 'lucide-react';
-import { useStore } from '@/lib/mockData';
+import { useAuth } from '@/lib/auth-context';
+import { authApi } from '@/lib/api';
 import factoryBg from '@assets/generated_images/modern_clean_industrial_factory_interior_background.png';
 
 export default function AdminLogin() {
   const [, setLocation] = useLocation();
-  const { loginAdmin } = useStore();
+  const { setUser } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
-    // Simulate network request
-    setTimeout(() => {
-      if (loginAdmin(email, password)) {
-        setLocation('/admin/dashboard');
-      } else {
-        setError('Invalid credentials. Try admin@factory.com / admin123');
-        setLoading(false);
-      }
-    }, 1000);
+    try {
+      const user = await authApi.loginAdmin(email, password);
+      setUser(user);
+      setLocation('/admin/dashboard');
+    } catch (err) {
+      setError('Invalid credentials. Try admin@factory.com / admin123');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

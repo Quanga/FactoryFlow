@@ -6,31 +6,47 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { User, ScanFace, ArrowRight } from 'lucide-react';
 import WebcamCapture from '@/components/WebcamCapture';
-import { useStore } from '@/lib/mockData';
+import { useAuth } from '@/lib/auth-context';
+import { authApi } from '@/lib/api';
 import factoryBg from '@assets/generated_images/modern_clean_industrial_factory_interior_background.png';
 
 export default function Login() {
   const [, setLocation] = useLocation();
-  const { login } = useStore();
+  const { setUser } = useAuth();
   const [id, setId] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<'id' | 'face'>('id');
 
-  const handleIdSubmit = (e: React.FormEvent) => {
+  const handleIdSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (id === '46') {
+    setError('');
+    setLoading(true);
+
+    try {
+      // Try to login to validate ID exists
+      const user = await authApi.loginWorker(id);
       setStep('face');
-      setError('');
-    } else {
-      setError('Invalid ID Number. Try "46".');
+    } catch (err) {
+      setError('Invalid ID Number. Try "46", "102", or "105".');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleFaceCapture = (imageSrc: string) => {
-    // Simulate verification delay
-    setTimeout(() => {
-      if (login(id)) {
+  const handleFaceCapture = async (imageSrc: string) => {
+    setLoading(true);
+    // Simulate face verification delay
+    setTimeout(async () => {
+      try {
+        const user = await authApi.loginWorker(id);
+        setUser(user);
         setLocation('/dashboard');
+      } catch (err) {
+        setError('Login failed');
+        setStep('id');
+      } finally {
+        setLoading(false);
       }
     }, 1500);
   };
@@ -69,8 +85,8 @@ export default function Login() {
                 
                 {error && <p className="text-red-500 text-sm font-medium text-center animate-pulse">{error}</p>}
                 
-                <Button type="submit" className="w-full h-12 btn-industrial text-lg mt-2">
-                  Next <ArrowRight className="ml-2 h-5 w-5" />
+                <Button type="submit" className="w-full h-12 btn-industrial text-lg mt-2" disabled={loading}>
+                  {loading ? 'Verifying...' : 'Next'} {!loading && <ArrowRight className="ml-2 h-5 w-5" />}
                 </Button>
               </form>
             </TabsContent>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,9 +12,13 @@ import { format } from "date-fns";
 import { CalendarIcon, Upload, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from '@/lib/auth-context';
+import { leaveRequestApi } from '@/lib/api';
 
 export default function LeaveRequest() {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
     from: undefined,
     to: undefined,
@@ -32,9 +37,32 @@ export default function LeaveRequest() {
     setFiles(files.filter((_, i) => i !== index));
   };
 
+  const createRequestMutation = useMutation({
+    mutationFn: leaveRequestApi.create,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leave-requests'] });
+      toast({
+        title: "Application Submitted",
+        description: "Your leave request has been sent for approval.",
+      });
+      // Reset form
+      setLeaveType('');
+      setReason('');
+      setFiles([]);
+      setDateRange({ from: undefined, to: undefined });
+    },
+    onError: () => {
+      toast({
+        variant: "destructive",
+        title: "Submission Failed",
+        description: "Could not submit leave request. Please try again.",
+      });
+    },
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!dateRange.from || !leaveType || !reason) {
+    if (!dateRange.from || !leaveType || !reason || !user) {
       toast({
         variant: "destructive",
         title: "Missing Information",
@@ -43,16 +71,15 @@ export default function LeaveRequest() {
       return;
     }
 
-    toast({
-      title: "Application Submitted",
-      description: "Your leave request has been sent for approval.",
+    createRequestMutation.mutate({
+      userId: user.id,
+      leaveType,
+      startDate: format(dateRange.from, 'yyyy-MM-dd'),
+      endDate: dateRange.to ? format(dateRange.to, 'yyyy-MM-dd') : format(dateRange.from, 'yyyy-MM-dd'),
+      reason,
+      status: 'pending',
+      documents: files.map(f => f.name),
     });
-    
-    // Reset form
-    setLeaveType('');
-    setReason('');
-    setFiles([]);
-    setDateRange({ from: undefined, to: undefined });
   };
 
   return (

@@ -1,14 +1,17 @@
 import { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import WebcamCapture from '@/components/WebcamCapture';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useStore } from '@/lib/mockData';
+import { useAuth } from '@/lib/auth-context';
+import { attendanceApi } from '@/lib/api';
 import { format } from 'date-fns';
 import { Clock, MapPin, CheckCircle } from 'lucide-react';
 
 export default function Attendance() {
-  const { user, recordAttendance, attendanceLog } = useStore();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [status, setStatus] = useState<'idle' | 'success'>('idle');
   const [lastAction, setLastAction] = useState('');
@@ -18,18 +21,39 @@ export default function Attendance() {
     return () => clearInterval(timer);
   }, []);
 
+  const { data: attendanceLog = [] } = useQuery({
+    queryKey: ['attendance', user?.id],
+    queryFn: () => attendanceApi.getByUserId(user!.id),
+    enabled: !!user,
+  });
+
+  const createRecordMutation = useMutation({
+    mutationFn: attendanceApi.create,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['attendance'] });
+      setStatus('success');
+      setTimeout(() => setStatus('idle'), 3000);
+    },
+  });
+
   const handleClockIn = (imageSrc: string) => {
-    recordAttendance('in', imageSrc);
+    if (!user) return;
+    createRecordMutation.mutate({
+      userId: user.id,
+      type: 'in',
+      photoUrl: imageSrc,
+    });
     setLastAction('Clocked In');
-    setStatus('success');
-    setTimeout(() => setStatus('idle'), 3000);
   };
 
   const handleClockOut = (imageSrc: string) => {
-    recordAttendance('out', imageSrc);
+    if (!user) return;
+    createRecordMutation.mutate({
+      userId: user.id,
+      type: 'out',
+      photoUrl: imageSrc,
+    });
     setLastAction('Clocked Out');
-    setStatus('success');
-    setTimeout(() => setStatus('idle'), 3000);
   };
 
   return (

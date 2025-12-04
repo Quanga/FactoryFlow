@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,14 +10,25 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { useStore, User } from '@/lib/mockData';
+import { userApi, settingsApi } from '@/lib/api';
+import type { User } from '@shared/schema';
 import { Plus, Pencil, Trash2, Save, Mail, Users, Settings, Camera } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import WebcamCapture from '@/components/WebcamCapture';
 
 export default function AdminDashboard() {
-  const { users, addUser, updateUser, deleteUser, settings, updateSettings } = useStore();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  const { data: users = [] } = useQuery({
+    queryKey: ['users'],
+    queryFn: userApi.getAll,
+  });
+
+  const { data: emailSetting } = useQuery({
+    queryKey: ['settings', 'admin_email'],
+    queryFn: () => settingsApi.get('admin_email'),
+  });
   
   // User Management State
   const [isUserDialogOpen, setIsUserDialogOpen] = useState(false);
@@ -25,7 +37,53 @@ export default function AdminDashboard() {
   const [isCapturingPhoto, setIsCapturingPhoto] = useState(false);
 
   // Settings State
-  const [emailSettings, setEmailSettings] = useState(settings.email);
+  const [emailSettings, setEmailSettings] = useState('');
+
+  useEffect(() => {
+    if (emailSetting) {
+      setEmailSettings(emailSetting.value);
+    }
+  }, [emailSetting]);
+
+  const createUserMutation = useMutation({
+    mutationFn: userApi.create,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      toast({ title: "User Created", description: "User has been added successfully." });
+      setIsUserDialogOpen(false);
+      setCurrentUser({});
+      setIsEditing(false);
+      setIsCapturingPhoto(false);
+    },
+  });
+
+  const updateUserMutation = useMutation({
+    mutationFn: ({ id, ...data }: any) => userApi.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      toast({ title: "User Updated", description: "User has been updated successfully." });
+      setIsUserDialogOpen(false);
+      setCurrentUser({});
+      setIsEditing(false);
+      setIsCapturingPhoto(false);
+    },
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: userApi.delete,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      toast({ title: "User Deleted", description: "User has been removed from the system." });
+    },
+  });
+
+  const updateSettingMutation = useMutation({
+    mutationFn: ({ key, value }: { key: string; value: string }) => settingsApi.set(key, value),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+      toast({ title: "Settings Saved", description: "Email configuration updated." });
+    },
+  });
 
   const handleSaveUser = () => {
     if (!currentUser.name || !currentUser.id || !currentUser.department) {
@@ -33,17 +91,13 @@ export default function AdminDashboard() {
       return;
     }
 
+    const userData = { ...currentUser, role: 'worker', photoUrl: currentUser.photoUrl || 'https://github.com/shadcn.png' };
+
     if (isEditing) {
-      updateUser(currentUser as User);
-      toast({ title: "User Updated", description: `${currentUser.name} has been updated.` });
+      updateUserMutation.mutate(userData);
     } else {
-      addUser({ ...currentUser, role: 'worker', photoUrl: currentUser.photoUrl || 'https://github.com/shadcn.png' } as User);
-      toast({ title: "User Created", description: `${currentUser.name} has been added.` });
+      createUserMutation.mutate(userData);
     }
-    setIsUserDialogOpen(false);
-    setCurrentUser({});
-    setIsEditing(false);
-    setIsCapturingPhoto(false);
   };
 
   const handlePhotoCapture = (imageSrc: string) => {
@@ -52,8 +106,7 @@ export default function AdminDashboard() {
   };
 
   const handleDeleteUser = (id: string) => {
-    deleteUser(id);
-    toast({ title: "User Deleted", description: "User has been removed from the system." });
+    deleteUserMutation.mutate(id);
   };
 
   const handleOpenEdit = (user: User) => {
@@ -69,8 +122,7 @@ export default function AdminDashboard() {
   };
 
   const handleSaveSettings = () => {
-    updateSettings({ email: emailSettings });
-    toast({ title: "Settings Saved", description: "Email configuration updated." });
+    updateSettingMutation.mutate({ key: 'admin_email', value: emailSettings });
   };
 
   return (
@@ -116,7 +168,7 @@ export default function AdminDashboard() {
                         <TableCell>
                           <div className="flex items-center gap-3">
                             <div className="h-8 w-8 rounded-full overflow-hidden bg-slate-100">
-                              <img src={user.photoUrl} alt={user.name} className="h-full w-full object-cover" />
+                              <img src={user.photoUrl || 'https://github.com/shadcn.png'} alt={user.name} className="h-full w-full object-cover" />
                             </div>
                             {user.name}
                           </div>

@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { useStore } from '@/lib/mockData';
+import { useAuth } from '@/lib/auth-context';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -18,7 +18,7 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [location] = useLocation();
-  const { user, logout } = useStore();
+  const { user, logout } = useAuth();
 
   const workerNav = [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -54,7 +54,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <div className="text-xs text-sidebar-foreground/60">{user.id}</div>
               </div>
               <div className="h-10 w-10 rounded-full overflow-hidden border-2 border-primary">
-                <img src={user.photoUrl} alt="User" className="h-full w-full object-cover" />
+                <img src={user.photoUrl || 'https://github.com/shadcn.png'} alt="User" className="h-full w-full object-cover" />
               </div>
             </div>
           )}
@@ -87,7 +87,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <div className="mt-auto pt-6 border-t border-sidebar-border space-y-4">
                   <div className="flex items-center gap-3 px-4">
                      <div className="h-10 w-10 rounded-full overflow-hidden border border-sidebar-border">
-                        <img src={user?.photoUrl} alt="User" className="h-full w-full object-cover" />
+                        <img src={user?.photoUrl || 'https://github.com/shadcn.png'} alt="User" className="h-full w-full object-cover" />
                       </div>
                       <div>
                         <div className="font-medium text-sm">{user?.name}</div>
