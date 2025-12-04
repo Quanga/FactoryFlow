@@ -20,21 +20,30 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [location] = useLocation();
   const { user, logout } = useStore();
 
-  const navItems = [
+  const workerNav = [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/leave-request', label: 'Request Leave', icon: CalendarPlus },
     { href: '/attendance', label: 'Attendance', icon: Clock },
   ];
+
+  const adminNav = [
+    { href: '/admin/dashboard', label: 'Overview', icon: LayoutDashboard },
+    { href: '/admin/dashboard', label: 'Employees', icon: UserCircle },
+  ];
+
+  const navItems = user?.role === 'manager' ? adminNav : workerNav;
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
       <header className="h-16 bg-sidebar text-sidebar-foreground flex items-center justify-between px-4 shadow-md z-50">
         <div className="flex items-center gap-3">
-          <div className="h-8 w-8 bg-primary rounded flex items-center justify-center font-heading font-bold text-xl">
-            F
+          <div className={`h-8 w-8 rounded flex items-center justify-center font-heading font-bold text-xl ${user?.role === 'manager' ? 'bg-amber-500 text-black' : 'bg-primary text-white'}`}>
+            {user?.role === 'manager' ? 'A' : 'F'}
           </div>
-          <span className="font-heading text-xl tracking-wider hidden md:block">FACTORY FLOW</span>
+          <span className="font-heading text-xl tracking-wider hidden md:block">
+            {user?.role === 'manager' ? 'FACTORY ADMIN' : 'FACTORY FLOW'}
+          </span>
         </div>
 
         <div className="flex items-center gap-4">

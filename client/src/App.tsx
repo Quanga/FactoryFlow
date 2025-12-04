@@ -8,12 +8,16 @@ import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
 import LeaveRequest from "@/pages/LeaveRequest";
 import Attendance from "@/pages/Attendance";
+import AdminLogin from "@/pages/AdminLogin";
+import AdminDashboard from "@/pages/AdminDashboard";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Login} />
+      <Route path="/admin" component={AdminLogin} />
       <Route path="/dashboard" component={Dashboard} />
+      <Route path="/admin/dashboard" component={AdminDashboard} />
       <Route path="/leave-request" component={LeaveRequest} />
       <Route path="/attendance" component={Attendance} />
       <Route component={NotFound} />

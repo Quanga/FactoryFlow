@@ -44,6 +44,32 @@ export const MOCK_USER: User = {
   photoUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80',
 };
 
+export const MOCK_ADMIN: User = {
+  id: 'admin',
+  name: 'System Admin',
+  role: 'manager',
+  department: 'Management',
+  photoUrl: 'https://github.com/shadcn.png',
+};
+
+export const INITIAL_USERS: User[] = [
+  MOCK_USER,
+  {
+    id: '102',
+    name: 'Sarah Connor',
+    role: 'worker',
+    department: 'Production',
+    photoUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80',
+  },
+  {
+    id: '105',
+    name: 'Mike Ross',
+    role: 'worker',
+    department: 'Logistics',
+    photoUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80',
+  }
+];
+
 export const MOCK_BALANCES: LeaveBalance[] = [
   { type: 'Annual Leave', total: 21, taken: 5, pending: 0, available: 16 },
   { type: 'Sick Leave', total: 30, taken: 2, pending: 0, available: 28 },
@@ -78,16 +104,43 @@ let attendanceLog: AttendanceRecord[] = [];
 
 export const useStore = () => {
   const [user, setUser] = useState<User | null>(null);
+  const [users, setUsers] = useState<User[]>(INITIAL_USERS);
+  const [settings, setSettings] = useState({ email: 'manager@factory.com' });
   
   const login = (id: string) => {
-    if (id === '46') {
-      setUser(MOCK_USER);
+    const foundUser = users.find(u => u.id === id);
+    if (foundUser) {
+      setUser(foundUser);
+      return true;
+    }
+    return false;
+  };
+
+  const loginAdmin = (email: string, pass: string) => {
+    if (email === 'admin@factory.com' && pass === 'admin123') {
+      setUser(MOCK_ADMIN);
       return true;
     }
     return false;
   };
 
   const logout = () => setUser(null);
+
+  const addUser = (newUser: User) => {
+    setUsers([...users, newUser]);
+  };
+
+  const updateUser = (updatedUser: User) => {
+    setUsers(users.map(u => u.id === updatedUser.id ? updatedUser : u));
+  };
+
+  const deleteUser = (id: string) => {
+    setUsers(users.filter(u => u.id !== id));
+  };
+
+  const updateSettings = (newSettings: any) => {
+    setSettings({...settings, ...newSettings});
+  };
 
   const recordAttendance = (type: 'in' | 'out', photoUrl?: string) => {
     const record: AttendanceRecord = {
@@ -103,8 +156,15 @@ export const useStore = () => {
 
   return {
     user,
+    users,
     login,
+    loginAdmin,
     logout,
+    addUser,
+    updateUser,
+    deleteUser,
+    settings,
+    updateSettings,
     balances: MOCK_BALANCES,
     requests: MOCK_REQUESTS,
     recordAttendance,
