@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { User, ScanFace, ArrowRight } from 'lucide-react';
+import { User, ScanFace, ArrowRight, ShieldCheck, Mail, Lock } from 'lucide-react';
+import { Label } from "@/components/ui/label";
 import WebcamCapture from '@/components/WebcamCapture';
 import { useAuth } from '@/lib/auth-context';
 import { authApi } from '@/lib/api';
@@ -13,7 +14,10 @@ import factoryBg from '@assets/generated_images/modern_clean_industrial_factory_
 export default function Login() {
   const [, setLocation] = useLocation();
   const { setUser } = useAuth();
+  const [loginMode, setLoginMode] = useState<'worker' | 'admin'>('worker');
   const [id, setId] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<'id' | 'face'>('id');
@@ -51,6 +55,28 @@ export default function Login() {
     }, 1500);
   };
 
+  const handleAdminSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const user = await authApi.loginAdmin(email, password);
+      setUser(user);
+      setLocation('/admin/dashboard');
+    } catch (err) {
+      setError('Invalid credentials. Try admin@factory.com / admin123');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleLoginMode = () => {
+    setLoginMode(loginMode === 'worker' ? 'admin' : 'worker');
+    setError('');
+    setStep('id');
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-cover bg-center relative"
          style={{ backgroundImage: `url(${factoryBg})` }}>
@@ -59,56 +85,111 @@ export default function Login() {
 
       <Card className="w-full max-w-md z-10 shadow-2xl border-0 bg-white/95 backdrop-blur-xl animate-in zoom-in-95 duration-500">
         <CardHeader className="text-center pb-2">
-          <div className="mx-auto w-16 h-16 bg-primary rounded-xl flex items-center justify-center mb-4 shadow-lg rotate-3 transition-transform hover:rotate-0">
-            <span className="text-3xl font-heading font-bold text-white">F</span>
+          <div className={`mx-auto w-16 h-16 rounded-xl flex items-center justify-center mb-4 shadow-lg rotate-3 transition-transform hover:rotate-0 ${loginMode === 'admin' ? 'bg-amber-500' : 'bg-primary'}`}>
+            {loginMode === 'admin' ? (
+              <ShieldCheck className="h-8 w-8 text-white" />
+            ) : (
+              <span className="text-3xl font-heading font-bold text-white">F</span>
+            )}
           </div>
           <CardTitle className="text-3xl font-heading tracking-wide text-slate-900">FACTORY FLOW</CardTitle>
-          <CardDescription className="text-slate-600 text-base">Worker Portal Access</CardDescription>
+          <CardDescription className="text-slate-600 text-base">
+            {loginMode === 'admin' ? 'Admin Portal Access' : 'Worker Portal Access'}
+          </CardDescription>
         </CardHeader>
         <CardContent className="pt-6">
-          <Tabs defaultValue="id" value={step} className="w-full">
-            <TabsContent value="id" className="space-y-4 mt-0">
-              <form onSubmit={handleIdSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-700 uppercase tracking-wider">Employee ID</label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-3.5 h-5 w-5 text-slate-400" />
-                    <Input 
-                      type="text" 
-                      placeholder="Enter your ID (e.g., 46)" 
-                      value={id}
-                      onChange={(e) => setId(e.target.value)}
-                      className="pl-10 h-12 text-lg bg-slate-50 border-slate-200 focus:ring-primary focus:border-primary"
-                    />
+          {loginMode === 'worker' ? (
+            <Tabs defaultValue="id" value={step} className="w-full">
+              <TabsContent value="id" className="space-y-4 mt-0">
+                <form onSubmit={handleIdSubmit} className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-slate-700 uppercase tracking-wider">Employee ID</label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-3.5 h-5 w-5 text-slate-400" />
+                      <Input 
+                        type="text" 
+                        placeholder="Enter your ID (e.g., 46)" 
+                        value={id}
+                        onChange={(e) => setId(e.target.value)}
+                        className="pl-10 h-12 text-lg bg-slate-50 border-slate-200 focus:ring-primary focus:border-primary"
+                        data-testid="input-worker-id"
+                      />
+                    </div>
                   </div>
-                </div>
-                
-                {error && <p className="text-red-500 text-sm font-medium text-center animate-pulse">{error}</p>}
-                
-                <Button type="submit" className="w-full h-12 btn-industrial text-lg mt-2" disabled={loading}>
-                  {loading ? 'Verifying...' : 'Next'} {!loading && <ArrowRight className="ml-2 h-5 w-5" />}
-                </Button>
-              </form>
-            </TabsContent>
+                  
+                  {error && <p className="text-red-500 text-sm font-medium text-center animate-pulse" data-testid="text-error">{error}</p>}
+                  
+                  <Button type="submit" className="w-full h-12 btn-industrial text-lg mt-2" disabled={loading} data-testid="button-next">
+                    {loading ? 'Verifying...' : 'Next'} {!loading && <ArrowRight className="ml-2 h-5 w-5" />}
+                  </Button>
+                </form>
+              </TabsContent>
 
-            <TabsContent value="face" className="mt-0 space-y-4">
-               <div className="text-center mb-4">
-                  <p className="text-slate-600 font-medium">Verify your identity</p>
-               </div>
-               <WebcamCapture onCapture={handleFaceCapture} label="Scan Face to Login" />
-               
-               <Button 
-                variant="ghost" 
-                onClick={() => setStep('id')}
-                className="w-full mt-2 text-slate-500"
-              >
-                Back to ID Entry
+              <TabsContent value="face" className="mt-0 space-y-4">
+                 <div className="text-center mb-4">
+                    <p className="text-slate-600 font-medium">Verify your identity</p>
+                 </div>
+                 <WebcamCapture onCapture={handleFaceCapture} label="Scan Face to Login" />
+                 
+                 <Button 
+                  variant="ghost" 
+                  onClick={() => setStep('id')}
+                  className="w-full mt-2 text-slate-500"
+                  data-testid="button-back"
+                >
+                  Back to ID Entry
+                </Button>
+              </TabsContent>
+            </Tabs>
+          ) : (
+            <form onSubmit={handleAdminSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-slate-700 uppercase tracking-wider">Email</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3.5 h-5 w-5 text-slate-400" />
+                  <Input 
+                    type="email" 
+                    placeholder="admin@factory.com" 
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="pl-10 h-12 text-lg bg-slate-50 border-slate-200 focus:ring-primary focus:border-primary"
+                    data-testid="input-admin-email"
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-slate-700 uppercase tracking-wider">Password</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3.5 h-5 w-5 text-slate-400" />
+                  <Input 
+                    type="password" 
+                    placeholder="••••••••" 
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="pl-10 h-12 text-lg bg-slate-50 border-slate-200 focus:ring-primary focus:border-primary"
+                    data-testid="input-admin-password"
+                  />
+                </div>
+              </div>
+              
+              {error && <p className="text-red-500 text-sm font-medium text-center animate-pulse" data-testid="text-error">{error}</p>}
+              
+              <Button type="submit" className="w-full h-12 bg-amber-500 hover:bg-amber-600 text-white text-lg mt-2" disabled={loading} data-testid="button-admin-login">
+                {loading ? 'Signing In...' : 'Sign In'} {!loading && <ArrowRight className="ml-2 h-5 w-5" />}
               </Button>
-            </TabsContent>
-          </Tabs>
+            </form>
+          )}
         </CardContent>
-        <div className="bg-slate-50 p-4 rounded-b-xl text-center text-xs text-slate-400 border-t border-slate-100">
-          System v2.4.1 • Secure Connection
+        <div className="bg-slate-50 p-4 rounded-b-xl text-center border-t border-slate-100 space-y-2">
+          <div className="text-xs text-slate-400">System v2.4.1 • Secure Connection</div>
+          <button 
+            onClick={toggleLoginMode}
+            className="text-xs text-primary hover:text-primary/80 font-medium transition-colors"
+            data-testid="button-toggle-login-mode"
+          >
+            {loginMode === 'worker' ? 'Admin Login' : 'Worker Login'}
+          </button>
         </div>
       </Card>
     </div>
