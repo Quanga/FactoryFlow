@@ -14,6 +14,8 @@ import type {
   InsertAttendanceRecord,
   Setting,
   InsertSetting,
+  Department,
+  InsertDepartment,
 } from "@shared/schema";
 
 const pool = new Pool({
@@ -49,6 +51,14 @@ export interface IStorage {
   // Settings operations
   getSetting(key: string): Promise<Setting | undefined>;
   setSetting(key: string, value: string): Promise<Setting>;
+
+  // Department operations
+  getAllDepartments(): Promise<Department[]>;
+  getDepartment(id: number): Promise<Department | undefined>;
+  createDepartment(department: InsertDepartment): Promise<Department>;
+  updateDepartment(id: number, department: Partial<InsertDepartment>): Promise<Department | undefined>;
+  deleteDepartment(id: number): Promise<boolean>;
+  getUserCountByDepartment(departmentName: string): Promise<number>;
 }
 
 export class DrizzleStorage implements IStorage {
@@ -211,6 +221,49 @@ export class DrizzleStorage implements IStorage {
       .values({ key, value })
       .returning();
     return newSetting;
+  }
+
+  // Department operations
+  async getAllDepartments(): Promise<Department[]> {
+    return db.select().from(schema.departments).orderBy(schema.departments.name);
+  }
+
+  async getDepartment(id: number): Promise<Department | undefined> {
+    const departments = await db
+      .select()
+      .from(schema.departments)
+      .where(eq(schema.departments.id, id));
+    return departments[0];
+  }
+
+  async createDepartment(department: InsertDepartment): Promise<Department> {
+    const [newDepartment] = await db
+      .insert(schema.departments)
+      .values(department)
+      .returning();
+    return newDepartment;
+  }
+
+  async updateDepartment(id: number, department: Partial<InsertDepartment>): Promise<Department | undefined> {
+    const [updatedDepartment] = await db
+      .update(schema.departments)
+      .set(department)
+      .where(eq(schema.departments.id, id))
+      .returning();
+    return updatedDepartment;
+  }
+
+  async deleteDepartment(id: number): Promise<boolean> {
+    const result = await db.delete(schema.departments).where(eq(schema.departments.id, id));
+    return true;
+  }
+
+  async getUserCountByDepartment(departmentName: string): Promise<number> {
+    const users = await db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.department, departmentName));
+    return users.length;
   }
 }
 
