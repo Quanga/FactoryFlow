@@ -10,9 +10,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { userApi, settingsApi } from '@/lib/api';
-import type { User } from '@shared/schema';
-import { Plus, Pencil, Trash2, Save, Mail, Users, Settings, Camera } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { userApi, settingsApi, departmentApi } from '@/lib/api';
+import type { User, Department } from '@shared/schema';
+import { Plus, Pencil, Trash2, Save, Mail, Users, Settings, Camera, Building2 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import WebcamCapture from '@/components/WebcamCapture';
 
@@ -29,12 +30,22 @@ export default function AdminDashboard() {
     queryKey: ['settings', 'admin_email'],
     queryFn: () => settingsApi.get('admin_email'),
   });
+
+  const { data: departments = [] } = useQuery({
+    queryKey: ['departments'],
+    queryFn: departmentApi.getAll,
+  });
   
   // User Management State
   const [isUserDialogOpen, setIsUserDialogOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<Partial<User>>({});
   const [isEditing, setIsEditing] = useState(false);
   const [isCapturingPhoto, setIsCapturingPhoto] = useState(false);
+
+  // Department Management State
+  const [isDeptDialogOpen, setIsDeptDialogOpen] = useState(false);
+  const [currentDept, setCurrentDept] = useState<Partial<Department>>({});
+  const [isEditingDept, setIsEditingDept] = useState(false);
 
   // Settings State
   const [emailSettings, setEmailSettings] = useState('');
@@ -85,6 +96,45 @@ export default function AdminDashboard() {
     },
   });
 
+  const createDeptMutation = useMutation({
+    mutationFn: departmentApi.create,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['departments'] });
+      toast({ title: "Department Created", description: "Department has been added successfully." });
+      setIsDeptDialogOpen(false);
+      setCurrentDept({});
+      setIsEditingDept(false);
+    },
+    onError: (error: Error) => {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    },
+  });
+
+  const updateDeptMutation = useMutation({
+    mutationFn: ({ id, ...data }: any) => departmentApi.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['departments'] });
+      toast({ title: "Department Updated", description: "Department has been updated successfully." });
+      setIsDeptDialogOpen(false);
+      setCurrentDept({});
+      setIsEditingDept(false);
+    },
+    onError: (error: Error) => {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    },
+  });
+
+  const deleteDeptMutation = useMutation({
+    mutationFn: departmentApi.delete,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['departments'] });
+      toast({ title: "Department Deleted", description: "Department has been removed." });
+    },
+    onError: (error: Error) => {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    },
+  });
+
   const handleSaveUser = () => {
     if (!currentUser.name || !currentUser.id || !currentUser.department) {
       toast({ variant: "destructive", title: "Error", description: "All fields are required" });
@@ -125,6 +175,35 @@ export default function AdminDashboard() {
     updateSettingMutation.mutate({ key: 'admin_email', value: emailSettings });
   };
 
+  const handleSaveDept = () => {
+    if (!currentDept.name) {
+      toast({ variant: "destructive", title: "Error", description: "Department name is required" });
+      return;
+    }
+
+    if (isEditingDept && currentDept.id) {
+      updateDeptMutation.mutate({ id: currentDept.id, name: currentDept.name, description: currentDept.description });
+    } else {
+      createDeptMutation.mutate({ name: currentDept.name, description: currentDept.description || undefined });
+    }
+  };
+
+  const handleOpenEditDept = (dept: Department) => {
+    setCurrentDept(dept);
+    setIsEditingDept(true);
+    setIsDeptDialogOpen(true);
+  };
+
+  const handleOpenCreateDept = () => {
+    setCurrentDept({});
+    setIsEditingDept(false);
+    setIsDeptDialogOpen(true);
+  };
+
+  const handleDeleteDept = (id: number) => {
+    deleteDeptMutation.mutate(id);
+  };
+
   return (
     <Layout>
       <div className="space-y-8">
@@ -134,9 +213,10 @@ export default function AdminDashboard() {
         </div>
 
         <Tabs defaultValue="users" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 max-w-md mb-8">
-            <TabsTrigger value="users" className="gap-2"><Users className="h-4 w-4" /> User Management</TabsTrigger>
-            <TabsTrigger value="settings" className="gap-2"><Settings className="h-4 w-4" /> System Settings</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-3 max-w-xl mb-8">
+            <TabsTrigger value="users" className="gap-2" data-testid="tab-users"><Users className="h-4 w-4" /> Employees</TabsTrigger>
+            <TabsTrigger value="departments" className="gap-2" data-testid="tab-departments"><Building2 className="h-4 w-4" /> Departments</TabsTrigger>
+            <TabsTrigger value="settings" className="gap-2" data-testid="tab-settings"><Settings className="h-4 w-4" /> Settings</TabsTrigger>
           </TabsList>
 
           <TabsContent value="users" className="space-y-4">
@@ -195,6 +275,67 @@ export default function AdminDashboard() {
             </Card>
           </TabsContent>
 
+          <TabsContent value="departments" className="space-y-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>Departments</CardTitle>
+                  <CardDescription>Manage departments for employee organization</CardDescription>
+                </div>
+                <Button onClick={handleOpenCreateDept} className="btn-industrial bg-primary text-white" data-testid="button-add-department">
+                  <Plus className="mr-2 h-4 w-4" /> Add Department
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {departments.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No departments created yet. Click "Add Department" to create your first one.
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Description</TableHead>
+                        <TableHead>Employees</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {departments.map((dept) => {
+                        const employeeCount = users.filter(u => u.department === dept.name).length;
+                        return (
+                          <TableRow key={dept.id} data-testid={`row-department-${dept.id}`}>
+                            <TableCell className="font-medium">{dept.name}</TableCell>
+                            <TableCell className="text-muted-foreground">{dept.description || '-'}</TableCell>
+                            <TableCell>
+                              <Badge variant="secondary">{employeeCount}</Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button variant="ghost" size="icon" onClick={() => handleOpenEditDept(dept)} data-testid={`button-edit-dept-${dept.id}`}>
+                                <Pencil className="h-4 w-4 text-slate-500" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                onClick={() => handleDeleteDept(dept.id)}
+                                disabled={employeeCount > 0}
+                                title={employeeCount > 0 ? "Cannot delete department with employees" : "Delete department"}
+                                data-testid={`button-delete-dept-${dept.id}`}
+                              >
+                                <Trash2 className={`h-4 w-4 ${employeeCount > 0 ? 'text-slate-300' : 'text-red-500'}`} />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           <TabsContent value="settings" className="space-y-4">
             <Card>
               <CardHeader>
@@ -243,6 +384,44 @@ export default function AdminDashboard() {
           </TabsContent>
         </Tabs>
 
+        {/* Department Dialog */}
+        <Dialog open={isDeptDialogOpen} onOpenChange={setIsDeptDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{isEditingDept ? 'Edit Department' : 'Add New Department'}</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="deptName" className="text-right">Name</Label>
+                <Input 
+                  id="deptName" 
+                  value={currentDept.name || ''} 
+                  onChange={(e) => setCurrentDept({...currentDept, name: e.target.value})}
+                  className="col-span-3"
+                  placeholder="e.g., Assembly Line"
+                  data-testid="input-dept-name"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="deptDesc" className="text-right">Description</Label>
+                <Input 
+                  id="deptDesc" 
+                  value={currentDept.description || ''} 
+                  onChange={(e) => setCurrentDept({...currentDept, description: e.target.value})}
+                  className="col-span-3"
+                  placeholder="Optional description"
+                  data-testid="input-dept-description"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button onClick={handleSaveDept} data-testid="button-save-department">
+                {isEditingDept ? 'Save Changes' : 'Create Department'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* User Dialog */}
         <Dialog open={isUserDialogOpen} onOpenChange={setIsUserDialogOpen}>
           <DialogContent>
@@ -270,12 +449,26 @@ export default function AdminDashboard() {
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="dept" className="text-right">Department</Label>
-                <Input 
-                  id="dept" 
-                  value={currentUser.department || ''} 
-                  onChange={(e) => setCurrentUser({...currentUser, department: e.target.value})}
-                  className="col-span-3" 
-                />
+                <div className="col-span-3">
+                  <Select 
+                    value={currentUser.department || ''} 
+                    onValueChange={(value) => setCurrentUser({...currentUser, department: value})}
+                  >
+                    <SelectTrigger data-testid="select-department">
+                      <SelectValue placeholder="Select a department" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {departments.map((dept) => (
+                        <SelectItem key={dept.id} value={dept.name} data-testid={`option-dept-${dept.id}`}>
+                          {dept.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {departments.length === 0 && (
+                    <p className="text-xs text-muted-foreground mt-1">No departments available. Create one in the Departments tab first.</p>
+                  )}
+                </div>
               </div>
               <div className="grid grid-cols-4 items-start gap-4 pt-2">
                 <Label className="text-right pt-2">Profile Photo</Label>

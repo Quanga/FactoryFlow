@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
-import { insertUserSchema, insertLeaveRequestSchema, insertAttendanceRecordSchema } from "@shared/schema";
+import { insertUserSchema, insertLeaveRequestSchema, insertAttendanceRecordSchema, insertDepartmentSchema } from "@shared/schema";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -253,6 +253,96 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Set setting error:", error);
       return res.status(500).json({ error: "Failed to update setting" });
+    }
+  });
+
+  // ========== DEPARTMENT ROUTES ==========
+  
+  // Get all departments
+  app.get("/api/departments", async (req, res) => {
+    try {
+      const departments = await storage.getAllDepartments();
+      return res.json(departments);
+    } catch (error) {
+      console.error("Get departments error:", error);
+      return res.status(500).json({ error: "Failed to fetch departments" });
+    }
+  });
+
+  // Get department by ID
+  app.get("/api/departments/:id", async (req, res) => {
+    try {
+      const department = await storage.getDepartment(parseInt(req.params.id));
+      
+      if (!department) {
+        return res.status(404).json({ error: "Department not found" });
+      }
+
+      return res.json(department);
+    } catch (error) {
+      console.error("Get department error:", error);
+      return res.status(500).json({ error: "Failed to fetch department" });
+    }
+  });
+
+  // Create department
+  app.post("/api/departments", async (req, res) => {
+    try {
+      const validatedData = insertDepartmentSchema.parse(req.body);
+      const newDepartment = await storage.createDepartment(validatedData);
+      return res.status(201).json(newDepartment);
+    } catch (error: any) {
+      console.error("Create department error:", error);
+      if (error.code === '23505') {
+        return res.status(400).json({ error: "Department name already exists" });
+      }
+      return res.status(400).json({ error: "Invalid department data" });
+    }
+  });
+
+  // Update department
+  app.patch("/api/departments/:id", async (req, res) => {
+    try {
+      const updatedDepartment = await storage.updateDepartment(parseInt(req.params.id), req.body);
+      
+      if (!updatedDepartment) {
+        return res.status(404).json({ error: "Department not found" });
+      }
+
+      return res.json(updatedDepartment);
+    } catch (error: any) {
+      console.error("Update department error:", error);
+      if (error.code === '23505') {
+        return res.status(400).json({ error: "Department name already exists" });
+      }
+      return res.status(500).json({ error: "Failed to update department" });
+    }
+  });
+
+  // Delete department
+  app.delete("/api/departments/:id", async (req, res) => {
+    try {
+      const department = await storage.getDepartment(parseInt(req.params.id));
+      
+      if (!department) {
+        return res.status(404).json({ error: "Department not found" });
+      }
+
+      // Check if any users are in this department
+      const userCount = await storage.getUserCountByDepartment(department.name);
+      
+      if (userCount > 0) {
+        return res.status(409).json({ 
+          error: "Cannot delete department with assigned employees",
+          userCount 
+        });
+      }
+
+      await storage.deleteDepartment(parseInt(req.params.id));
+      return res.status(204).send();
+    } catch (error) {
+      console.error("Delete department error:", error);
+      return res.status(500).json({ error: "Failed to delete department" });
     }
   });
 

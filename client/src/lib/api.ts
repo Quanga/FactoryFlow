@@ -1,4 +1,4 @@
-import type { User, LeaveBalance, LeaveRequest, AttendanceRecord, Setting } from "@shared/schema";
+import type { User, LeaveBalance, LeaveRequest, AttendanceRecord, Setting, Department } from "@shared/schema";
 
 const API_BASE = "/api";
 
@@ -143,5 +143,56 @@ export const settingsApi = {
     });
     if (!res.ok) throw new Error("Failed to update setting");
     return res.json();
+  },
+};
+
+// Department API
+export const departmentApi = {
+  async getAll(): Promise<Department[]> {
+    const res = await fetch(`${API_BASE}/departments`);
+    if (!res.ok) throw new Error("Failed to fetch departments");
+    return res.json();
+  },
+
+  async getById(id: number): Promise<Department> {
+    const res = await fetch(`${API_BASE}/departments/${id}`);
+    if (!res.ok) throw new Error("Failed to fetch department");
+    return res.json();
+  },
+
+  async create(department: { name: string; description?: string }): Promise<Department> {
+    const res = await fetch(`${API_BASE}/departments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(department),
+    });
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.error || "Failed to create department");
+    }
+    return res.json();
+  },
+
+  async update(id: number, department: { name?: string; description?: string }): Promise<Department> {
+    const res = await fetch(`${API_BASE}/departments/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(department),
+    });
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.error || "Failed to update department");
+    }
+    return res.json();
+  },
+
+  async delete(id: number): Promise<void> {
+    const res = await fetch(`${API_BASE}/departments/${id}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.error || "Failed to delete department");
+    }
   },
 };
