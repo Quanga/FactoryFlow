@@ -148,7 +148,13 @@ export const attendanceApi = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(record),
     });
-    if (!res.ok) throw new Error("Failed to create attendance record");
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      const error = new Error(errorData.message || "Failed to create attendance record");
+      (error as any).status = res.status;
+      (error as any).code = errorData.error;
+      throw error;
+    }
     return res.json();
   },
 };

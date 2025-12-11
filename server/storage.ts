@@ -1,7 +1,7 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import pkg from "pg";
 const { Pool } = pkg;
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, gte, lte } from "drizzle-orm";
 import * as schema from "@shared/schema";
 import type {
   User,
@@ -46,6 +46,7 @@ export interface IStorage {
   
   // Attendance operations
   getAttendanceRecords(userId: string, limit?: number): Promise<AttendanceRecord[]>;
+  getTodayLatestAttendance(userId: string): Promise<AttendanceRecord | undefined>;
   createAttendanceRecord(record: InsertAttendanceRecord): Promise<AttendanceRecord>;
   
   // Settings operations
@@ -188,6 +189,28 @@ export class DrizzleStorage implements IStorage {
       .where(eq(schema.attendanceRecords.userId, userId))
       .orderBy(desc(schema.attendanceRecords.timestamp))
       .limit(limit);
+  }
+
+  async getTodayLatestAttendance(userId: string): Promise<AttendanceRecord | undefined> {
+    const today = new Date();
+    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0);
+    const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59);
+    
+    const records = await db
+      .select()
+      .from(schema.attendanceRecords)
+      .where(
+        and(
+          eq(schema.attendanceRecords.userId, userId),
+          eq(schema.attendanceRecords.context, 'attendance'),
+          gte(schema.attendanceRecords.timestamp, startOfDay),
+          lte(schema.attendanceRecords.timestamp, endOfDay)
+        )
+      )
+      .orderBy(desc(schema.attendanceRecords.timestamp))
+      .limit(1);
+    
+    return records[0];
   }
 
   async createAttendanceRecord(record: InsertAttendanceRecord): Promise<AttendanceRecord> {

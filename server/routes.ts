@@ -262,6 +262,30 @@ export async function registerRoutes(
   app.post("/api/attendance", async (req, res) => {
     try {
       const validatedData = insertAttendanceRecordSchema.parse(req.body);
+      
+      // Check for valid clock-in/clock-out sequence (only for attendance context)
+      if (validatedData.context === 'attendance') {
+        const latestRecord = await storage.getTodayLatestAttendance(validatedData.userId);
+        
+        if (validatedData.type === 'in') {
+          // Trying to clock in - check if already clocked in without clocking out
+          if (latestRecord && latestRecord.type === 'in') {
+            return res.status(409).json({ 
+              error: "Already clocked in", 
+              message: "Worker is already clocked in. Please clock out before clocking in again." 
+            });
+          }
+        } else if (validatedData.type === 'out') {
+          // Trying to clock out - check if there's a clock-in first
+          if (!latestRecord || latestRecord.type === 'out') {
+            return res.status(409).json({ 
+              error: "Not clocked in", 
+              message: "Worker has not clocked in yet today." 
+            });
+          }
+        }
+      }
+      
       const newRecord = await storage.createAttendanceRecord(validatedData);
       
       // Check for late arrival or early departure and send notification
