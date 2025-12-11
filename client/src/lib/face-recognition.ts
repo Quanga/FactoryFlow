@@ -59,11 +59,29 @@ export async function extractFaceDescriptor(input: HTMLVideoElement | HTMLImageE
 export async function extractFaceDescriptorFromBase64(base64Image: string): Promise<Float32Array | null> {
   return new Promise((resolve) => {
     const img = new Image();
+    img.crossOrigin = 'anonymous';
     img.onload = async () => {
-      const descriptor = await extractFaceDescriptor(img);
-      resolve(descriptor);
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth || img.width;
+        canvas.height = img.naturalHeight || img.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(null);
+          return;
+        }
+        ctx.drawImage(img, 0, 0);
+        const descriptor = await extractFaceDescriptor(canvas);
+        resolve(descriptor);
+      } catch (err) {
+        console.error('Face extraction error:', err);
+        resolve(null);
+      }
     };
-    img.onerror = () => resolve(null);
+    img.onerror = (err) => {
+      console.error('Image load error:', err);
+      resolve(null);
+    };
     img.src = base64Image;
   });
 }
