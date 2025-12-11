@@ -102,6 +102,8 @@ Please log in to the FactoryFlow admin portal to review and approve/reject this 
 
 export interface LateAttendanceEmailData {
   employeeName: string;
+  firstName: string;
+  surname: string;
   employeeId: string;
   department?: string;
   type: 'late_arrival' | 'early_departure';
@@ -135,6 +137,8 @@ export async function sendLateAttendanceNotification(
   let messageBody = data.customMessage || `${data.employeeName} (ID: ${data.employeeId}) ${isLate ? 'clocked in late' : 'left early'} at ${data.actualTime}. ${cutoffLabel} ${data.cutoffTime}.`;
   
   messageBody = messageBody
+    .replace(/\{firstName\}/g, data.firstName)
+    .replace(/\{surname\}/g, data.surname)
     .replace(/\{name\}/g, data.employeeName)
     .replace(/\{id\}/g, data.employeeId)
     .replace(/\{department\}/g, data.department || 'N/A')

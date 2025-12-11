@@ -1143,7 +1143,7 @@ export default function AdminDashboard() {
                       value={lateArrivalMessage} 
                       onChange={(e) => setLateArrivalMessage(e.target.value)}
                       rows={3}
-                      placeholder="{name} (ID: {id}) clocked in late at {time}. Expected by {cutoff}."
+                      placeholder="{firstName} {surname} (ID: {id}) clocked in late at {time}. Expected by {cutoff}."
                       data-testid="input-late-arrival-message"
                     />
                   </div>
@@ -1154,7 +1154,7 @@ export default function AdminDashboard() {
                       value={earlyDepartureMessage} 
                       onChange={(e) => setEarlyDepartureMessage(e.target.value)}
                       rows={3}
-                      placeholder="{name} (ID: {id}) left early at {time}. Expected after {cutoff}."
+                      placeholder="{firstName} {surname} (ID: {id}) left early at {time}. Expected after {cutoff}."
                       data-testid="input-early-departure-message"
                     />
                   </div>
@@ -1162,7 +1162,8 @@ export default function AdminDashboard() {
                   <div className="p-3 bg-slate-100 rounded-lg">
                     <p className="text-sm font-medium mb-2">Available placeholders:</p>
                     <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-                      <span><code className="bg-white px-1 rounded">{'{name}'}</code> - Employee name</span>
+                      <span><code className="bg-white px-1 rounded">{'{firstName}'}</code> - First name</span>
+                      <span><code className="bg-white px-1 rounded">{'{surname}'}</code> - Surname</span>
                       <span><code className="bg-white px-1 rounded">{'{id}'}</code> - Employee ID</span>
                       <span><code className="bg-white px-1 rounded">{'{department}'}</code> - Department</span>
                       <span><code className="bg-white px-1 rounded">{'{time}'}</code> - Actual clock time</span>

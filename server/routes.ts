@@ -516,6 +516,8 @@ export async function registerRoutes(
                   'hr@aece.co.za',
                   {
                     employeeName: `${user.firstName} ${user.surname}`,
+                    firstName: user.firstName,
+                    surname: user.surname,
                     employeeId: user.id,
                     department: user.department || undefined,
                     type: infringementType,
