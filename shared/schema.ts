@@ -27,6 +27,7 @@ export const users = pgTable("users", {
   role: text("role").notNull().default("worker"), // 'worker' or 'manager'
   department: text("department").notNull(),
   photoUrl: text("photo_url"),
+  faceDescriptor: text("face_descriptor"), // JSON array of 128 face embedding values
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
