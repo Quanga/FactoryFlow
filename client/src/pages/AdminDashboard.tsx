@@ -32,6 +32,16 @@ export default function AdminDashboard() {
     queryFn: () => settingsApi.get('admin_email'),
   });
 
+  const { data: clockInCutoffSetting } = useQuery({
+    queryKey: ['settings', 'clock_in_cutoff'],
+    queryFn: () => settingsApi.get('clock_in_cutoff'),
+  });
+
+  const { data: clockOutCutoffSetting } = useQuery({
+    queryKey: ['settings', 'clock_out_cutoff'],
+    queryFn: () => settingsApi.get('clock_out_cutoff'),
+  });
+
   const { data: departments = [] } = useQuery({
     queryKey: ['departments'],
     queryFn: departmentApi.getAll,
@@ -52,12 +62,26 @@ export default function AdminDashboard() {
 
   // Settings State
   const [emailSettings, setEmailSettings] = useState('');
+  const [clockInCutoff, setClockInCutoff] = useState('08:00');
+  const [clockOutCutoff, setClockOutCutoff] = useState('17:00');
 
   useEffect(() => {
     if (emailSetting) {
       setEmailSettings(emailSetting.value);
     }
   }, [emailSetting]);
+
+  useEffect(() => {
+    if (clockInCutoffSetting) {
+      setClockInCutoff(clockInCutoffSetting.value);
+    }
+  }, [clockInCutoffSetting]);
+
+  useEffect(() => {
+    if (clockOutCutoffSetting) {
+      setClockOutCutoff(clockOutCutoffSetting.value);
+    }
+  }, [clockOutCutoffSetting]);
 
   const createUserMutation = useMutation({
     mutationFn: userApi.create,
@@ -199,8 +223,10 @@ export default function AdminDashboard() {
     setExtractingFace(false);
   };
 
-  const handleSaveSettings = () => {
-    updateSettingMutation.mutate({ key: 'admin_email', value: emailSettings });
+  const handleSaveSettings = async () => {
+    await updateSettingMutation.mutateAsync({ key: 'admin_email', value: emailSettings });
+    await updateSettingMutation.mutateAsync({ key: 'clock_in_cutoff', value: clockInCutoff });
+    await updateSettingMutation.mutateAsync({ key: 'clock_out_cutoff', value: clockOutCutoff });
   };
 
   const handleSaveDept = () => {
@@ -368,23 +394,25 @@ export default function AdminDashboard() {
             <Card>
               <CardHeader>
                 <CardTitle>Notification Settings</CardTitle>
-                <CardDescription>Configure where leave requests are sent</CardDescription>
+                <CardDescription>Configure email notifications for HR</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6 max-w-xl">
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label>Admin Email Address</Label>
+                    <Label>HR Email Address</Label>
                     <div className="flex gap-2">
                       <div className="relative flex-1">
                         <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                         <Input 
                           value={emailSettings} 
                           onChange={(e) => setEmailSettings(e.target.value)}
-                          className="pl-9" 
+                          className="pl-9"
+                          placeholder="hr@company.com"
+                          data-testid="input-admin-email"
                         />
                       </div>
                     </div>
-                    <p className="text-xs text-muted-foreground">All leave requests will be forwarded to this email address.</p>
+                    <p className="text-xs text-muted-foreground">Leave requests and late attendance notifications will be sent to this email.</p>
                   </div>
 
                   <div className="flex items-center justify-between p-4 border rounded-lg bg-slate-50">
@@ -394,21 +422,47 @@ export default function AdminDashboard() {
                     </div>
                     <Switch defaultChecked />
                   </div>
-
-                  <div className="flex items-center justify-between p-4 border rounded-lg bg-slate-50">
-                    <div className="space-y-0.5">
-                      <Label className="text-base">Daily Digest</Label>
-                      <p className="text-sm text-muted-foreground">Receive a summary of all attendance at 5 PM</p>
-                    </div>
-                    <Switch />
-                  </div>
                 </div>
-                
-                <Button onClick={handleSaveSettings} className="btn-industrial">
-                  <Save className="mr-2 h-4 w-4" /> Save Configuration
-                </Button>
               </CardContent>
             </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Attendance Cut-off Times</CardTitle>
+                <CardDescription>Set the times for late arrivals and early departures</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6 max-w-xl">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Clock-In Cut-off Time</Label>
+                    <Input 
+                      type="time"
+                      value={clockInCutoff} 
+                      onChange={(e) => setClockInCutoff(e.target.value)}
+                      className="w-40"
+                      data-testid="input-clock-in-cutoff"
+                    />
+                    <p className="text-xs text-muted-foreground">Workers clocking in after this time will be marked as late, and HR will be notified.</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Clock-Out Cut-off Time</Label>
+                    <Input 
+                      type="time"
+                      value={clockOutCutoff} 
+                      onChange={(e) => setClockOutCutoff(e.target.value)}
+                      className="w-40"
+                      data-testid="input-clock-out-cutoff"
+                    />
+                    <p className="text-xs text-muted-foreground">Workers clocking out before this time will be flagged for early departure.</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+                
+            <Button onClick={handleSaveSettings} className="btn-industrial">
+              <Save className="mr-2 h-4 w-4" /> Save Configuration
+            </Button>
           </TabsContent>
         </Tabs>
 

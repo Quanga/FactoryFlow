@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
 import { insertUserSchema, insertLeaveRequestSchema, insertAttendanceRecordSchema, insertDepartmentSchema } from "@shared/schema";
-import { sendLeaveRequestNotification } from "./email";
+import { sendLeaveRequestNotification, sendLateAttendanceNotification } from "./email";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -263,6 +263,60 @@ export async function registerRoutes(
     try {
       const validatedData = insertAttendanceRecordSchema.parse(req.body);
       const newRecord = await storage.createAttendanceRecord(validatedData);
+      
+      // Check for late arrival or early departure and send notification
+      if (validatedData.context === 'attendance') {
+        const recordTime = new Date(newRecord.timestamp);
+        const currentTime = `${recordTime.getHours().toString().padStart(2, '0')}:${recordTime.getMinutes().toString().padStart(2, '0')}`;
+        
+        try {
+          const user = await storage.getUser(validatedData.userId);
+          const adminEmailSetting = await storage.getSetting('admin_email');
+          
+          if (user && adminEmailSetting) {
+            let isInfringement = false;
+            let infringementType: 'late_arrival' | 'early_departure' = 'late_arrival';
+            let cutoffTime = '';
+            
+            if (validatedData.type === 'in') {
+              // Check for late arrival
+              const clockInCutoff = await storage.getSetting('clock_in_cutoff');
+              if (clockInCutoff && currentTime > clockInCutoff.value) {
+                isInfringement = true;
+                infringementType = 'late_arrival';
+                cutoffTime = clockInCutoff.value;
+              }
+            } else if (validatedData.type === 'out') {
+              // Check for early departure
+              const clockOutCutoff = await storage.getSetting('clock_out_cutoff');
+              if (clockOutCutoff && currentTime < clockOutCutoff.value) {
+                isInfringement = true;
+                infringementType = 'early_departure';
+                cutoffTime = clockOutCutoff.value;
+              }
+            }
+            
+            if (isInfringement) {
+              await sendLateAttendanceNotification(
+                adminEmailSetting.value,
+                'hr@aece.co.za',
+                {
+                  employeeName: user.name,
+                  employeeId: user.id,
+                  department: user.department,
+                  type: infringementType,
+                  actualTime: currentTime,
+                  cutoffTime: cutoffTime,
+                }
+              );
+            }
+          }
+        } catch (notificationError) {
+          console.error("Failed to check/send late notification:", notificationError);
+          // Don't fail the attendance record creation for notification errors
+        }
+      }
+      
       return res.status(201).json(newRecord);
     } catch (error) {
       console.error("Create attendance error:", error);
