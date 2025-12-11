@@ -13,9 +13,10 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { userApi, settingsApi, departmentApi } from '@/lib/api';
 import type { User, Department } from '@shared/schema';
-import { Plus, Pencil, Trash2, Save, Mail, Users, Settings, Camera, Building2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Save, Mail, Users, Settings, Camera, Building2, Loader2, CheckCircle2 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import WebcamCapture from '@/components/WebcamCapture';
+import { loadFaceModels, extractFaceDescriptorFromBase64, descriptorToJson } from '@/lib/face-recognition';
 
 export default function AdminDashboard() {
   const { toast } = useToast();
@@ -41,6 +42,8 @@ export default function AdminDashboard() {
   const [currentUser, setCurrentUser] = useState<Partial<User>>({});
   const [isEditing, setIsEditing] = useState(false);
   const [isCapturingPhoto, setIsCapturingPhoto] = useState(false);
+  const [extractingFace, setExtractingFace] = useState(false);
+  const [faceExtracted, setFaceExtracted] = useState(false);
 
   // Department Management State
   const [isDeptDialogOpen, setIsDeptDialogOpen] = useState(false);
@@ -150,9 +153,30 @@ export default function AdminDashboard() {
     }
   };
 
-  const handlePhotoCapture = (imageSrc: string) => {
+  const handlePhotoCapture = async (imageSrc: string) => {
     setCurrentUser({ ...currentUser, photoUrl: imageSrc });
     setIsCapturingPhoto(false);
+    setExtractingFace(true);
+    setFaceExtracted(false);
+    
+    try {
+      await loadFaceModels();
+      const descriptor = await extractFaceDescriptorFromBase64(imageSrc);
+      
+      if (descriptor) {
+        const faceDescriptor = descriptorToJson(descriptor);
+        setCurrentUser(prev => ({ ...prev, photoUrl: imageSrc, faceDescriptor }));
+        setFaceExtracted(true);
+        toast({ title: "Face Detected", description: "Facial recognition data has been extracted from the photo." });
+      } else {
+        toast({ variant: "destructive", title: "No Face Detected", description: "Please take a clear photo with your face visible." });
+      }
+    } catch (err) {
+      console.error('Face extraction error:', err);
+      toast({ variant: "destructive", title: "Error", description: "Failed to process face recognition." });
+    } finally {
+      setExtractingFace(false);
+    }
   };
 
   const handleDeleteUser = (id: string) => {
@@ -163,12 +187,16 @@ export default function AdminDashboard() {
     setCurrentUser(user);
     setIsEditing(true);
     setIsUserDialogOpen(true);
+    setFaceExtracted(!!user.faceDescriptor);
+    setExtractingFace(false);
   };
 
   const handleOpenCreate = () => {
     setCurrentUser({});
     setIsEditing(false);
     setIsUserDialogOpen(true);
+    setFaceExtracted(false);
+    setExtractingFace(false);
   };
 
   const handleSaveSettings = () => {
@@ -474,17 +502,39 @@ export default function AdminDashboard() {
                 <Label className="text-right pt-2">Profile Photo</Label>
                 <div className="col-span-3 space-y-3">
                   {currentUser.photoUrl ? (
-                    <div className="flex items-center gap-4">
-                      <div className="h-20 w-20 rounded-full overflow-hidden border-2 border-slate-200">
-                        <img src={currentUser.photoUrl} alt="Preview" className="h-full w-full object-cover" />
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-4">
+                        <div className="h-20 w-20 rounded-full overflow-hidden border-2 border-slate-200 relative">
+                          <img src={currentUser.photoUrl} alt="Preview" className="h-full w-full object-cover" />
+                          {extractingFace && (
+                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                              <Loader2 className="h-6 w-6 text-white animate-spin" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="space-y-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => setIsCapturingPhoto(true)}
+                            disabled={extractingFace}
+                          >
+                            <Camera className="mr-2 h-4 w-4" /> Retake Photo
+                          </Button>
+                          {faceExtracted && (
+                            <div className="flex items-center gap-1 text-xs text-green-600">
+                              <CheckCircle2 className="h-3 w-3" />
+                              <span>Face recognition ready</span>
+                            </div>
+                          )}
+                          {extractingFace && (
+                            <div className="flex items-center gap-1 text-xs text-blue-600">
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                              <span>Extracting face data...</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => setIsCapturingPhoto(true)}
-                      >
-                        <Camera className="mr-2 h-4 w-4" /> Retake Photo
-                      </Button>
                     </div>
                   ) : (
                     <Button 

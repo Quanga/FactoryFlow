@@ -1,26 +1,114 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation } from 'wouter';
+import Webcam from 'react-webcam';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { User, ScanFace, ArrowRight, ShieldCheck, Mail, Lock } from 'lucide-react';
+import { User, ScanFace, ArrowRight, ShieldCheck, Mail, Lock, Camera, Loader2, CheckCircle2 } from 'lucide-react';
 import { Label } from "@/components/ui/label";
-import WebcamCapture from '@/components/WebcamCapture';
 import { useAuth } from '@/lib/auth-context';
-import { authApi } from '@/lib/api';
+import { authApi, faceApi, type FaceDescriptorUser } from '@/lib/api';
+import { loadFaceModels, extractFaceDescriptor, compareFaceDescriptors, isFaceMatch, jsonToDescriptor } from '@/lib/face-recognition';
 import factoryBg from '@assets/generated_images/modern_clean_industrial_factory_interior_background.png';
 
 export default function Login() {
   const [, setLocation] = useLocation();
   const { setUser } = useAuth();
+  const webcamRef = useRef<Webcam>(null);
+  
   const [loginMode, setLoginMode] = useState<'worker' | 'admin'>('worker');
   const [id, setId] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState<'id' | 'face'>('id');
+  const [showIdInput, setShowIdInput] = useState(false);
+  
+  const [modelsReady, setModelsReady] = useState(false);
+  const [faceUsers, setFaceUsers] = useState<FaceDescriptorUser[]>([]);
+  const [detecting, setDetecting] = useState(false);
+  const [recognizedUser, setRecognizedUser] = useState<string | null>(null);
+  const [faceStatus, setFaceStatus] = useState<'loading' | 'scanning' | 'recognized' | 'not_found'>('loading');
+
+  useEffect(() => {
+    if (loginMode === 'worker') {
+      initFaceRecognition();
+    }
+  }, [loginMode]);
+
+  const initFaceRecognition = async () => {
+    setFaceStatus('loading');
+    try {
+      const [loaded, users] = await Promise.all([
+        loadFaceModels(),
+        faceApi.getAllFaceDescriptors(),
+      ]);
+      setModelsReady(loaded);
+      setFaceUsers(users);
+      if (loaded) {
+        setFaceStatus('scanning');
+      }
+    } catch (err) {
+      console.error('Failed to initialize face recognition:', err);
+      setShowIdInput(true);
+    }
+  };
+
+  const detectAndMatchFace = useCallback(async () => {
+    if (!modelsReady || !webcamRef.current || detecting || faceUsers.length === 0) return;
+    
+    const video = webcamRef.current.video;
+    if (!video || video.readyState !== 4) return;
+
+    setDetecting(true);
+    
+    try {
+      const descriptor = await extractFaceDescriptor(video);
+      
+      if (descriptor) {
+        let bestMatch: { user: FaceDescriptorUser; distance: number } | null = null;
+        
+        for (const user of faceUsers) {
+          const storedDescriptor = jsonToDescriptor(user.faceDescriptor);
+          if (storedDescriptor) {
+            const distance = compareFaceDescriptors(descriptor, storedDescriptor);
+            if (!bestMatch || distance < bestMatch.distance) {
+              bestMatch = { user, distance };
+            }
+          }
+        }
+        
+        if (bestMatch && isFaceMatch(bestMatch.distance)) {
+          setFaceStatus('recognized');
+          setRecognizedUser(bestMatch.user.name);
+          
+          setTimeout(async () => {
+            try {
+              const user = await authApi.loginWorker(bestMatch.user.id);
+              setUser(user);
+              setLocation('/dashboard');
+            } catch (err) {
+              setError('Login failed');
+              setFaceStatus('scanning');
+              setRecognizedUser(null);
+            }
+          }, 1000);
+          return;
+        }
+      }
+    } catch (err) {
+      console.error('Face detection error:', err);
+    } finally {
+      setDetecting(false);
+    }
+  }, [modelsReady, detecting, faceUsers, setUser, setLocation]);
+
+  useEffect(() => {
+    if (loginMode !== 'worker' || !modelsReady || faceStatus !== 'scanning') return;
+    
+    const interval = setInterval(detectAndMatchFace, 1500);
+    return () => clearInterval(interval);
+  }, [loginMode, modelsReady, faceStatus, detectAndMatchFace]);
 
   const handleIdSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,31 +116,14 @@ export default function Login() {
     setLoading(true);
 
     try {
-      // Try to login to validate ID exists
       const user = await authApi.loginWorker(id);
-      setStep('face');
+      setUser(user);
+      setLocation('/dashboard');
     } catch (err) {
-      setError('Invalid ID Number. Try "46", "102", or "105".');
+      setError('Invalid ID Number. Please try again.');
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleFaceCapture = async (imageSrc: string) => {
-    setLoading(true);
-    // Simulate face verification delay
-    setTimeout(async () => {
-      try {
-        const user = await authApi.loginWorker(id);
-        setUser(user);
-        setLocation('/dashboard');
-      } catch (err) {
-        setError('Login failed');
-        setStep('id');
-      } finally {
-        setLoading(false);
-      }
-    }, 1500);
   };
 
   const handleAdminSubmit = async (e: React.FormEvent) => {
@@ -74,13 +145,14 @@ export default function Login() {
   const toggleLoginMode = () => {
     setLoginMode(loginMode === 'worker' ? 'admin' : 'worker');
     setError('');
-    setStep('id');
+    setShowIdInput(false);
+    setFaceStatus('loading');
+    setRecognizedUser(null);
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-cover bg-center relative"
          style={{ backgroundImage: `url(${factoryBg})` }}>
-      {/* Overlay */}
       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
 
       <Card className="w-full max-w-md z-10 shadow-2xl border-0 bg-white/95 backdrop-blur-xl animate-in zoom-in-95 duration-500">
@@ -99,8 +171,67 @@ export default function Login() {
         </CardHeader>
         <CardContent className="pt-6">
           {loginMode === 'worker' ? (
-            <Tabs defaultValue="id" value={step} className="w-full">
-              <TabsContent value="id" className="space-y-4 mt-0">
+            <div className="space-y-4">
+              {!showIdInput ? (
+                <>
+                  <div className="relative rounded-xl overflow-hidden bg-slate-900 aspect-video">
+                    <Webcam
+                      ref={webcamRef}
+                      audio={false}
+                      screenshotFormat="image/jpeg"
+                      videoConstraints={{ facingMode: 'user', width: 640, height: 480 }}
+                      className="w-full h-full object-cover"
+                    />
+                    
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className={`w-48 h-48 rounded-full border-4 ${
+                        faceStatus === 'recognized' ? 'border-green-500' : 
+                        faceStatus === 'scanning' ? 'border-primary animate-pulse' : 
+                        'border-white/50'
+                      } transition-colors`} />
+                    </div>
+                    
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+                      <div className="flex items-center justify-center gap-2 text-white">
+                        {faceStatus === 'loading' && (
+                          <>
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                            <span>Loading face recognition...</span>
+                          </>
+                        )}
+                        {faceStatus === 'scanning' && (
+                          <>
+                            <ScanFace className="h-5 w-5 animate-pulse" />
+                            <span>Look at the camera to login</span>
+                          </>
+                        )}
+                        {faceStatus === 'recognized' && (
+                          <>
+                            <CheckCircle2 className="h-5 w-5 text-green-400" />
+                            <span>Welcome, {recognizedUser}!</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {faceUsers.length === 0 && modelsReady && (
+                    <p className="text-sm text-amber-600 text-center">
+                      No registered faces found. Please use ID login.
+                    </p>
+                  )}
+
+                  <div className="text-center">
+                    <button
+                      onClick={() => setShowIdInput(true)}
+                      className="text-sm text-slate-500 hover:text-primary underline"
+                      data-testid="button-use-id"
+                    >
+                      Use Employee ID instead
+                    </button>
+                  </div>
+                </>
+              ) : (
                 <form onSubmit={handleIdSubmit} className="space-y-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-slate-700 uppercase tracking-wider">Employee ID</label>
@@ -108,7 +239,7 @@ export default function Login() {
                       <User className="absolute left-3 top-3.5 h-5 w-5 text-slate-400" />
                       <Input 
                         type="text" 
-                        placeholder="Enter your ID (e.g., 46)" 
+                        placeholder="Enter your ID" 
                         value={id}
                         onChange={(e) => setId(e.target.value)}
                         className="pl-10 h-12 text-lg bg-slate-50 border-slate-200 focus:ring-primary focus:border-primary"
@@ -119,28 +250,26 @@ export default function Login() {
                   
                   {error && <p className="text-red-500 text-sm font-medium text-center animate-pulse" data-testid="text-error">{error}</p>}
                   
-                  <Button type="submit" className="w-full h-12 btn-industrial text-lg mt-2" disabled={loading} data-testid="button-next">
-                    {loading ? 'Verifying...' : 'Next'} {!loading && <ArrowRight className="ml-2 h-5 w-5" />}
+                  <Button type="submit" className="w-full h-12 btn-industrial text-lg mt-2" disabled={loading} data-testid="button-login">
+                    {loading ? 'Signing In...' : 'Sign In'} {!loading && <ArrowRight className="ml-2 h-5 w-5" />}
                   </Button>
-                </form>
-              </TabsContent>
 
-              <TabsContent value="face" className="mt-0 space-y-4">
-                 <div className="text-center mb-4">
-                    <p className="text-slate-600 font-medium">Verify your identity</p>
-                 </div>
-                 <WebcamCapture onCapture={handleFaceCapture} label="Scan Face to Login" />
-                 
-                 <Button 
-                  variant="ghost" 
-                  onClick={() => setStep('id')}
-                  className="w-full mt-2 text-slate-500"
-                  data-testid="button-back"
-                >
-                  Back to ID Entry
-                </Button>
-              </TabsContent>
-            </Tabs>
+                  <div className="text-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowIdInput(false);
+                        setFaceStatus('scanning');
+                      }}
+                      className="text-sm text-slate-500 hover:text-primary underline"
+                      data-testid="button-use-face"
+                    >
+                      Use Face Recognition instead
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
           ) : (
             <form onSubmit={handleAdminSubmit} className="space-y-4">
               <div className="space-y-2">

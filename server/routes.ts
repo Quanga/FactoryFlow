@@ -73,6 +73,24 @@ export async function registerRoutes(
     }
   });
 
+  // Get all users with face descriptors (for face recognition matching)
+  app.get("/api/users/face-descriptors", async (req, res) => {
+    try {
+      const users = await storage.getAllUsers();
+      const usersWithFaces = users
+        .filter(u => u.faceDescriptor && u.role === 'worker')
+        .map(u => ({
+          id: u.id,
+          name: u.name,
+          faceDescriptor: u.faceDescriptor,
+        }));
+      return res.json(usersWithFaces);
+    } catch (error) {
+      console.error("Get face descriptors error:", error);
+      return res.status(500).json({ error: "Failed to fetch face descriptors" });
+    }
+  });
+
   // Get user by ID
   app.get("/api/users/:id", async (req, res) => {
     try {

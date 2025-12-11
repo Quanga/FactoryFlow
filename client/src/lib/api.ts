@@ -25,6 +25,21 @@ export const authApi = {
   },
 };
 
+export type FaceDescriptorUser = {
+  id: string;
+  name: string;
+  faceDescriptor: string;
+};
+
+// Face Recognition API
+export const faceApi = {
+  async getAllFaceDescriptors(): Promise<FaceDescriptorUser[]> {
+    const res = await fetch(`${API_BASE}/users/face-descriptors`);
+    if (!res.ok) throw new Error("Failed to fetch face descriptors");
+    return res.json();
+  },
+};
+
 // User API
 export const userApi = {
   async getAll(): Promise<User[]> {
