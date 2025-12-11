@@ -136,7 +136,13 @@ export const attendanceApi = {
     return res.json();
   },
 
-  async create(record: { userId: string; type: string; photoUrl?: string }): Promise<AttendanceRecord> {
+  async create(record: { 
+    userId: string; 
+    type: string; 
+    photoUrl?: string | null;
+    method?: string;
+    context?: string;
+  }): Promise<AttendanceRecord> {
     const res = await fetch(`${API_BASE}/attendance`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

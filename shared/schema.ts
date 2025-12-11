@@ -82,6 +82,8 @@ export const attendanceRecords = pgTable("attendance_records", {
   type: text("type").notNull(), // 'in' or 'out'
   timestamp: timestamp("timestamp").defaultNow().notNull(),
   photoUrl: text("photo_url"),
+  method: text("method").default("face"), // 'face' or 'id'
+  context: text("context").default("attendance"), // 'attendance' (kiosk) or 'manual'
 });
 
 export const insertAttendanceRecordSchema = createInsertSchema(attendanceRecords).omit({
