@@ -186,14 +186,14 @@ export async function registerRoutes(
       // Send email notification to admin
       try {
         const adminEmailSetting = await storage.getSetting('admin_email');
-        const senderEmailSetting = await storage.getSetting('sender_email');
+        const senderEmail = "hr@aece.co.za";
         
-        if (adminEmailSetting?.value && senderEmailSetting?.value) {
+        if (adminEmailSetting?.value) {
           const user = await storage.getUser(validatedData.userId);
           
           await sendLeaveRequestNotification(
             adminEmailSetting.value,
-            senderEmailSetting.value,
+            senderEmail,
             {
               employeeName: user?.name || 'Unknown',
               employeeId: validatedData.userId,

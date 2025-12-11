@@ -41,6 +41,7 @@ export async function sendLeaveRequestNotification(
       From: fromEmail,
       To: adminEmail,
       Subject: `New Leave Request from ${data.employeeName}`,
+      MessageStream: "dev-stream",
       HtmlBody: `
         <h2>New Leave Request Submitted</h2>
         <p>A new leave request has been submitted and requires your attention.</p>
