@@ -77,12 +77,15 @@ export async function registerRoutes(
   // Get all users with face descriptors (for face recognition matching)
   app.get("/api/users/face-descriptors", async (req, res) => {
     try {
+      const includeAdmins = req.query.includeAdmins === 'true';
       const users = await storage.getAllUsers();
       const usersWithFaces = users
-        .filter(u => u.faceDescriptor && u.role === 'worker')
+        .filter(u => u.faceDescriptor && (u.role === 'worker' || (includeAdmins && u.role === 'manager')))
         .map(u => ({
           id: u.id,
           name: u.name,
+          email: u.email,
+          role: u.role,
           faceDescriptor: u.faceDescriptor,
         }));
       return res.json(usersWithFaces);

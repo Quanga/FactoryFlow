@@ -41,7 +41,7 @@ export default function Login() {
     try {
       const [loaded, users] = await Promise.all([
         loadFaceModels(),
-        faceApi.getAllFaceDescriptors(),
+        faceApi.getAllFaceDescriptors(true),
       ]);
       setModelsReady(loaded);
       setFaceUsers(users);
@@ -81,6 +81,16 @@ export default function Login() {
         if (bestMatch && isFaceMatch(bestMatch.distance)) {
           setFaceStatus('recognized');
           setRecognizedUser(bestMatch.user.name);
+          
+          if (bestMatch.user.role === 'manager') {
+            setTimeout(() => {
+              setLoginMode('admin');
+              setEmail(bestMatch.user.email || '');
+              setFaceStatus('loading');
+              setRecognizedUser(null);
+            }, 1000);
+            return;
+          }
           
           setTimeout(async () => {
             try {
