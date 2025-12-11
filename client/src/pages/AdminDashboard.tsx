@@ -12,9 +12,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { userApi, settingsApi, departmentApi } from '@/lib/api';
-import type { User, Department } from '@shared/schema';
-import { Plus, Pencil, Trash2, Save, Mail, Users, Settings, Camera, Building2, Loader2, CheckCircle2 } from 'lucide-react';
+import { userApi, settingsApi, departmentApi, userGroupApi } from '@/lib/api';
+import type { User, Department, UserGroup } from '@shared/schema';
+import { Plus, Pencil, Trash2, Save, Mail, Users, Settings, Camera, Building2, Loader2, CheckCircle2, UserCog, Shield } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import WebcamCapture from '@/components/WebcamCapture';
 import { loadFaceModels, extractFaceDescriptorFromBase64, descriptorToJson } from '@/lib/face-recognition';
@@ -57,6 +57,11 @@ export default function AdminDashboard() {
     queryKey: ['departments'],
     queryFn: departmentApi.getAll,
   });
+
+  const { data: userGroups = [] } = useQuery({
+    queryKey: ['userGroups'],
+    queryFn: userGroupApi.getAll,
+  });
   
   // User Management State
   const [isUserDialogOpen, setIsUserDialogOpen] = useState(false);
@@ -70,6 +75,21 @@ export default function AdminDashboard() {
   const [isDeptDialogOpen, setIsDeptDialogOpen] = useState(false);
   const [currentDept, setCurrentDept] = useState<Partial<Department>>({});
   const [isEditingDept, setIsEditingDept] = useState(false);
+
+  // User Group Management State
+  const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
+  const [currentGroup, setCurrentGroup] = useState<Partial<UserGroup>>({});
+  const [isEditingGroup, setIsEditingGroup] = useState(false);
+
+  // Admin User Creation State
+  const [isAdminDialogOpen, setIsAdminDialogOpen] = useState(false);
+  const [adminData, setAdminData] = useState<{
+    firstName: string;
+    surname: string;
+    email: string;
+    password: string;
+    userGroupId?: number;
+  }>({ firstName: '', surname: '', email: '', password: '' });
 
   // Settings State
   const [emailSettings, setEmailSettings] = useState('');
@@ -187,9 +207,48 @@ export default function AdminDashboard() {
     },
   });
 
+  const createGroupMutation = useMutation({
+    mutationFn: userGroupApi.create,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['userGroups'] });
+      toast({ title: "User Group Created", description: "User group has been added successfully." });
+      setIsGroupDialogOpen(false);
+      setCurrentGroup({});
+      setIsEditingGroup(false);
+    },
+    onError: (error: Error) => {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    },
+  });
+
+  const updateGroupMutation = useMutation({
+    mutationFn: ({ id, ...data }: any) => userGroupApi.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['userGroups'] });
+      toast({ title: "User Group Updated", description: "User group has been updated successfully." });
+      setIsGroupDialogOpen(false);
+      setCurrentGroup({});
+      setIsEditingGroup(false);
+    },
+    onError: (error: Error) => {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    },
+  });
+
+  const deleteGroupMutation = useMutation({
+    mutationFn: userGroupApi.delete,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['userGroups'] });
+      toast({ title: "User Group Deleted", description: "User group has been removed." });
+    },
+    onError: (error: Error) => {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    },
+  });
+
   const handleSaveUser = () => {
-    if (!currentUser.name || !currentUser.id || !currentUser.department) {
-      toast({ variant: "destructive", title: "Error", description: "All fields are required" });
+    if (!currentUser.firstName || !currentUser.surname || !currentUser.id || !currentUser.department) {
+      toast({ variant: "destructive", title: "Error", description: "First name, surname, ID and department are required" });
       return;
     }
 
@@ -285,6 +344,80 @@ export default function AdminDashboard() {
     deleteDeptMutation.mutate(id);
   };
 
+  // User Group Handlers
+  const handleSaveGroup = () => {
+    if (!currentGroup.name) {
+      toast({ variant: "destructive", title: "Error", description: "Group name is required" });
+      return;
+    }
+
+    if (isEditingGroup && currentGroup.id) {
+      updateGroupMutation.mutate({ id: currentGroup.id, name: currentGroup.name, description: currentGroup.description });
+    } else {
+      createGroupMutation.mutate({ name: currentGroup.name, description: currentGroup.description || undefined });
+    }
+  };
+
+  const handleOpenEditGroup = (group: UserGroup) => {
+    setCurrentGroup(group);
+    setIsEditingGroup(true);
+    setIsGroupDialogOpen(true);
+  };
+
+  const handleOpenCreateGroup = () => {
+    setCurrentGroup({});
+    setIsEditingGroup(false);
+    setIsGroupDialogOpen(true);
+  };
+
+  const handleDeleteGroup = (id: number) => {
+    deleteGroupMutation.mutate(id);
+  };
+
+  // Admin User Handlers
+  const generatePassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    let password = '';
+    for (let i = 0; i < 10; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return password;
+  };
+
+  const handleOpenCreateAdmin = () => {
+    setAdminData({
+      firstName: '',
+      surname: '',
+      email: '',
+      password: generatePassword(),
+      userGroupId: undefined,
+    });
+    setIsAdminDialogOpen(true);
+  };
+
+  const handleSaveAdmin = () => {
+    if (!adminData.firstName || !adminData.surname || !adminData.email || !adminData.password) {
+      toast({ variant: "destructive", title: "Error", description: "First name, surname, email and password are required" });
+      return;
+    }
+
+    createUserMutation.mutate({
+      id: `ADM${Date.now()}`,
+      firstName: adminData.firstName,
+      surname: adminData.surname,
+      email: adminData.email,
+      password: adminData.password,
+      role: 'manager',
+      userGroupId: adminData.userGroupId,
+    }, {
+      onSuccess: () => {
+        setIsAdminDialogOpen(false);
+        setAdminData({ firstName: '', surname: '', email: '', password: '' });
+        toast({ title: "Admin Created", description: `Admin user created. Login credentials have been sent to ${adminData.email}` });
+      }
+    });
+  };
+
   return (
     <Layout>
       <div className="space-y-8">
@@ -294,9 +427,10 @@ export default function AdminDashboard() {
         </div>
 
         <Tabs defaultValue="users" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 max-w-xl mb-8">
+          <TabsList className="grid w-full grid-cols-4 max-w-2xl mb-8">
             <TabsTrigger value="users" className="gap-2" data-testid="tab-users"><Users className="h-4 w-4" /> Employees</TabsTrigger>
             <TabsTrigger value="departments" className="gap-2" data-testid="tab-departments"><Building2 className="h-4 w-4" /> Departments</TabsTrigger>
+            <TabsTrigger value="user-groups" className="gap-2" data-testid="tab-user-groups"><Shield className="h-4 w-4" /> User Groups</TabsTrigger>
             <TabsTrigger value="settings" className="gap-2" data-testid="tab-settings"><Settings className="h-4 w-4" /> Settings</TabsTrigger>
           </TabsList>
 
@@ -329,9 +463,9 @@ export default function AdminDashboard() {
                         <TableCell>
                           <div className="flex items-center gap-3">
                             <div className="h-8 w-8 rounded-full overflow-hidden bg-slate-100">
-                              <img src={user.photoUrl || 'https://github.com/shadcn.png'} alt={user.name} className="h-full w-full object-cover" />
+                              <img src={user.photoUrl || 'https://github.com/shadcn.png'} alt={`${user.firstName} ${user.surname}`} className="h-full w-full object-cover" />
                             </div>
-                            {user.name}
+                            {user.firstName} {user.surname}
                           </div>
                         </TableCell>
                         <TableCell>{user.department}</TableCell>
@@ -413,6 +547,114 @@ export default function AdminDashboard() {
                     </TableBody>
                   </Table>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="user-groups" className="space-y-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>User Groups</CardTitle>
+                  <CardDescription>Manage admin user groups for access control</CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={handleOpenCreateAdmin} className="btn-industrial bg-amber-500 hover:bg-amber-600 text-black" data-testid="button-add-admin">
+                    <UserCog className="mr-2 h-4 w-4" /> Add Admin User
+                  </Button>
+                  <Button onClick={handleOpenCreateGroup} className="btn-industrial bg-primary text-white" data-testid="button-add-group">
+                    <Plus className="mr-2 h-4 w-4" /> Add Group
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {userGroups.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No user groups created yet. Click "Add Group" to create your first one.
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Description</TableHead>
+                        <TableHead>Admins</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {userGroups.map((group) => {
+                        const adminCount = users.filter(u => u.userGroupId === group.id).length;
+                        return (
+                          <TableRow key={group.id} data-testid={`row-group-${group.id}`}>
+                            <TableCell className="font-medium">{group.name}</TableCell>
+                            <TableCell className="text-muted-foreground">{group.description || '-'}</TableCell>
+                            <TableCell>
+                              <Badge variant="secondary">{adminCount}</Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button variant="ghost" size="icon" onClick={() => handleOpenEditGroup(group)} data-testid={`button-edit-group-${group.id}`}>
+                                <Pencil className="h-4 w-4 text-slate-500" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                onClick={() => handleDeleteGroup(group.id)}
+                                disabled={adminCount > 0}
+                                title={adminCount > 0 ? "Cannot delete group with assigned admins" : "Delete group"}
+                                data-testid={`button-delete-group-${group.id}`}
+                              >
+                                <Trash2 className={`h-4 w-4 ${adminCount > 0 ? 'text-slate-300' : 'text-red-500'}`} />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Admin Users</CardTitle>
+                <CardDescription>Administrators with system access</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>User Group</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {users.filter(u => u.role === 'manager').map((admin) => {
+                      const group = userGroups.find(g => g.id === admin.userGroupId);
+                      return (
+                        <TableRow key={admin.id} data-testid={`row-admin-${admin.id}`}>
+                          <TableCell className="font-medium">{admin.firstName} {admin.surname}</TableCell>
+                          <TableCell>{admin.email}</TableCell>
+                          <TableCell>
+                            {group ? (
+                              <Badge variant="secondary">{group.name}</Badge>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="ghost" size="icon" onClick={() => handleDeleteUser(admin.id)}>
+                              <Trash2 className="h-4 w-4 text-red-500" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
               </CardContent>
             </Card>
           </TabsContent>
@@ -575,6 +817,134 @@ export default function AdminDashboard() {
           </DialogContent>
         </Dialog>
 
+        {/* User Group Dialog */}
+        <Dialog open={isGroupDialogOpen} onOpenChange={setIsGroupDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{isEditingGroup ? 'Edit User Group' : 'Add New User Group'}</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="groupName" className="text-right">Name</Label>
+                <Input 
+                  id="groupName" 
+                  value={currentGroup.name || ''} 
+                  onChange={(e) => setCurrentGroup({...currentGroup, name: e.target.value})}
+                  className="col-span-3"
+                  placeholder="e.g., HR Managers"
+                  data-testid="input-group-name"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="groupDesc" className="text-right">Description</Label>
+                <Input 
+                  id="groupDesc" 
+                  value={currentGroup.description || ''} 
+                  onChange={(e) => setCurrentGroup({...currentGroup, description: e.target.value})}
+                  className="col-span-3"
+                  placeholder="Optional description"
+                  data-testid="input-group-description"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button onClick={handleSaveGroup} data-testid="button-save-group">
+                {isEditingGroup ? 'Save Changes' : 'Create User Group'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Admin User Dialog */}
+        <Dialog open={isAdminDialogOpen} onOpenChange={setIsAdminDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add New Admin User</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="adminFirstName" className="text-right">First Name</Label>
+                <Input 
+                  id="adminFirstName" 
+                  value={adminData.firstName}
+                  onChange={(e) => setAdminData({...adminData, firstName: e.target.value})}
+                  className="col-span-3"
+                  data-testid="input-admin-first-name"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="adminSurname" className="text-right">Surname</Label>
+                <Input 
+                  id="adminSurname" 
+                  value={adminData.surname}
+                  onChange={(e) => setAdminData({...adminData, surname: e.target.value})}
+                  className="col-span-3"
+                  data-testid="input-admin-surname"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="adminEmail" className="text-right">Email</Label>
+                <Input 
+                  id="adminEmail"
+                  type="email"
+                  value={adminData.email}
+                  onChange={(e) => setAdminData({...adminData, email: e.target.value})}
+                  className="col-span-3"
+                  data-testid="input-admin-email-create"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="adminPassword" className="text-right">Password</Label>
+                <div className="col-span-3 flex gap-2">
+                  <Input 
+                    id="adminPassword"
+                    value={adminData.password}
+                    onChange={(e) => setAdminData({...adminData, password: e.target.value})}
+                    className="flex-1 font-mono"
+                    data-testid="input-admin-password"
+                  />
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setAdminData({...adminData, password: generatePassword()})}
+                  >
+                    Generate
+                  </Button>
+                </div>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="adminGroup" className="text-right">User Group</Label>
+                <div className="col-span-3">
+                  <Select 
+                    value={adminData.userGroupId?.toString() || ''} 
+                    onValueChange={(value) => setAdminData({...adminData, userGroupId: value ? parseInt(value) : undefined})}
+                  >
+                    <SelectTrigger data-testid="select-admin-group">
+                      <SelectValue placeholder="Select a group (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {userGroups.map((group) => (
+                        <SelectItem key={group.id} value={group.id.toString()}>
+                          {group.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
+                <Mail className="inline h-4 w-4 mr-2" />
+                Login credentials will be emailed to the admin after creation.
+              </div>
+            </div>
+            <DialogFooter>
+              <Button onClick={handleSaveAdmin} data-testid="button-save-admin">
+                Create Admin User
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* User Dialog */}
         <Dialog open={isUserDialogOpen} onOpenChange={setIsUserDialogOpen}>
           <DialogContent>
@@ -583,12 +953,34 @@ export default function AdminDashboard() {
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="name" className="text-right">Name</Label>
+                <Label htmlFor="firstName" className="text-right">First Name</Label>
                 <Input 
-                  id="name" 
-                  value={currentUser.name || ''} 
-                  onChange={(e) => setCurrentUser({...currentUser, name: e.target.value})}
-                  className="col-span-3" 
+                  id="firstName" 
+                  value={currentUser.firstName || ''} 
+                  onChange={(e) => setCurrentUser({...currentUser, firstName: e.target.value})}
+                  className="col-span-3"
+                  data-testid="input-first-name"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="surname" className="text-right">Surname</Label>
+                <Input 
+                  id="surname" 
+                  value={currentUser.surname || ''} 
+                  onChange={(e) => setCurrentUser({...currentUser, surname: e.target.value})}
+                  className="col-span-3"
+                  data-testid="input-surname"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="nickname" className="text-right">Nickname</Label>
+                <Input 
+                  id="nickname" 
+                  value={currentUser.nickname || ''} 
+                  onChange={(e) => setCurrentUser({...currentUser, nickname: e.target.value})}
+                  className="col-span-3"
+                  placeholder="Optional"
+                  data-testid="input-nickname"
                 />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
@@ -597,8 +989,61 @@ export default function AdminDashboard() {
                   id="id" 
                   value={currentUser.id || ''} 
                   onChange={(e) => setCurrentUser({...currentUser, id: e.target.value})}
-                  className="col-span-3" 
+                  className="col-span-3"
+                  data-testid="input-id-number"
                 />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="email" className="text-right">Email</Label>
+                <Input 
+                  id="email" 
+                  type="email"
+                  value={currentUser.email || ''} 
+                  onChange={(e) => setCurrentUser({...currentUser, email: e.target.value})}
+                  className="col-span-3"
+                  placeholder="Optional"
+                  data-testid="input-email"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="mobile" className="text-right">Mobile</Label>
+                <Input 
+                  id="mobile" 
+                  value={currentUser.mobile || ''} 
+                  onChange={(e) => setCurrentUser({...currentUser, mobile: e.target.value})}
+                  className="col-span-3"
+                  placeholder="Optional"
+                  data-testid="input-mobile"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="homeAddress" className="text-right">Home Address</Label>
+                <Input 
+                  id="homeAddress" 
+                  value={currentUser.homeAddress || ''} 
+                  onChange={(e) => setCurrentUser({...currentUser, homeAddress: e.target.value})}
+                  className="col-span-3"
+                  placeholder="Optional"
+                  data-testid="input-home-address"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="gender" className="text-right">Gender</Label>
+                <div className="col-span-3">
+                  <Select 
+                    value={currentUser.gender || ''} 
+                    onValueChange={(value) => setCurrentUser({...currentUser, gender: value})}
+                  >
+                    <SelectTrigger data-testid="select-gender">
+                      <SelectValue placeholder="Select gender (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="male">Male</SelectItem>
+                      <SelectItem value="female">Female</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="dept" className="text-right">Department</Label>

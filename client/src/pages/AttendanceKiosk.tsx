@@ -113,7 +113,7 @@ export default function AttendanceKiosk() {
         if (bestMatch && isFaceMatch(bestMatch.distance)) {
           setRecognizedWorker({
             id: bestMatch.user.id,
-            name: bestMatch.user.name,
+            name: `${bestMatch.user.firstName} ${bestMatch.user.surname}`,
             department: bestMatch.user.department
           });
           setStatus('recognized');
@@ -154,8 +154,8 @@ export default function AttendanceKiosk() {
       
       setRecognizedWorker({
         id: user.id,
-        name: user.name,
-        department: user.department
+        name: `${user.firstName} ${user.surname}`,
+        department: user.department || ''
       });
       recordAttendance(user.id, 'id');
     } catch (err: any) {

@@ -84,7 +84,7 @@ export default function Login() {
         
         if (bestMatch && isFaceMatch(bestMatch.distance)) {
           setFaceStatus('recognized');
-          setRecognizedUser(bestMatch.user.name);
+          setRecognizedUser(`${bestMatch.user.firstName} ${bestMatch.user.surname}`);
           setModelsReady(false);
           
           if (bestMatch.user.role === 'manager') {

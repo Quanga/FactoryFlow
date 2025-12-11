@@ -1,4 +1,4 @@
-import type { User, LeaveBalance, LeaveRequest, AttendanceRecord, Setting, Department } from "@shared/schema";
+import type { User, LeaveBalance, LeaveRequest, AttendanceRecord, Setting, Department, UserGroup } from "@shared/schema";
 
 const API_BASE = "/api";
 
@@ -27,7 +27,8 @@ export const authApi = {
 
 export type FaceDescriptorUser = {
   id: string;
-  name: string;
+  firstName: string;
+  surname: string;
   email: string | null;
   role: string;
   faceDescriptor: string;
@@ -225,6 +226,57 @@ export const departmentApi = {
     if (!res.ok) {
       const error = await res.json();
       throw new Error(error.error || "Failed to delete department");
+    }
+  },
+};
+
+// User Group API
+export const userGroupApi = {
+  async getAll(): Promise<UserGroup[]> {
+    const res = await fetch(`${API_BASE}/user-groups`);
+    if (!res.ok) throw new Error("Failed to fetch user groups");
+    return res.json();
+  },
+
+  async getById(id: number): Promise<UserGroup> {
+    const res = await fetch(`${API_BASE}/user-groups/${id}`);
+    if (!res.ok) throw new Error("Failed to fetch user group");
+    return res.json();
+  },
+
+  async create(group: { name: string; description?: string }): Promise<UserGroup> {
+    const res = await fetch(`${API_BASE}/user-groups`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(group),
+    });
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.error || "Failed to create user group");
+    }
+    return res.json();
+  },
+
+  async update(id: number, group: { name?: string; description?: string }): Promise<UserGroup> {
+    const res = await fetch(`${API_BASE}/user-groups/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(group),
+    });
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.error || "Failed to update user group");
+    }
+    return res.json();
+  },
+
+  async delete(id: number): Promise<void> {
+    const res = await fetch(`${API_BASE}/user-groups/${id}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.error || "Failed to delete user group");
     }
   },
 };

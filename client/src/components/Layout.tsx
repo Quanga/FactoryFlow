@@ -50,7 +50,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           {user && (
             <div className="hidden md:flex items-center gap-3 text-sm">
               <div className="text-right">
-                <div className="font-medium">{user.name}</div>
+                <div className="font-medium">{user.firstName} {user.surname}</div>
                 <div className="text-xs text-sidebar-foreground/60">{user.id}</div>
               </div>
               <div className="h-10 w-10 rounded-full overflow-hidden border-2 border-primary">
@@ -88,7 +88,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                         <img src={user?.photoUrl || 'https://github.com/shadcn.png'} alt="User" className="h-full w-full object-cover" />
                       </div>
                       <div>
-                        <div className="font-medium text-sm">{user?.name}</div>
+                        <div className="font-medium text-sm">{user?.firstName} {user?.surname}</div>
                         <div className="text-xs text-sidebar-foreground/50">ID: {user?.id}</div>
                       </div>
                   </div>

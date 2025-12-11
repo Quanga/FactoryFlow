@@ -68,12 +68,15 @@ Preferred communication style: Simple, everyday language.
 
 **Schema Design**
 - **Users**: Stores both workers and managers with role-based differentiation
-  - Workers: ID-based authentication (no email/password required)
-  - Managers: Email/password authentication
+  - Fields: id, firstName, surname, nickname, email, mobile, homeAddress, gender, role, departmentId, userGroupId (for admins), faceDescriptor, password (hashed, for admins)
+  - Workers: ID-based authentication (no email/password required), assigned to departments
+  - Managers: Email/password authentication, assigned to user groups
+- **User Groups**: Organizational units for admin/manager users (similar to departments for workers)
+  - Fields: id, name, description
+- **Departments**: Organizational units for worker categorization
 - **Leave Balances**: Tracks leave allowances per user and type
 - **Leave Requests**: Manages leave applications with approval workflow
 - **Attendance Records**: Clock in/out records with photo verification
-- **Departments**: Organizational units for employee categorization
 - **Settings**: System-wide configuration (e.g., admin email for notifications)
 
 **Data Access Pattern**

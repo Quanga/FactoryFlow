@@ -2,8 +2,8 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
-import { insertUserSchema, insertLeaveRequestSchema, insertAttendanceRecordSchema, insertDepartmentSchema } from "@shared/schema";
-import { sendLeaveRequestNotification, sendLateAttendanceNotification } from "./email";
+import { insertUserSchema, insertLeaveRequestSchema, insertAttendanceRecordSchema, insertDepartmentSchema, insertUserGroupSchema } from "@shared/schema";
+import { sendLeaveRequestNotification, sendLateAttendanceNotification, sendAdminWelcomeEmail } from "./email";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -83,7 +83,8 @@ export async function registerRoutes(
         .filter(u => u.faceDescriptor && (u.role === 'worker' || (includeAdmins && u.role === 'manager')))
         .map(u => ({
           id: u.id,
-          name: u.name,
+          firstName: u.firstName,
+          surname: u.surname,
           email: u.email,
           role: u.role,
           faceDescriptor: u.faceDescriptor,
@@ -116,6 +117,26 @@ export async function registerRoutes(
     try {
       const validatedData = insertUserSchema.parse(req.body);
       const newUser = await storage.createUser(validatedData);
+      
+      // Send welcome email for new admin users
+      if (validatedData.role === 'manager' && validatedData.email && validatedData.password) {
+        try {
+          await sendAdminWelcomeEmail(
+            validatedData.email,
+            'hr@aece.co.za',
+            {
+              firstName: validatedData.firstName,
+              surname: validatedData.surname,
+              email: validatedData.email,
+              password: validatedData.password,
+            }
+          );
+        } catch (emailError) {
+          console.error('Failed to send welcome email:', emailError);
+          // Don't fail user creation if email fails
+        }
+      }
+      
       return res.status(201).json(newUser);
     } catch (error) {
       console.error("Create user error:", error);
@@ -198,7 +219,7 @@ export async function registerRoutes(
             adminEmailSetting.value,
             senderEmail,
             {
-              employeeName: user?.name || 'Unknown',
+              employeeName: user ? `${user.firstName} ${user.surname}` : 'Unknown',
               employeeId: validatedData.userId,
               leaveType: validatedData.leaveType,
               startDate: validatedData.startDate,
@@ -329,9 +350,9 @@ export async function registerRoutes(
                 adminEmailSetting.value,
                 'hr@aece.co.za',
                 {
-                  employeeName: user.name,
+                  employeeName: `${user.firstName} ${user.surname}`,
                   employeeId: user.id,
-                  department: user.department,
+                  department: user.department || undefined,
                   type: infringementType,
                   actualTime: currentTime,
                   cutoffTime: cutoffTime,
@@ -475,6 +496,96 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Delete department error:", error);
       return res.status(500).json({ error: "Failed to delete department" });
+    }
+  });
+
+  // ========== USER GROUP ROUTES ==========
+  
+  // Get all user groups
+  app.get("/api/user-groups", async (req, res) => {
+    try {
+      const groups = await storage.getAllUserGroups();
+      return res.json(groups);
+    } catch (error) {
+      console.error("Get user groups error:", error);
+      return res.status(500).json({ error: "Failed to fetch user groups" });
+    }
+  });
+
+  // Get user group by ID
+  app.get("/api/user-groups/:id", async (req, res) => {
+    try {
+      const group = await storage.getUserGroup(parseInt(req.params.id));
+      
+      if (!group) {
+        return res.status(404).json({ error: "User group not found" });
+      }
+
+      return res.json(group);
+    } catch (error) {
+      console.error("Get user group error:", error);
+      return res.status(500).json({ error: "Failed to fetch user group" });
+    }
+  });
+
+  // Create user group
+  app.post("/api/user-groups", async (req, res) => {
+    try {
+      const validatedData = insertUserGroupSchema.parse(req.body);
+      const newGroup = await storage.createUserGroup(validatedData);
+      return res.status(201).json(newGroup);
+    } catch (error: any) {
+      console.error("Create user group error:", error);
+      if (error.code === '23505') {
+        return res.status(400).json({ error: "User group name already exists" });
+      }
+      return res.status(400).json({ error: "Invalid user group data" });
+    }
+  });
+
+  // Update user group
+  app.patch("/api/user-groups/:id", async (req, res) => {
+    try {
+      const updatedGroup = await storage.updateUserGroup(parseInt(req.params.id), req.body);
+      
+      if (!updatedGroup) {
+        return res.status(404).json({ error: "User group not found" });
+      }
+
+      return res.json(updatedGroup);
+    } catch (error: any) {
+      console.error("Update user group error:", error);
+      if (error.code === '23505') {
+        return res.status(400).json({ error: "User group name already exists" });
+      }
+      return res.status(500).json({ error: "Failed to update user group" });
+    }
+  });
+
+  // Delete user group
+  app.delete("/api/user-groups/:id", async (req, res) => {
+    try {
+      const group = await storage.getUserGroup(parseInt(req.params.id));
+      
+      if (!group) {
+        return res.status(404).json({ error: "User group not found" });
+      }
+
+      // Check if any users are in this group
+      const userCount = await storage.getUserCountByUserGroup(group.id);
+      
+      if (userCount > 0) {
+        return res.status(409).json({ 
+          error: "Cannot delete user group with assigned users",
+          userCount 
+        });
+      }
+
+      await storage.deleteUserGroup(parseInt(req.params.id));
+      return res.status(204).send();
+    } catch (error) {
+      console.error("Delete user group error:", error);
+      return res.status(500).json({ error: "Failed to delete user group" });
     }
   });
 
