@@ -27,12 +27,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { href: '/profile', label: 'My Profile', icon: UserCircle },
   ];
 
-  const adminNav = [
-    { href: '/admin/dashboard', label: 'Overview', icon: LayoutDashboard },
-    { href: '/admin/dashboard', label: 'Employees', icon: UserCircle },
-  ];
-
-  const navItems = user?.role === 'manager' ? adminNav : workerNav;
+  const navItems = workerNav;
+  
+  // Admin dashboard has its own navigation, so hide sidebar for admin pages
+  const isAdminPage = location.startsWith('/admin');
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -109,35 +107,37 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Desktop Sidebar */}
-        <aside className="hidden md:flex w-64 flex-col bg-card border-r border-border shadow-sm z-40">
-          <nav className="flex-1 p-4 space-y-2">
-            {navItems.map((item) => (
-              <Link key={item.href} href={item.href} className={`flex items-center gap-3 px-4 py-3 rounded-md transition-all duration-200 ${
-                location === item.href 
-                  ? 'bg-primary/10 text-primary font-medium border-l-4 border-primary' 
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              }`}>
-                <item.icon className="h-5 w-5" />
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-          <div className="p-4 border-t border-border">
-            <Button 
-              variant="outline" 
-              className="w-full justify-start text-muted-foreground hover:text-destructive hover:border-destructive"
-              onClick={() => window.location.href = '/'}
-            >
-              <LogOut className="mr-2 h-4 w-4" />
-              Sign Out
-            </Button>
-          </div>
-        </aside>
+        {/* Desktop Sidebar - hidden for admin pages which have their own navigation */}
+        {!isAdminPage && (
+          <aside className="hidden md:flex w-64 flex-col bg-card border-r border-border shadow-sm z-40">
+            <nav className="flex-1 p-4 space-y-2">
+              {navItems.map((item) => (
+                <Link key={item.href} href={item.href} className={`flex items-center gap-3 px-4 py-3 rounded-md transition-all duration-200 ${
+                  location === item.href 
+                    ? 'bg-primary/10 text-primary font-medium border-l-4 border-primary' 
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                }`}>
+                  <item.icon className="h-5 w-5" />
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+            <div className="p-4 border-t border-border">
+              <Button 
+                variant="outline" 
+                className="w-full justify-start text-muted-foreground hover:text-destructive hover:border-destructive"
+                onClick={() => window.location.href = '/'}
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                Sign Out
+              </Button>
+            </div>
+          </aside>
+        )}
 
         {/* Main Content */}
-        <main className="flex-1 overflow-auto bg-background p-4 md:p-8">
-          <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <main className={`flex-1 overflow-auto bg-background ${isAdminPage ? 'p-4 md:p-6' : 'p-4 md:p-8'}`}>
+          <div className={`${isAdminPage ? 'max-w-full' : 'max-w-5xl mx-auto'} animate-in fade-in slide-in-from-bottom-4 duration-500`}>
             {children}
           </div>
         </main>
