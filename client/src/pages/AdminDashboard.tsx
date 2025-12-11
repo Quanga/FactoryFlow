@@ -120,6 +120,14 @@ export default function AdminDashboard() {
   const [adminPhotoUrl, setAdminPhotoUrl] = useState<string | null>(null);
   const [adminFaceDescriptor, setAdminFaceDescriptor] = useState<string | null>(null);
 
+  // Leave Request Review State
+  const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
+  const [selectedLeaveRequest, setSelectedLeaveRequest] = useState<LeaveRequest | null>(null);
+
+  // Employee Balance View State
+  const [isBalanceDialogOpen, setIsBalanceDialogOpen] = useState(false);
+  const [selectedEmployeeForBalance, setSelectedEmployeeForBalance] = useState<User | null>(null);
+
   // Settings State
   const [emailSettings, setEmailSettings] = useState('');
   const [clockInCutoff, setClockInCutoff] = useState('08:00');
@@ -663,10 +671,21 @@ export default function AdminDashboard() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button variant="ghost" size="icon" onClick={() => handleOpenEdit(user)}>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => {
+                              setSelectedEmployeeForBalance(user);
+                              setIsBalanceDialogOpen(true);
+                            }}
+                            title="View Leave Balances"
+                          >
+                            <Calendar className="h-4 w-4 text-blue-500" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => handleOpenEdit(user)} title="Edit">
                             <Pencil className="h-4 w-4 text-slate-500" />
                           </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleDeleteUser(user.id)}>
+                          <Button variant="ghost" size="icon" onClick={() => handleDeleteUser(user.id)} title="Delete">
                             <Trash2 className="h-4 w-4 text-red-500" />
                           </Button>
                         </TableCell>
@@ -674,6 +693,70 @@ export default function AdminDashboard() {
                     ))}
                   </TableBody>
                 </Table>
+              </CardContent>
+            </Card>
+
+            {/* Aggregated Leave Balances Summary */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Leave Balances Summary</CardTitle>
+                <CardDescription>Overview of all employee leave balances</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {leaveBalances.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No leave balances found.
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Summary Stats */}
+                    <div className="grid grid-cols-4 gap-4">
+                      {['Annual Leave', 'Sick Leave', 'Family Leave', 'Study Leave'].map(leaveType => {
+                        const typeBalances = leaveBalances.filter((b: LeaveBalance) => b.leaveType === leaveType);
+                        const totalDays = typeBalances.reduce((sum: number, b: LeaveBalance) => sum + b.total, 0);
+                        const takenDays = typeBalances.reduce((sum: number, b: LeaveBalance) => sum + b.taken, 0);
+                        const pendingDays = typeBalances.reduce((sum: number, b: LeaveBalance) => sum + b.pending, 0);
+                        return (
+                          <div key={leaveType} className="p-4 bg-slate-50 rounded-lg border">
+                            <p className="text-sm text-muted-foreground">{leaveType}</p>
+                            <p className="text-2xl font-bold">{totalDays - takenDays - pendingDays}</p>
+                            <p className="text-xs text-muted-foreground">Available ({takenDays} taken, {pendingDays} pending)</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    
+                    {/* Employees with low leave */}
+                    <div>
+                      <p className="text-sm font-medium mb-2 text-amber-600">Low Leave Balance Alerts</p>
+                      <div className="space-y-2">
+                        {users.filter(u => u.role === 'worker').map(emp => {
+                          const empBalances = leaveBalances.filter((b: LeaveBalance) => b.userId === emp.id);
+                          const lowBalances = empBalances.filter((b: LeaveBalance) => (b.total - b.taken - b.pending) <= 2 && b.total > 0);
+                          if (lowBalances.length === 0) return null;
+                          return (
+                            <div key={emp.id} className="flex items-center justify-between p-2 bg-amber-50 rounded border border-amber-200">
+                              <span className="font-medium">{emp.firstName} {emp.surname}</span>
+                              <div className="flex gap-2">
+                                {lowBalances.map((b: LeaveBalance) => (
+                                  <Badge key={b.id} variant="outline" className="border-amber-400 text-amber-700">
+                                    {b.leaveType}: {b.total - b.taken - b.pending} left
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        }).filter(Boolean)}
+                        {users.filter(u => u.role === 'worker').every(emp => {
+                          const empBalances = leaveBalances.filter((b: LeaveBalance) => b.userId === emp.id);
+                          return empBalances.every((b: LeaveBalance) => (b.total - b.taken - b.pending) > 2 || b.total === 0);
+                        }) && (
+                          <p className="text-sm text-muted-foreground">No employees with low leave balances.</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -696,7 +779,6 @@ export default function AdminDashboard() {
                         <TableHead>Employee</TableHead>
                         <TableHead>Type</TableHead>
                         <TableHead>Dates</TableHead>
-                        <TableHead>Reason</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
@@ -713,7 +795,6 @@ export default function AdminDashboard() {
                             <TableCell>
                               {format(new Date(request.startDate), 'MMM d')} - {format(new Date(request.endDate), 'MMM d, yyyy')}
                             </TableCell>
-                            <TableCell className="max-w-[200px] truncate">{request.reason || '-'}</TableCell>
                             <TableCell>
                               <Badge variant={
                                 request.status === 'approved' ? 'default' :
@@ -723,6 +804,18 @@ export default function AdminDashboard() {
                               </Badge>
                             </TableCell>
                             <TableCell className="text-right">
+                              <Button 
+                                variant="ghost" 
+                                size="icon"
+                                onClick={() => {
+                                  setSelectedLeaveRequest(request);
+                                  setIsReviewDialogOpen(true);
+                                }}
+                                data-testid={`button-review-${request.id}`}
+                                title="Review"
+                              >
+                                <FileText className="h-4 w-4 text-blue-500" />
+                              </Button>
                               {request.status === 'pending' && (
                                 <>
                                   <Button 
@@ -730,6 +823,7 @@ export default function AdminDashboard() {
                                     size="icon"
                                     onClick={() => updateLeaveStatusMutation.mutate({ id: request.id, status: 'approved' })}
                                     data-testid={`button-approve-${request.id}`}
+                                    title="Approve"
                                   >
                                     <Check className="h-4 w-4 text-green-500" />
                                   </Button>
@@ -738,6 +832,7 @@ export default function AdminDashboard() {
                                     size="icon"
                                     onClick={() => updateLeaveStatusMutation.mutate({ id: request.id, status: 'rejected' })}
                                     data-testid={`button-reject-${request.id}`}
+                                    title="Reject"
                                   >
                                     <X className="h-4 w-4 text-red-500" />
                                   </Button>
@@ -1537,6 +1632,166 @@ export default function AdminDashboard() {
             <DialogFooter>
               <Button onClick={handleSaveUser}>{isEditing ? 'Save Changes' : 'Create User'}</Button>
             </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Employee Leave Balance Dialog */}
+        <Dialog open={isBalanceDialogOpen} onOpenChange={setIsBalanceDialogOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>
+                Leave Balances - {selectedEmployeeForBalance?.firstName} {selectedEmployeeForBalance?.surname}
+              </DialogTitle>
+            </DialogHeader>
+            {selectedEmployeeForBalance && (() => {
+              const employeeBalances = leaveBalances.filter((b: LeaveBalance) => b.userId === selectedEmployeeForBalance.id);
+              return (
+                <div className="space-y-4">
+                  {employeeBalances.length === 0 ? (
+                    <p className="text-muted-foreground text-center py-4">No leave balances set for this employee.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {employeeBalances.map((balance: LeaveBalance) => {
+                        const available = balance.total - balance.taken - balance.pending;
+                        return (
+                          <div key={balance.id} className="p-4 bg-slate-50 rounded-lg border">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="font-medium capitalize">{balance.leaveType.replace('_', ' ')}</span>
+                              <Badge variant={available > 0 ? 'default' : 'destructive'}>
+                                {available} available
+                              </Badge>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 text-sm">
+                              <div className="text-center p-2 bg-white rounded">
+                                <p className="text-muted-foreground text-xs">Total</p>
+                                <p className="font-semibold">{balance.total}</p>
+                              </div>
+                              <div className="text-center p-2 bg-white rounded">
+                                <p className="text-muted-foreground text-xs">Taken</p>
+                                <p className="font-semibold text-amber-600">{balance.taken}</p>
+                              </div>
+                              <div className="text-center p-2 bg-white rounded">
+                                <p className="text-muted-foreground text-xs">Pending</p>
+                                <p className="font-semibold text-blue-600">{balance.pending}</p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </DialogContent>
+        </Dialog>
+
+        {/* Leave Request Review Dialog */}
+        <Dialog open={isReviewDialogOpen} onOpenChange={setIsReviewDialogOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Leave Request Details</DialogTitle>
+            </DialogHeader>
+            {selectedLeaveRequest && (() => {
+              const employee = users.find(u => u.id === selectedLeaveRequest.userId);
+              return (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-muted-foreground text-sm">Employee</Label>
+                      <p className="font-medium">{employee ? `${employee.firstName} ${employee.surname}` : selectedLeaveRequest.userId}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground text-sm">Leave Type</Label>
+                      <p className="font-medium capitalize">{selectedLeaveRequest.leaveType.replace('_', ' ')}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground text-sm">Start Date</Label>
+                      <p className="font-medium">{format(new Date(selectedLeaveRequest.startDate), 'MMMM d, yyyy')}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground text-sm">End Date</Label>
+                      <p className="font-medium">{format(new Date(selectedLeaveRequest.endDate), 'MMMM d, yyyy')}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground text-sm">Status</Label>
+                      <Badge variant={
+                        selectedLeaveRequest.status === 'approved' ? 'default' :
+                        selectedLeaveRequest.status === 'rejected' ? 'destructive' : 'secondary'
+                      }>
+                        {selectedLeaveRequest.status}
+                      </Badge>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground text-sm">Submitted</Label>
+                      <p className="font-medium">{format(new Date(selectedLeaveRequest.createdAt), 'MMM d, yyyy h:mm a')}</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label className="text-muted-foreground text-sm">Reason</Label>
+                    <div className="mt-1 p-3 bg-slate-50 rounded-lg border">
+                      <p>{selectedLeaveRequest.reason || 'No reason provided'}</p>
+                    </div>
+                  </div>
+
+                  {selectedLeaveRequest.documents && selectedLeaveRequest.documents.length > 0 && (
+                    <div>
+                      <Label className="text-muted-foreground text-sm">Supporting Documents</Label>
+                      <div className="mt-2 space-y-2">
+                        {selectedLeaveRequest.documents.map((doc, index) => (
+                          <div key={index} className="flex items-center gap-2 p-2 bg-slate-50 rounded-lg border">
+                            <FileText className="h-4 w-4 text-blue-500" />
+                            {doc.startsWith('data:') ? (
+                              <a 
+                                href={doc} 
+                                download={`document-${index + 1}`}
+                                className="text-blue-600 hover:underline"
+                              >
+                                Document {index + 1} (Click to download)
+                              </a>
+                            ) : (
+                              <a 
+                                href={doc} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:underline"
+                              >
+                                {doc}
+                              </a>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedLeaveRequest.status === 'pending' && (
+                    <div className="flex justify-end gap-2 pt-4 border-t">
+                      <Button 
+                        variant="outline"
+                        onClick={() => {
+                          updateLeaveStatusMutation.mutate({ id: selectedLeaveRequest.id, status: 'rejected' });
+                          setIsReviewDialogOpen(false);
+                        }}
+                        className="text-red-600 border-red-200 hover:bg-red-50"
+                      >
+                        <X className="mr-2 h-4 w-4" /> Reject
+                      </Button>
+                      <Button 
+                        onClick={() => {
+                          updateLeaveStatusMutation.mutate({ id: selectedLeaveRequest.id, status: 'approved' });
+                          setIsReviewDialogOpen(false);
+                        }}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        <Check className="mr-2 h-4 w-4" /> Approve
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </DialogContent>
         </Dialog>
       </div>
