@@ -17,11 +17,14 @@ import type { User, Department, UserGroup, LeaveRequest, LeaveBalance, Attendanc
 import { Plus, Pencil, Trash2, Save, Mail, Users, Settings, Camera, Building2, Loader2, CheckCircle2, UserCog, Shield, Calendar, Clock, FileText, Check, X, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from '@/lib/auth-context';
 import WebcamCapture from '@/components/WebcamCapture';
+import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { loadFaceModels, extractFaceDescriptorFromBase64, descriptorToJson } from '@/lib/face-recognition';
 
 export default function AdminDashboard() {
   const { toast } = useToast();
+  const { user, setUser } = useAuth();
   const queryClient = useQueryClient();
   
   const { data: users = [] } = useQuery({
@@ -110,6 +113,13 @@ export default function AdminDashboard() {
     userGroupId?: number;
   }>({ firstName: '', surname: '', email: '', password: '' });
 
+  // First-time photo setup for admins
+  const [showPhotoSetup, setShowPhotoSetup] = useState(false);
+  const [adminPhotoCapturing, setAdminPhotoCapturing] = useState(false);
+  const [adminExtractingFace, setAdminExtractingFace] = useState(false);
+  const [adminPhotoUrl, setAdminPhotoUrl] = useState<string | null>(null);
+  const [adminFaceDescriptor, setAdminFaceDescriptor] = useState<string | null>(null);
+
   // Settings State
   const [emailSettings, setEmailSettings] = useState('');
   const [clockInCutoff, setClockInCutoff] = useState('08:00');
@@ -146,6 +156,58 @@ export default function AdminDashboard() {
       setEarlyDepartureMessage(earlyDepartureMessageSetting.value);
     }
   }, [earlyDepartureMessageSetting]);
+
+  // Check if admin needs to set up their photo
+  useEffect(() => {
+    if (user && user.role === 'manager' && !user.faceDescriptor) {
+      setShowPhotoSetup(true);
+    }
+  }, [user]);
+
+  const handleAdminPhotoCapture = async (photoData: string) => {
+    setAdminPhotoUrl(photoData);
+    setAdminExtractingFace(true);
+    
+    try {
+      await loadFaceModels();
+      const descriptor = await extractFaceDescriptorFromBase64(photoData);
+      
+      if (descriptor) {
+        const descriptorJson = descriptorToJson(descriptor);
+        setAdminFaceDescriptor(descriptorJson);
+        toast({ title: "Face Detected", description: "Your face has been captured successfully." });
+      } else {
+        toast({ variant: "destructive", title: "No Face Detected", description: "Please try again with better lighting." });
+        setAdminPhotoUrl(null);
+      }
+    } catch (error) {
+      toast({ variant: "destructive", title: "Error", description: "Failed to process face. Please try again." });
+      setAdminPhotoUrl(null);
+    } finally {
+      setAdminExtractingFace(false);
+      setAdminPhotoCapturing(false);
+    }
+  };
+
+  const handleSaveAdminPhoto = async () => {
+    if (!user || !adminPhotoUrl) return;
+    
+    try {
+      const updatedUser = await userApi.update(user.id, {
+        photoUrl: adminPhotoUrl,
+        faceDescriptor: adminFaceDescriptor,
+      });
+      
+      setUser(updatedUser);
+      setShowPhotoSetup(false);
+      setAdminPhotoUrl(null);
+      setAdminFaceDescriptor(null);
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      toast({ title: "Photo Saved", description: "Your profile photo has been updated." });
+    } catch (error) {
+      toast({ variant: "destructive", title: "Error", description: "Failed to save photo." });
+    }
+  };
 
   const createUserMutation = useMutation({
     mutationFn: userApi.create,
@@ -448,6 +510,102 @@ export default function AdminDashboard() {
 
   return (
     <Layout>
+      {/* First-time Photo Setup Dialog */}
+      <AlertDialog open={showPhotoSetup}>
+        <AlertDialogContent className="max-w-lg">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Camera className="h-5 w-5" />
+              Set Up Your Profile Photo
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Welcome! To enable facial recognition for quick login, please capture your photo now.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          
+          <div className="space-y-4 mt-4">
+            {adminPhotoCapturing ? (
+              <div className="space-y-4">
+                <WebcamCapture onCapture={handleAdminPhotoCapture} />
+                <Button 
+                  variant="outline" 
+                  className="w-full"
+                  onClick={() => setAdminPhotoCapturing(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            ) : adminPhotoUrl ? (
+              <div className="space-y-4">
+                <div className="relative">
+                  <img 
+                    src={adminPhotoUrl} 
+                    alt="Captured photo" 
+                    className="w-full h-48 object-cover rounded-lg"
+                  />
+                  {adminExtractingFace && (
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-lg">
+                      <div className="text-white flex items-center gap-2">
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        Detecting face...
+                      </div>
+                    </div>
+                  )}
+                  {adminFaceDescriptor && (
+                    <div className="absolute bottom-2 right-2 bg-green-500 text-white px-2 py-1 rounded text-xs flex items-center gap-1">
+                      <CheckCircle2 className="h-3 w-3" />
+                      Face detected
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    className="flex-1"
+                    onClick={() => {
+                      setAdminPhotoUrl(null);
+                      setAdminFaceDescriptor(null);
+                      setAdminPhotoCapturing(true);
+                    }}
+                  >
+                    Retake
+                  </Button>
+                  <Button 
+                    className="flex-1"
+                    onClick={handleSaveAdminPhoto}
+                    disabled={!adminFaceDescriptor}
+                  >
+                    Save Photo
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="bg-slate-100 rounded-lg p-8 text-center">
+                  <Camera className="h-16 w-16 mx-auto text-slate-400 mb-4" />
+                  <p className="text-slate-600">No photo captured yet</p>
+                </div>
+                <Button 
+                  className="w-full"
+                  onClick={() => setAdminPhotoCapturing(true)}
+                  data-testid="button-capture-admin-photo"
+                >
+                  <Camera className="mr-2 h-4 w-4" />
+                  Capture Photo
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  className="w-full text-slate-500"
+                  onClick={() => setShowPhotoSetup(false)}
+                >
+                  Skip for now
+                </Button>
+              </div>
+            )}
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <div className="space-y-8">
         <div>
           <h1 className="text-3xl font-heading font-bold text-slate-900">Admin Dashboard</h1>
