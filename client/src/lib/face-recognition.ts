@@ -14,6 +14,11 @@ export async function loadFaceModels(): Promise<boolean> {
 
   modelsLoading = true;
   try {
+    // Set TensorFlow.js backend to 'webgl' (avoids WASM issues)
+    const tf = faceapi.tf;
+    await tf.setBackend('webgl');
+    await tf.ready();
+    
     const MODEL_URL = '/models';
     await Promise.all([
       faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
@@ -21,7 +26,7 @@ export async function loadFaceModels(): Promise<boolean> {
       faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
     ]);
     modelsLoaded = true;
-    console.log('Face recognition models loaded');
+    console.log('Face recognition models loaded successfully');
     return true;
   } catch (error) {
     console.error('Failed to load face models:', error);
