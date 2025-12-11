@@ -18,14 +18,35 @@ export const insertDepartmentSchema = createInsertSchema(departments).omit({
 export type InsertDepartment = z.infer<typeof insertDepartmentSchema>;
 export type Department = typeof departments.$inferSelect;
 
+// User Groups Table (for admin users)
+export const userGroups = pgTable("user_groups", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertUserGroupSchema = createInsertSchema(userGroups).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertUserGroup = z.infer<typeof insertUserGroupSchema>;
+export type UserGroup = typeof userGroups.$inferSelect;
+
 // Users Table
 export const users = pgTable("users", {
   id: text("id").primaryKey(),
-  name: text("name").notNull(),
+  firstName: text("first_name").notNull(),
+  surname: text("surname").notNull(),
+  nickname: text("nickname"),
   email: text("email"),
   password: text("password"),
+  mobile: text("mobile"),
+  homeAddress: text("home_address"),
+  gender: text("gender"), // 'male', 'female', 'other'
   role: text("role").notNull().default("worker"), // 'worker' or 'manager'
-  department: text("department").notNull(),
+  department: text("department"), // for workers
+  userGroupId: integer("user_group_id").references(() => userGroups.id), // for admins
   photoUrl: text("photo_url"),
   faceDescriptor: text("face_descriptor"), // JSON array of 128 face embedding values
   createdAt: timestamp("created_at").defaultNow().notNull(),
