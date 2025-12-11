@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useLocation } from 'wouter';
 import { Card, CardContent } from '@/components/ui/card';
 import { Clock, FileText, LogIn, LogOut, Settings } from 'lucide-react';
-import factoryBg from '@assets/leonardo_phoenix_10_a_dramatic_wideangle_photograph_of_a_heav_2.jpg';
+import factoryBg from '@assets/generated_images/modern_clean_industrial_factory_interior_background.png';
 
 type AttendanceSubMode = 'clock-in' | 'clock-out';
 
