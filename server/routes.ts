@@ -297,6 +297,10 @@ export async function registerRoutes(
             }
             
             if (isInfringement) {
+              // Get custom message template
+              const messageSettingKey = infringementType === 'late_arrival' ? 'late_arrival_message' : 'early_departure_message';
+              const messageSetting = await storage.getSetting(messageSettingKey);
+              
               await sendLateAttendanceNotification(
                 adminEmailSetting.value,
                 'hr@aece.co.za',
@@ -307,6 +311,7 @@ export async function registerRoutes(
                   type: infringementType,
                   actualTime: currentTime,
                   cutoffTime: cutoffTime,
+                  customMessage: messageSetting?.value,
                 }
               );
             }

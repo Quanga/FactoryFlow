@@ -4,6 +4,7 @@ import Layout from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
@@ -42,6 +43,16 @@ export default function AdminDashboard() {
     queryFn: () => settingsApi.get('clock_out_cutoff'),
   });
 
+  const { data: lateArrivalMessageSetting } = useQuery({
+    queryKey: ['settings', 'late_arrival_message'],
+    queryFn: () => settingsApi.get('late_arrival_message'),
+  });
+
+  const { data: earlyDepartureMessageSetting } = useQuery({
+    queryKey: ['settings', 'early_departure_message'],
+    queryFn: () => settingsApi.get('early_departure_message'),
+  });
+
   const { data: departments = [] } = useQuery({
     queryKey: ['departments'],
     queryFn: departmentApi.getAll,
@@ -64,6 +75,8 @@ export default function AdminDashboard() {
   const [emailSettings, setEmailSettings] = useState('');
   const [clockInCutoff, setClockInCutoff] = useState('08:00');
   const [clockOutCutoff, setClockOutCutoff] = useState('17:00');
+  const [lateArrivalMessage, setLateArrivalMessage] = useState('{name} (ID: {id}) clocked in late at {time}. Expected by {cutoff}.');
+  const [earlyDepartureMessage, setEarlyDepartureMessage] = useState('{name} (ID: {id}) left early at {time}. Expected after {cutoff}.');
 
   useEffect(() => {
     if (emailSetting) {
@@ -82,6 +95,18 @@ export default function AdminDashboard() {
       setClockOutCutoff(clockOutCutoffSetting.value);
     }
   }, [clockOutCutoffSetting]);
+
+  useEffect(() => {
+    if (lateArrivalMessageSetting) {
+      setLateArrivalMessage(lateArrivalMessageSetting.value);
+    }
+  }, [lateArrivalMessageSetting]);
+
+  useEffect(() => {
+    if (earlyDepartureMessageSetting) {
+      setEarlyDepartureMessage(earlyDepartureMessageSetting.value);
+    }
+  }, [earlyDepartureMessageSetting]);
 
   const createUserMutation = useMutation({
     mutationFn: userApi.create,
@@ -227,6 +252,8 @@ export default function AdminDashboard() {
     await updateSettingMutation.mutateAsync({ key: 'admin_email', value: emailSettings });
     await updateSettingMutation.mutateAsync({ key: 'clock_in_cutoff', value: clockInCutoff });
     await updateSettingMutation.mutateAsync({ key: 'clock_out_cutoff', value: clockOutCutoff });
+    await updateSettingMutation.mutateAsync({ key: 'late_arrival_message', value: lateArrivalMessage });
+    await updateSettingMutation.mutateAsync({ key: 'early_departure_message', value: earlyDepartureMessage });
   };
 
   const handleSaveDept = () => {
@@ -455,6 +482,50 @@ export default function AdminDashboard() {
                       data-testid="input-clock-out-cutoff"
                     />
                     <p className="text-xs text-muted-foreground">Workers clocking out before this time will be flagged for early departure.</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Notification Message Templates</CardTitle>
+                <CardDescription>Customize the messages sent to HR for attendance infringements</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6 max-w-2xl">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Late Arrival Message</Label>
+                    <Textarea 
+                      value={lateArrivalMessage} 
+                      onChange={(e) => setLateArrivalMessage(e.target.value)}
+                      rows={3}
+                      placeholder="{name} (ID: {id}) clocked in late at {time}. Expected by {cutoff}."
+                      data-testid="input-late-arrival-message"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Early Departure Message</Label>
+                    <Textarea 
+                      value={earlyDepartureMessage} 
+                      onChange={(e) => setEarlyDepartureMessage(e.target.value)}
+                      rows={3}
+                      placeholder="{name} (ID: {id}) left early at {time}. Expected after {cutoff}."
+                      data-testid="input-early-departure-message"
+                    />
+                  </div>
+
+                  <div className="p-3 bg-slate-100 rounded-lg">
+                    <p className="text-sm font-medium mb-2">Available placeholders:</p>
+                    <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                      <span><code className="bg-white px-1 rounded">{'{name}'}</code> - Employee name</span>
+                      <span><code className="bg-white px-1 rounded">{'{id}'}</code> - Employee ID</span>
+                      <span><code className="bg-white px-1 rounded">{'{department}'}</code> - Department</span>
+                      <span><code className="bg-white px-1 rounded">{'{time}'}</code> - Actual clock time</span>
+                      <span><code className="bg-white px-1 rounded">{'{cutoff}'}</code> - Cut-off time</span>
+                      <span><code className="bg-white px-1 rounded">{'{date}'}</code> - Date</span>
+                    </div>
                   </div>
                 </div>
               </CardContent>
