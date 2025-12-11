@@ -30,11 +30,15 @@ export default function Login() {
   const [recognizedUser, setRecognizedUser] = useState<string | null>(null);
   const [faceStatus, setFaceStatus] = useState<'loading' | 'scanning' | 'recognized' | 'not_found'>('loading');
 
+  const [adminFaceMode, setAdminFaceMode] = useState(false);
+
   useEffect(() => {
     if (loginMode === 'worker') {
       initFaceRecognition(false);
+    } else if (loginMode === 'admin' && adminFaceMode) {
+      initFaceRecognition(true);
     }
-  }, [loginMode]);
+  }, [loginMode, adminFaceMode]);
 
   const initFaceRecognition = async (includeAdmins: boolean) => {
     setFaceStatus('loading');
@@ -81,20 +85,27 @@ export default function Login() {
         if (bestMatch && isFaceMatch(bestMatch.distance)) {
           setFaceStatus('recognized');
           setRecognizedUser(bestMatch.user.name);
+          setModelsReady(false);
+          
+          if (bestMatch.user.role === 'manager') {
+            setTimeout(() => {
+              setEmail(bestMatch.user.email || '');
+              setAdminFaceMode(false);
+              setRecognizedUser(null);
+            }, 1000);
+            return;
+          }
           
           setTimeout(async () => {
             try {
               const user = await authApi.loginWorker(bestMatch.user.id);
               setUser(user);
-              if (user.role === 'manager') {
-                setLocation('/admin/dashboard');
-              } else {
-                setLocation('/dashboard');
-              }
+              setLocation('/dashboard');
             } catch (err) {
               setError('Login failed');
               setFaceStatus('scanning');
               setRecognizedUser(null);
+              setModelsReady(true);
             }
           }, 1000);
           return;
@@ -108,11 +119,14 @@ export default function Login() {
   }, [modelsReady, detecting, faceUsers, setUser, setLocation]);
 
   useEffect(() => {
-    if (loginMode !== 'worker' || !modelsReady || faceStatus !== 'scanning') return;
+    const isWorkerScanning = loginMode === 'worker' && modelsReady && faceStatus === 'scanning';
+    const isAdminScanning = loginMode === 'admin' && adminFaceMode && modelsReady && faceStatus === 'scanning';
+    
+    if (!isWorkerScanning && !isAdminScanning) return;
     
     const interval = setInterval(detectAndMatchFace, 1500);
     return () => clearInterval(interval);
-  }, [loginMode, modelsReady, faceStatus, detectAndMatchFace]);
+  }, [loginMode, modelsReady, faceStatus, adminFaceMode, detectAndMatchFace]);
 
   const handleIdSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -152,6 +166,8 @@ export default function Login() {
     setShowIdInput(false);
     setFaceStatus('loading');
     setRecognizedUser(null);
+    setAdminFaceMode(false);
+    setModelsReady(false);
   };
 
   return (
@@ -274,6 +290,59 @@ export default function Login() {
                 </form>
               )}
             </div>
+          ) : adminFaceMode ? (
+            <div className="space-y-4">
+              <div className="relative rounded-xl overflow-hidden bg-slate-900 aspect-video">
+                <Webcam
+                  ref={webcamRef}
+                  audio={false}
+                  screenshotFormat="image/jpeg"
+                  videoConstraints={{ facingMode: 'user', width: 640, height: 480 }}
+                  className="w-full h-full object-cover"
+                />
+                
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className={`w-48 h-48 rounded-full border-4 ${
+                    faceStatus === 'recognized' ? 'border-green-500' : 
+                    faceStatus === 'scanning' ? 'border-amber-500 animate-pulse' : 
+                    'border-white/50'
+                  } transition-colors`} />
+                </div>
+                
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+                  <div className="flex items-center justify-center gap-2 text-white">
+                    {faceStatus === 'loading' && (
+                      <>
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        <span>Loading face recognition...</span>
+                      </>
+                    )}
+                    {faceStatus === 'scanning' && (
+                      <>
+                        <ScanFace className="h-5 w-5 animate-pulse" />
+                        <span>Look at the camera</span>
+                      </>
+                    )}
+                    {faceStatus === 'recognized' && (
+                      <>
+                        <CheckCircle2 className="h-5 w-5 text-green-400" />
+                        <span>Welcome, {recognizedUser}!</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="text-center">
+                <button
+                  onClick={() => setAdminFaceMode(false)}
+                  className="text-sm text-slate-500 hover:text-amber-500 underline"
+                  data-testid="button-use-password"
+                >
+                  Use Email/Password instead
+                </button>
+              </div>
+            </div>
           ) : (
             <form onSubmit={handleAdminSubmit} className="space-y-4">
               <div className="space-y-2">
@@ -311,6 +380,17 @@ export default function Login() {
               <Button type="submit" className="w-full h-12 bg-amber-500 hover:bg-amber-600 text-white text-lg mt-2" disabled={loading} data-testid="button-admin-login">
                 {loading ? 'Signing In...' : 'Sign In'} {!loading && <ArrowRight className="ml-2 h-5 w-5" />}
               </Button>
+
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => setAdminFaceMode(true)}
+                  className="text-sm text-slate-500 hover:text-amber-500 underline"
+                  data-testid="button-admin-use-face"
+                >
+                  Use Face Recognition instead
+                </button>
+              </div>
             </form>
           )}
         </CardContent>
