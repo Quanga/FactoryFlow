@@ -88,7 +88,28 @@ export default function AdminLogin() {
             </Button>
           </form>
           
-          <div className="mt-6 text-center">
+          <div className="mt-4 text-center">
+            <Button 
+              variant="link" 
+              className="text-blue-600"
+              onClick={() => {
+                const email = prompt("Enter your email address to receive a password reset link:");
+                if (email) {
+                  import('@/lib/api').then(({ passwordResetApi }) => {
+                    passwordResetApi.requestReset(email).then(() => {
+                      alert("If an account exists with that email, a reset link has been sent.");
+                    }).catch(() => {
+                      alert("If an account exists with that email, a reset link has been sent.");
+                    });
+                  });
+                }
+              }}
+              data-testid="button-forgot-password"
+            >
+              Forgot Password?
+            </Button>
+          </div>
+          <div className="mt-2 text-center">
              <Button variant="link" className="text-slate-500" onClick={() => setLocation('/')}>
                Back to Worker Login
              </Button>

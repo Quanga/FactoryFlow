@@ -95,6 +95,22 @@ export const leaveBalanceApi = {
     if (!res.ok) throw new Error("Failed to fetch leave balances");
     return res.json();
   },
+
+  async getAll(): Promise<LeaveBalance[]> {
+    const res = await fetch(`${API_BASE}/leave-balances`);
+    if (!res.ok) throw new Error("Failed to fetch leave balances");
+    return res.json();
+  },
+
+  async update(id: number, balance: Partial<LeaveBalance>): Promise<LeaveBalance> {
+    const res = await fetch(`${API_BASE}/leave-balances/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(balance),
+    });
+    if (!res.ok) throw new Error("Failed to update leave balance");
+    return res.json();
+  },
 };
 
 // Leave Request API
@@ -131,8 +147,22 @@ export const leaveRequestApi = {
 
 // Attendance API
 export const attendanceApi = {
-  async getByUserId(userId: string, limit = 10): Promise<AttendanceRecord[]> {
-    const res = await fetch(`${API_BASE}/attendance/${userId}?limit=${limit}`);
+  async getByUserId(userId: string, limit = 10, startDate?: string, endDate?: string): Promise<AttendanceRecord[]> {
+    let url = `${API_BASE}/attendance/${userId}?limit=${limit}`;
+    if (startDate) url += `&startDate=${startDate}`;
+    if (endDate) url += `&endDate=${endDate}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("Failed to fetch attendance records");
+    return res.json();
+  },
+
+  async getAll(startDate?: string, endDate?: string): Promise<AttendanceRecord[]> {
+    let url = `${API_BASE}/attendance`;
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    if (params.toString()) url += `?${params.toString()}`;
+    const res = await fetch(url);
     if (!res.ok) throw new Error("Failed to fetch attendance records");
     return res.json();
   },
@@ -155,6 +185,35 @@ export const attendanceApi = {
       (error as any).status = res.status;
       (error as any).code = errorData.error;
       throw error;
+    }
+    return res.json();
+  },
+};
+
+// Password Reset API
+export const passwordResetApi = {
+  async requestReset(email: string): Promise<{ message: string }> {
+    const res = await fetch(`${API_BASE}/auth/request-reset`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      throw new Error(error.error || "Failed to send reset email");
+    }
+    return res.json();
+  },
+
+  async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+    const res = await fetch(`${API_BASE}/auth/reset-password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, newPassword }),
+    });
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      throw new Error(error.error || "Failed to reset password");
     }
     return res.json();
   },

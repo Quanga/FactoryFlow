@@ -37,6 +37,7 @@ export interface IStorage {
 
   // Leave balance operations
   getLeaveBalances(userId: string): Promise<LeaveBalance[]>;
+  getAllLeaveBalances(): Promise<LeaveBalance[]>;
   createLeaveBalance(balance: InsertLeaveBalance): Promise<LeaveBalance>;
   updateLeaveBalance(id: number, balance: Partial<InsertLeaveBalance>): Promise<LeaveBalance | undefined>;
 
@@ -47,7 +48,8 @@ export interface IStorage {
   updateLeaveRequestStatus(id: number, status: string): Promise<LeaveRequest | undefined>;
   
   // Attendance operations
-  getAttendanceRecords(userId: string, limit?: number): Promise<AttendanceRecord[]>;
+  getAttendanceRecords(userId: string, limit?: number, startDate?: Date, endDate?: Date): Promise<AttendanceRecord[]>;
+  getAllAttendanceRecords(startDate?: Date, endDate?: Date): Promise<AttendanceRecord[]>;
   getTodayLatestAttendance(userId: string): Promise<AttendanceRecord | undefined>;
   createAttendanceRecord(record: InsertAttendanceRecord): Promise<AttendanceRecord>;
   
@@ -140,6 +142,10 @@ export class DrizzleStorage implements IStorage {
       .where(eq(schema.leaveBalances.userId, userId));
   }
 
+  async getAllLeaveBalances(): Promise<LeaveBalance[]> {
+    return db.select().from(schema.leaveBalances);
+  }
+
   async createLeaveBalance(balance: InsertLeaveBalance): Promise<LeaveBalance> {
     const [newBalance] = await db.insert(schema.leaveBalances).values(balance).returning();
     return newBalance;
@@ -192,13 +198,34 @@ export class DrizzleStorage implements IStorage {
   }
 
   // Attendance operations
-  async getAttendanceRecords(userId: string, limit = 10): Promise<AttendanceRecord[]> {
+  async getAttendanceRecords(userId: string, limit = 10, startDate?: Date, endDate?: Date): Promise<AttendanceRecord[]> {
+    const conditions = [eq(schema.attendanceRecords.userId, userId)];
+    if (startDate) conditions.push(gte(schema.attendanceRecords.timestamp, startDate));
+    if (endDate) conditions.push(lte(schema.attendanceRecords.timestamp, endDate));
+    
     return db
       .select()
       .from(schema.attendanceRecords)
-      .where(eq(schema.attendanceRecords.userId, userId))
+      .where(and(...conditions))
       .orderBy(desc(schema.attendanceRecords.timestamp))
       .limit(limit);
+  }
+
+  async getAllAttendanceRecords(startDate?: Date, endDate?: Date): Promise<AttendanceRecord[]> {
+    if (startDate && endDate) {
+      return db
+        .select()
+        .from(schema.attendanceRecords)
+        .where(and(
+          gte(schema.attendanceRecords.timestamp, startDate),
+          lte(schema.attendanceRecords.timestamp, endDate)
+        ))
+        .orderBy(desc(schema.attendanceRecords.timestamp));
+    }
+    return db
+      .select()
+      .from(schema.attendanceRecords)
+      .orderBy(desc(schema.attendanceRecords.timestamp));
   }
 
   async getTodayLatestAttendance(userId: string): Promise<AttendanceRecord | undefined> {

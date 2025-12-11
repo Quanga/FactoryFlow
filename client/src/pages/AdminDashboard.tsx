@@ -12,9 +12,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { userApi, settingsApi, departmentApi, userGroupApi } from '@/lib/api';
-import type { User, Department, UserGroup } from '@shared/schema';
-import { Plus, Pencil, Trash2, Save, Mail, Users, Settings, Camera, Building2, Loader2, CheckCircle2, UserCog, Shield } from 'lucide-react';
+import { userApi, settingsApi, departmentApi, userGroupApi, leaveRequestApi, leaveBalanceApi, attendanceApi } from '@/lib/api';
+import type { User, Department, UserGroup, LeaveRequest, LeaveBalance, AttendanceRecord } from '@shared/schema';
+import { Plus, Pencil, Trash2, Save, Mail, Users, Settings, Camera, Building2, Loader2, CheckCircle2, UserCog, Shield, Calendar, Clock, FileText, Check, X, Search } from 'lucide-react';
+import { format } from 'date-fns';
 import { useToast } from "@/hooks/use-toast";
 import WebcamCapture from '@/components/WebcamCapture';
 import { loadFaceModels, extractFaceDescriptorFromBase64, descriptorToJson } from '@/lib/face-recognition';
@@ -61,6 +62,24 @@ export default function AdminDashboard() {
   const { data: userGroups = [] } = useQuery({
     queryKey: ['userGroups'],
     queryFn: userGroupApi.getAll,
+  });
+
+  const { data: leaveRequests = [] } = useQuery({
+    queryKey: ['leave-requests'],
+    queryFn: () => leaveRequestApi.getAll(),
+  });
+
+  const { data: leaveBalances = [] } = useQuery({
+    queryKey: ['leave-balances'],
+    queryFn: () => leaveBalanceApi.getAll(),
+  });
+
+  const [attendanceStartDate, setAttendanceStartDate] = useState('');
+  const [attendanceEndDate, setAttendanceEndDate] = useState('');
+
+  const { data: attendanceRecords = [] } = useQuery({
+    queryKey: ['attendance', attendanceStartDate, attendanceEndDate],
+    queryFn: () => attendanceApi.getAll(attendanceStartDate || undefined, attendanceEndDate || undefined),
   });
   
   // User Management State
@@ -165,6 +184,15 @@ export default function AdminDashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
       toast({ title: "Settings Saved", description: "Email configuration updated." });
+    },
+  });
+
+  const updateLeaveStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: number; status: string }) => leaveRequestApi.updateStatus(id, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leave-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['leave-balances'] });
+      toast({ title: "Leave Request Updated", description: "Status has been updated and notification sent." });
     },
   });
 
@@ -427,10 +455,12 @@ export default function AdminDashboard() {
         </div>
 
         <Tabs defaultValue="users" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 max-w-2xl mb-8">
+          <TabsList className="grid w-full grid-cols-6 max-w-4xl mb-8">
             <TabsTrigger value="users" className="gap-2" data-testid="tab-users"><Users className="h-4 w-4" /> Employees</TabsTrigger>
+            <TabsTrigger value="leave-requests" className="gap-2" data-testid="tab-leave-requests"><FileText className="h-4 w-4" /> Leave</TabsTrigger>
+            <TabsTrigger value="attendance" className="gap-2" data-testid="tab-attendance"><Clock className="h-4 w-4" /> Attendance</TabsTrigger>
             <TabsTrigger value="departments" className="gap-2" data-testid="tab-departments"><Building2 className="h-4 w-4" /> Departments</TabsTrigger>
-            <TabsTrigger value="user-groups" className="gap-2" data-testid="tab-user-groups"><Shield className="h-4 w-4" /> User Groups</TabsTrigger>
+            <TabsTrigger value="user-groups" className="gap-2" data-testid="tab-user-groups"><Shield className="h-4 w-4" /> Groups</TabsTrigger>
             <TabsTrigger value="settings" className="gap-2" data-testid="tab-settings"><Settings className="h-4 w-4" /> Settings</TabsTrigger>
           </TabsList>
 
@@ -486,6 +516,212 @@ export default function AdminDashboard() {
                     ))}
                   </TableBody>
                 </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="leave-requests" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Leave Requests</CardTitle>
+                <CardDescription>Review and approve/reject employee leave requests</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {leaveRequests.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No leave requests found.
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Employee</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Dates</TableHead>
+                        <TableHead>Reason</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {leaveRequests.map((request: LeaveRequest) => {
+                        const employee = users.find(u => u.id === request.userId);
+                        return (
+                          <TableRow key={request.id} data-testid={`row-leave-request-${request.id}`}>
+                            <TableCell className="font-medium">
+                              {employee ? `${employee.firstName} ${employee.surname}` : request.userId}
+                            </TableCell>
+                            <TableCell className="capitalize">{request.leaveType.replace('_', ' ')}</TableCell>
+                            <TableCell>
+                              {format(new Date(request.startDate), 'MMM d')} - {format(new Date(request.endDate), 'MMM d, yyyy')}
+                            </TableCell>
+                            <TableCell className="max-w-[200px] truncate">{request.reason || '-'}</TableCell>
+                            <TableCell>
+                              <Badge variant={
+                                request.status === 'approved' ? 'default' :
+                                request.status === 'rejected' ? 'destructive' : 'secondary'
+                              }>
+                                {request.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {request.status === 'pending' && (
+                                <>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon"
+                                    onClick={() => updateLeaveStatusMutation.mutate({ id: request.id, status: 'approved' })}
+                                    data-testid={`button-approve-${request.id}`}
+                                  >
+                                    <Check className="h-4 w-4 text-green-500" />
+                                  </Button>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon"
+                                    onClick={() => updateLeaveStatusMutation.mutate({ id: request.id, status: 'rejected' })}
+                                    data-testid={`button-reject-${request.id}`}
+                                  >
+                                    <X className="h-4 w-4 text-red-500" />
+                                  </Button>
+                                </>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Leave Balances</CardTitle>
+                <CardDescription>View and manage employee leave balances</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {leaveBalances.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No leave balances found.
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Employee</TableHead>
+                        <TableHead>Leave Type</TableHead>
+                        <TableHead>Total</TableHead>
+                        <TableHead>Taken</TableHead>
+                        <TableHead>Pending</TableHead>
+                        <TableHead>Available</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {leaveBalances.map((balance: LeaveBalance) => {
+                        const employee = users.find(u => u.id === balance.userId);
+                        const available = balance.total - balance.taken - balance.pending;
+                        return (
+                          <TableRow key={balance.id} data-testid={`row-balance-${balance.id}`}>
+                            <TableCell className="font-medium">
+                              {employee ? `${employee.firstName} ${employee.surname}` : balance.userId}
+                            </TableCell>
+                            <TableCell className="capitalize">{balance.leaveType.replace('_', ' ')}</TableCell>
+                            <TableCell>{balance.total}</TableCell>
+                            <TableCell>{balance.taken}</TableCell>
+                            <TableCell>{balance.pending}</TableCell>
+                            <TableCell>
+                              <Badge variant={available > 0 ? 'default' : 'destructive'}>
+                                {available}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="attendance" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <div className="flex flex-row items-center justify-between w-full">
+                  <div>
+                    <CardTitle>Attendance Records</CardTitle>
+                    <CardDescription>View employee clock-in/clock-out history</CardDescription>
+                  </div>
+                  <div className="flex gap-2 items-center">
+                    <Input
+                      type="date"
+                      value={attendanceStartDate}
+                      onChange={(e) => setAttendanceStartDate(e.target.value)}
+                      className="w-40"
+                      data-testid="input-start-date"
+                    />
+                    <span className="text-muted-foreground">to</span>
+                    <Input
+                      type="date"
+                      value={attendanceEndDate}
+                      onChange={(e) => setAttendanceEndDate(e.target.value)}
+                      className="w-40"
+                      data-testid="input-end-date"
+                    />
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setAttendanceStartDate('');
+                        setAttendanceEndDate('');
+                      }}
+                      data-testid="button-clear-filters"
+                    >
+                      Clear
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {attendanceRecords.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No attendance records found for the selected date range.
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Employee</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Time</TableHead>
+                        <TableHead>Context</TableHead>
+                        <TableHead>Method</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {attendanceRecords.map((record: AttendanceRecord) => {
+                        const employee = users.find(u => u.id === record.userId);
+                        return (
+                          <TableRow key={record.id} data-testid={`row-attendance-${record.id}`}>
+                            <TableCell className="font-medium">
+                              {employee ? `${employee.firstName} ${employee.surname}` : record.userId}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={record.type === 'in' ? 'default' : 'secondary'}>
+                                Clock {record.type === 'in' ? 'In' : 'Out'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {format(new Date(record.timestamp), "MMM d, yyyy 'at' h:mm a")}
+                            </TableCell>
+                            <TableCell className="capitalize">{record.context || '-'}</TableCell>
+                            <TableCell className="capitalize">{record.method || '-'}</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

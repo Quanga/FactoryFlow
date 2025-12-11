@@ -13,6 +13,8 @@ import Attendance from "@/pages/Attendance";
 import AttendanceKiosk from "@/pages/AttendanceKiosk";
 import AdminLogin from "@/pages/AdminLogin";
 import AdminDashboard from "@/pages/AdminDashboard";
+import ResetPassword from "@/pages/ResetPassword";
+import EmployeeProfile from "@/pages/EmployeeProfile";
 
 function Router() {
   return (
@@ -25,6 +27,8 @@ function Router() {
       <Route path="/leave-request" component={LeaveRequest} />
       <Route path="/attendance" component={Attendance} />
       <Route path="/attendance-kiosk" component={AttendanceKiosk} />
+      <Route path="/reset-password" component={ResetPassword} />
+      <Route path="/profile" component={EmployeeProfile} />
       <Route component={NotFound} />
     </Switch>
   );

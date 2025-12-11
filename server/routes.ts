@@ -3,7 +3,11 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
 import { insertUserSchema, insertLeaveRequestSchema, insertAttendanceRecordSchema, insertDepartmentSchema, insertUserGroupSchema } from "@shared/schema";
-import { sendLeaveRequestNotification, sendLateAttendanceNotification, sendAdminWelcomeEmail } from "./email";
+import { sendLeaveRequestNotification, sendLateAttendanceNotification, sendAdminWelcomeEmail, sendLeaveStatusNotification, sendPasswordResetEmail } from "./email";
+import crypto from "crypto";
+
+// Simple in-memory store for password reset tokens (in production, use database)
+const passwordResetTokens = new Map<string, { email: string; expiry: Date }>();
 
 export async function registerRoutes(
   httpServer: Server,
@@ -58,6 +62,87 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Admin login error:", error);
       return res.status(500).json({ error: "Login failed" });
+    }
+  });
+
+  // Request password reset
+  app.post("/api/auth/request-reset", async (req, res) => {
+    try {
+      const { email } = req.body;
+      
+      if (!email) {
+        return res.status(400).json({ error: "Email is required" });
+      }
+
+      const user = await storage.getUserByEmail(email);
+      
+      // Always return success to prevent email enumeration
+      if (!user || user.role !== 'manager') {
+        return res.json({ message: "If an account exists with that email, a reset link has been sent." });
+      }
+
+      // Generate reset token
+      const token = crypto.randomBytes(32).toString('hex');
+      const expiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour expiry
+      
+      passwordResetTokens.set(token, { email, expiry });
+
+      // Send reset email
+      const senderEmail = "hr@aece.co.za";
+      const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+        ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
+        : 'http://localhost:5000';
+      const resetUrl = `${baseUrl}/reset-password?token=${token}`;
+
+      await sendPasswordResetEmail(email, senderEmail, {
+        firstName: user.firstName || 'User',
+        resetToken: token,
+        resetUrl,
+      });
+
+      return res.json({ message: "If an account exists with that email, a reset link has been sent." });
+    } catch (error) {
+      console.error("Password reset request error:", error);
+      return res.status(500).json({ error: "Failed to process reset request" });
+    }
+  });
+
+  // Reset password with token
+  app.post("/api/auth/reset-password", async (req, res) => {
+    try {
+      const { token, newPassword } = req.body;
+      
+      if (!token || !newPassword) {
+        return res.status(400).json({ error: "Token and new password are required" });
+      }
+
+      const tokenData = passwordResetTokens.get(token);
+      
+      if (!tokenData) {
+        return res.status(400).json({ error: "Invalid or expired reset token" });
+      }
+
+      if (new Date() > tokenData.expiry) {
+        passwordResetTokens.delete(token);
+        return res.status(400).json({ error: "Reset token has expired" });
+      }
+
+      const user = await storage.getUserByEmail(tokenData.email);
+      
+      if (!user) {
+        return res.status(400).json({ error: "User not found" });
+      }
+
+      // Update password
+      await storage.updateUser(user.id, { password: newPassword });
+      
+      // Remove used token
+      passwordResetTokens.delete(token);
+
+      return res.json({ message: "Password has been reset successfully" });
+    } catch (error) {
+      console.error("Password reset error:", error);
+      return res.status(500).json({ error: "Failed to reset password" });
     }
   });
 
@@ -176,6 +261,17 @@ export async function registerRoutes(
 
   // ========== LEAVE BALANCE ROUTES ==========
   
+  // Get all leave balances (admin)
+  app.get("/api/leave-balances", async (req, res) => {
+    try {
+      const balances = await storage.getAllLeaveBalances();
+      return res.json(balances);
+    } catch (error) {
+      console.error("Get all balances error:", error);
+      return res.status(500).json({ error: "Failed to fetch leave balances" });
+    }
+  });
+
   // Get leave balances for a user
   app.get("/api/leave-balances/:userId", async (req, res) => {
     try {
@@ -184,6 +280,26 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Get balances error:", error);
       return res.status(500).json({ error: "Failed to fetch leave balances" });
+    }
+  });
+
+  // Update leave balance
+  app.patch("/api/leave-balances/:id", async (req, res) => {
+    try {
+      const { total, taken, pending } = req.body;
+      const updatedBalance = await storage.updateLeaveBalance(
+        parseInt(req.params.id),
+        { total, taken, pending }
+      );
+      
+      if (!updatedBalance) {
+        return res.status(404).json({ error: "Leave balance not found" });
+      }
+
+      return res.json(updatedBalance);
+    } catch (error) {
+      console.error("Update balance error:", error);
+      return res.status(500).json({ error: "Failed to update leave balance" });
     }
   });
 
@@ -258,6 +374,31 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Leave request not found" });
       }
 
+      // Send email notification to employee if approved or rejected
+      if (status === 'approved' || status === 'rejected') {
+        try {
+          const user = await storage.getUser(updatedRequest.userId);
+          const senderEmail = "hr@aece.co.za";
+          
+          if (user && user.email) {
+            await sendLeaveStatusNotification(
+              user.email,
+              senderEmail,
+              {
+                employeeName: `${user.firstName} ${user.surname}`,
+                employeeEmail: user.email,
+                leaveType: updatedRequest.leaveType,
+                startDate: updatedRequest.startDate,
+                endDate: updatedRequest.endDate,
+                status: status as 'approved' | 'rejected',
+              }
+            );
+          }
+        } catch (emailError) {
+          console.error('Failed to send leave status notification:', emailError);
+        }
+      }
+
       return res.json(updatedRequest);
     } catch (error) {
       console.error("Update leave request error:", error);
@@ -267,11 +408,26 @@ export async function registerRoutes(
 
   // ========== ATTENDANCE ROUTES ==========
   
+  // Get all attendance records (admin) - must be before :userId route
+  app.get("/api/attendance", async (req, res) => {
+    try {
+      const startDate = req.query.startDate ? new Date(req.query.startDate as string) : undefined;
+      const endDate = req.query.endDate ? new Date(req.query.endDate as string) : undefined;
+      const records = await storage.getAllAttendanceRecords(startDate, endDate);
+      return res.json(records);
+    } catch (error) {
+      console.error("Get all attendance error:", error);
+      return res.status(500).json({ error: "Failed to fetch attendance records" });
+    }
+  });
+
   // Get attendance records for a user
   app.get("/api/attendance/:userId", async (req, res) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
-      const records = await storage.getAttendanceRecords(req.params.userId, limit);
+      const startDate = req.query.startDate ? new Date(req.query.startDate as string) : undefined;
+      const endDate = req.query.endDate ? new Date(req.query.endDate as string) : undefined;
+      const records = await storage.getAttendanceRecords(req.params.userId, limit, startDate, endDate);
       return res.json(records);
     } catch (error) {
       console.error("Get attendance error:", error);
