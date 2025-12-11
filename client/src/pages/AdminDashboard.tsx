@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { userApi, settingsApi, departmentApi, userGroupApi, leaveRequestApi, leaveBalanceApi, attendanceApi } from '@/lib/api';
 import type { User, Department, UserGroup, LeaveRequest, LeaveBalance, AttendanceRecord } from '@shared/schema';
-import { Plus, Pencil, Trash2, Save, Mail, Users, Settings, Camera, Building2, Loader2, CheckCircle2, UserCog, Shield, Calendar, Clock, FileText, Check, X, Search, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, Pencil, Trash2, Save, Mail, Users, Settings, Camera, Building2, Loader2, CheckCircle2, UserCog, Shield, Calendar, Clock, FileText, Check, X, Search, ChevronDown, ChevronRight, LayoutDashboard, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/lib/auth-context';
@@ -128,6 +128,9 @@ export default function AdminDashboard() {
   const [isBalanceDialogOpen, setIsBalanceDialogOpen] = useState(false);
   const [selectedEmployeeForBalance, setSelectedEmployeeForBalance] = useState<User | null>(null);
   const [expandedEmployees, setExpandedEmployees] = useState<Set<string>>(new Set());
+
+  // Navigation State
+  const [activeSection, setActiveSection] = useState<'dashboard' | 'employees' | 'leave-requests' | 'attendance' | 'departments' | 'groups' | 'settings'>('dashboard');
 
   // Settings State
   const [emailSettings, setEmailSettings] = useState('');
@@ -643,23 +646,275 @@ export default function AdminDashboard() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <div className="space-y-8">
-        <div>
-          <h1 className="text-3xl font-heading font-bold text-slate-900">Admin Dashboard</h1>
-          <p className="text-muted-foreground">Manage users and system configurations.</p>
+      <div className="flex gap-6">
+        {/* Left Navigation Sidebar */}
+        <div className="w-64 shrink-0">
+          <div className="sticky top-4 space-y-1">
+            <h2 className="text-lg font-heading font-bold text-slate-900 mb-4">Admin Panel</h2>
+            <nav className="space-y-1">
+              <button
+                onClick={() => setActiveSection('dashboard')}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
+                  activeSection === 'dashboard' ? 'bg-primary text-white' : 'hover:bg-slate-100 text-slate-700'
+                }`}
+                data-testid="nav-dashboard"
+              >
+                <LayoutDashboard className="h-4 w-4" /> Dashboard
+              </button>
+              <button
+                onClick={() => setActiveSection('employees')}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
+                  activeSection === 'employees' ? 'bg-primary text-white' : 'hover:bg-slate-100 text-slate-700'
+                }`}
+                data-testid="nav-employees"
+              >
+                <Users className="h-4 w-4" /> Employees
+              </button>
+              <button
+                onClick={() => setActiveSection('leave-requests')}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
+                  activeSection === 'leave-requests' ? 'bg-primary text-white' : 'hover:bg-slate-100 text-slate-700'
+                }`}
+                data-testid="nav-leave-requests"
+              >
+                <FileText className="h-4 w-4" /> Leave Requests
+              </button>
+              <button
+                onClick={() => setActiveSection('attendance')}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
+                  activeSection === 'attendance' ? 'bg-primary text-white' : 'hover:bg-slate-100 text-slate-700'
+                }`}
+                data-testid="nav-attendance"
+              >
+                <Clock className="h-4 w-4" /> Attendance
+              </button>
+              <button
+                onClick={() => setActiveSection('departments')}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
+                  activeSection === 'departments' ? 'bg-primary text-white' : 'hover:bg-slate-100 text-slate-700'
+                }`}
+                data-testid="nav-departments"
+              >
+                <Building2 className="h-4 w-4" /> Departments
+              </button>
+              <button
+                onClick={() => setActiveSection('groups')}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
+                  activeSection === 'groups' ? 'bg-primary text-white' : 'hover:bg-slate-100 text-slate-700'
+                }`}
+                data-testid="nav-groups"
+              >
+                <Shield className="h-4 w-4" /> User Groups
+              </button>
+              <button
+                onClick={() => setActiveSection('settings')}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
+                  activeSection === 'settings' ? 'bg-primary text-white' : 'hover:bg-slate-100 text-slate-700'
+                }`}
+                data-testid="nav-settings"
+              >
+                <Settings className="h-4 w-4" /> Settings
+              </button>
+            </nav>
+          </div>
         </div>
 
-        <Tabs defaultValue="users" className="w-full">
-          <TabsList className="grid w-full grid-cols-6 max-w-4xl mb-8">
-            <TabsTrigger value="users" className="gap-2" data-testid="tab-users"><Users className="h-4 w-4" /> Employees</TabsTrigger>
-            <TabsTrigger value="leave-requests" className="gap-2" data-testid="tab-leave-requests"><FileText className="h-4 w-4" /> Leave</TabsTrigger>
-            <TabsTrigger value="attendance" className="gap-2" data-testid="tab-attendance"><Clock className="h-4 w-4" /> Attendance</TabsTrigger>
-            <TabsTrigger value="departments" className="gap-2" data-testid="tab-departments"><Building2 className="h-4 w-4" /> Departments</TabsTrigger>
-            <TabsTrigger value="user-groups" className="gap-2" data-testid="tab-user-groups"><Shield className="h-4 w-4" /> Groups</TabsTrigger>
-            <TabsTrigger value="settings" className="gap-2" data-testid="tab-settings"><Settings className="h-4 w-4" /> Settings</TabsTrigger>
-          </TabsList>
+        {/* Main Content Area */}
+        <div className="flex-1 space-y-6">
+          {/* Dashboard Overview */}
+          {activeSection === 'dashboard' && (
+            <div className="space-y-6">
+              <div>
+                <h1 className="text-3xl font-heading font-bold text-slate-900">Dashboard</h1>
+                <p className="text-muted-foreground">Overview of your workforce management</p>
+              </div>
 
-          <TabsContent value="users" className="space-y-4">
+              {/* Quick Stats */}
+              <div className="grid grid-cols-4 gap-4">
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-3">
+                      <div className="p-3 bg-blue-100 rounded-lg">
+                        <Users className="h-6 w-6 text-blue-600" />
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold">{users.filter(u => u.role === 'worker').length}</p>
+                        <p className="text-sm text-muted-foreground">Total Employees</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-3">
+                      <div className="p-3 bg-amber-100 rounded-lg">
+                        <FileText className="h-6 w-6 text-amber-600" />
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold">{leaveRequests.filter((r: LeaveRequest) => r.status === 'pending').length}</p>
+                        <p className="text-sm text-muted-foreground">Pending Leave</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-3">
+                      <div className="p-3 bg-green-100 rounded-lg">
+                        <CheckCircle2 className="h-6 w-6 text-green-600" />
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold">
+                          {attendanceRecords.filter((r: AttendanceRecord) => {
+                            const today = new Date().toDateString();
+                            return new Date(r.timestamp).toDateString() === today && r.type === 'in';
+                          }).length}
+                        </p>
+                        <p className="text-sm text-muted-foreground">Clocked In Today</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-3">
+                      <div className="p-3 bg-red-100 rounded-lg">
+                        <AlertTriangle className="h-6 w-6 text-red-600" />
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold">
+                          {users.filter(u => u.role === 'worker').filter(emp => {
+                            const empBalances = leaveBalances.filter((b: LeaveBalance) => b.userId === emp.id);
+                            return empBalances.some((b: LeaveBalance) => (b.total - b.taken - b.pending) <= 2 && b.total > 0);
+                          }).length}
+                        </p>
+                        <p className="text-sm text-muted-foreground">Low Leave Balance</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Pending Leave Requests */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-amber-500" />
+                    Pending Leave Requests
+                  </CardTitle>
+                  <CardDescription>Leave requests awaiting your approval</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {leaveRequests.filter((r: LeaveRequest) => r.status === 'pending').length === 0 ? (
+                    <p className="text-muted-foreground text-center py-4">No pending leave requests</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {leaveRequests.filter((r: LeaveRequest) => r.status === 'pending').slice(0, 5).map((request: LeaveRequest) => {
+                        const employee = users.find(u => u.id === request.userId);
+                        return (
+                          <div key={request.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border">
+                            <div className="flex items-center gap-3">
+                              <div className="h-8 w-8 rounded-full overflow-hidden bg-slate-200">
+                                <img src={employee?.photoUrl || 'https://github.com/shadcn.png'} alt="" className="h-full w-full object-cover" />
+                              </div>
+                              <div>
+                                <p className="font-medium">{employee ? `${employee.firstName} ${employee.surname}` : request.userId}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {request.leaveType} • {format(new Date(request.startDate), 'MMM d')} - {format(new Date(request.endDate), 'MMM d')}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => {
+                                  setSelectedLeaveRequest(request);
+                                  setIsReviewDialogOpen(true);
+                                }}
+                              >
+                                Review
+                              </Button>
+                              <Button 
+                                size="sm"
+                                className="bg-green-600 hover:bg-green-700"
+                                onClick={() => updateLeaveStatusMutation.mutate({ id: request.id, status: 'approved' })}
+                              >
+                                <Check className="h-4 w-4" />
+                              </Button>
+                              <Button 
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => updateLeaveStatusMutation.mutate({ id: request.id, status: 'rejected' })}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {leaveRequests.filter((r: LeaveRequest) => r.status === 'pending').length > 5 && (
+                        <Button variant="link" className="w-full" onClick={() => setActiveSection('leave-requests')}>
+                          View all {leaveRequests.filter((r: LeaveRequest) => r.status === 'pending').length} pending requests
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Low Leave Balance Alerts */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5 text-amber-500" />
+                    Low Leave Balance Alerts
+                  </CardTitle>
+                  <CardDescription>Employees with 2 or fewer leave days remaining</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {users.filter(u => u.role === 'worker').map(emp => {
+                      const empBalances = leaveBalances.filter((b: LeaveBalance) => b.userId === emp.id);
+                      const lowBalances = empBalances.filter((b: LeaveBalance) => (b.total - b.taken - b.pending) <= 2 && b.total > 0);
+                      if (lowBalances.length === 0) return null;
+                      return (
+                        <div key={emp.id} className="flex items-center justify-between p-3 bg-amber-50 rounded-lg border border-amber-200">
+                          <div className="flex items-center gap-3">
+                            <div className="h-8 w-8 rounded-full overflow-hidden bg-slate-200">
+                              <img src={emp.photoUrl || 'https://github.com/shadcn.png'} alt="" className="h-full w-full object-cover" />
+                            </div>
+                            <span className="font-medium">{emp.firstName} {emp.surname}</span>
+                          </div>
+                          <div className="flex gap-2">
+                            {lowBalances.map((b: LeaveBalance) => (
+                              <Badge key={b.id} variant="outline" className="border-amber-400 text-amber-700">
+                                {b.leaveType}: {b.total - b.taken - b.pending} left
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    }).filter(Boolean)}
+                    {users.filter(u => u.role === 'worker').every(emp => {
+                      const empBalances = leaveBalances.filter((b: LeaveBalance) => b.userId === emp.id);
+                      return empBalances.every((b: LeaveBalance) => (b.total - b.taken - b.pending) > 2 || b.total === 0);
+                    }) && (
+                      <p className="text-muted-foreground text-center py-4">No employees with low leave balances</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Employees Section */}
+          {activeSection === 'employees' && (
+            <div className="space-y-4">
+              <div>
+                <h1 className="text-3xl font-heading font-bold text-slate-900">Employees</h1>
+                <p className="text-muted-foreground">Manage worker access, IDs, and leave balances</p>
+              </div>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
@@ -866,9 +1121,16 @@ export default function AdminDashboard() {
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
+            </div>
+          )}
 
-          <TabsContent value="leave-requests" className="space-y-4">
+          {/* Leave Requests Section */}
+          {activeSection === 'leave-requests' && (
+            <div className="space-y-4">
+              <div>
+                <h1 className="text-3xl font-heading font-bold text-slate-900">Leave Requests</h1>
+                <p className="text-muted-foreground">Review and approve/reject employee leave requests</p>
+              </div>
             <Card>
               <CardHeader>
                 <CardTitle>Leave Requests</CardTitle>
@@ -1003,9 +1265,16 @@ export default function AdminDashboard() {
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
+            </div>
+          )}
 
-          <TabsContent value="attendance" className="space-y-4">
+          {/* Attendance Section */}
+          {activeSection === 'attendance' && (
+            <div className="space-y-4">
+              <div>
+                <h1 className="text-3xl font-heading font-bold text-slate-900">Attendance</h1>
+                <p className="text-muted-foreground">View employee clock-in/clock-out history</p>
+              </div>
             <Card>
               <CardHeader>
                 <div className="flex flex-row items-center justify-between w-full">
@@ -1084,9 +1353,16 @@ export default function AdminDashboard() {
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
+            </div>
+          )}
 
-          <TabsContent value="departments" className="space-y-4">
+          {/* Departments Section */}
+          {activeSection === 'departments' && (
+            <div className="space-y-4">
+              <div>
+                <h1 className="text-3xl font-heading font-bold text-slate-900">Departments</h1>
+                <p className="text-muted-foreground">Manage departments for employee organization</p>
+              </div>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
@@ -1145,9 +1421,16 @@ export default function AdminDashboard() {
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
+            </div>
+          )}
 
-          <TabsContent value="user-groups" className="space-y-4">
+          {/* User Groups Section */}
+          {activeSection === 'groups' && (
+            <div className="space-y-4">
+              <div>
+                <h1 className="text-3xl font-heading font-bold text-slate-900">User Groups</h1>
+                <p className="text-muted-foreground">Manage admin user groups for access control</p>
+              </div>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
@@ -1253,9 +1536,16 @@ export default function AdminDashboard() {
                 </Table>
               </CardContent>
             </Card>
-          </TabsContent>
+            </div>
+          )}
 
-          <TabsContent value="settings" className="space-y-4">
+          {/* Settings Section */}
+          {activeSection === 'settings' && (
+            <div className="space-y-4">
+              <div>
+                <h1 className="text-3xl font-heading font-bold text-slate-900">Settings</h1>
+                <p className="text-muted-foreground">Configure system notifications and attendance rules</p>
+              </div>
             <Card>
               <CardHeader>
                 <CardTitle>Notification Settings</CardTitle>
@@ -1380,10 +1670,12 @@ export default function AdminDashboard() {
             <Button onClick={handleSaveSettings} className="btn-industrial">
               <Save className="mr-2 h-4 w-4" /> Save Configuration
             </Button>
-          </TabsContent>
-        </Tabs>
+            </div>
+          )}
+        </div>
+      </div>
 
-        {/* Department Dialog */}
+      {/* Department Dialog */}
         <Dialog open={isDeptDialogOpen} onOpenChange={setIsDeptDialogOpen}>
           <DialogContent>
             <DialogHeader>
@@ -1901,7 +2193,6 @@ export default function AdminDashboard() {
             })()}
           </DialogContent>
         </Dialog>
-      </div>
     </Layout>
   );
 }
