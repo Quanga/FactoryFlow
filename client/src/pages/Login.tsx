@@ -32,16 +32,16 @@ export default function Login() {
 
   useEffect(() => {
     if (loginMode === 'worker') {
-      initFaceRecognition();
+      initFaceRecognition(false);
     }
   }, [loginMode]);
 
-  const initFaceRecognition = async () => {
+  const initFaceRecognition = async (includeAdmins: boolean) => {
     setFaceStatus('loading');
     try {
       const [loaded, users] = await Promise.all([
         loadFaceModels(),
-        faceApi.getAllFaceDescriptors(true),
+        faceApi.getAllFaceDescriptors(includeAdmins),
       ]);
       setModelsReady(loaded);
       setFaceUsers(users);
@@ -82,21 +82,15 @@ export default function Login() {
           setFaceStatus('recognized');
           setRecognizedUser(bestMatch.user.name);
           
-          if (bestMatch.user.role === 'manager') {
-            setTimeout(() => {
-              setLoginMode('admin');
-              setEmail(bestMatch.user.email || '');
-              setFaceStatus('loading');
-              setRecognizedUser(null);
-            }, 1000);
-            return;
-          }
-          
           setTimeout(async () => {
             try {
               const user = await authApi.loginWorker(bestMatch.user.id);
               setUser(user);
-              setLocation('/dashboard');
+              if (user.role === 'manager') {
+                setLocation('/admin/dashboard');
+              } else {
+                setLocation('/dashboard');
+              }
             } catch (err) {
               setError('Login failed');
               setFaceStatus('scanning');
