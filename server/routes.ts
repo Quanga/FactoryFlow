@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
 import { insertUserSchema, insertLeaveRequestSchema, insertAttendanceRecordSchema, insertDepartmentSchema } from "@shared/schema";
+import { sendLeaveRequestNotification } from "./email";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -182,7 +183,31 @@ export async function registerRoutes(
       const validatedData = insertLeaveRequestSchema.parse(req.body);
       const newRequest = await storage.createLeaveRequest(validatedData);
       
-      // TODO: Send email notification to admin
+      // Send email notification to admin
+      try {
+        const adminEmailSetting = await storage.getSetting('admin_email');
+        const senderEmailSetting = await storage.getSetting('sender_email');
+        
+        if (adminEmailSetting?.value && senderEmailSetting?.value) {
+          const user = await storage.getUser(validatedData.userId);
+          
+          await sendLeaveRequestNotification(
+            adminEmailSetting.value,
+            senderEmailSetting.value,
+            {
+              employeeName: user?.name || 'Unknown',
+              employeeId: validatedData.userId,
+              leaveType: validatedData.leaveType,
+              startDate: validatedData.startDate,
+              endDate: validatedData.endDate,
+              reason: validatedData.reason || 'No reason provided',
+              department: user?.department || undefined,
+            }
+          );
+        }
+      } catch (emailError) {
+        console.error('Failed to send email notification:', emailError);
+      }
       
       return res.status(201).json(newRequest);
     } catch (error) {
