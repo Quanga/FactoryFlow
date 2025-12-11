@@ -16,6 +16,8 @@ import type {
   InsertSetting,
   Department,
   InsertDepartment,
+  UserGroup,
+  InsertUserGroup,
 } from "@shared/schema";
 
 const pool = new Pool({
@@ -60,6 +62,14 @@ export interface IStorage {
   updateDepartment(id: number, department: Partial<InsertDepartment>): Promise<Department | undefined>;
   deleteDepartment(id: number): Promise<boolean>;
   getUserCountByDepartment(departmentName: string): Promise<number>;
+
+  // User Group operations
+  getAllUserGroups(): Promise<UserGroup[]>;
+  getUserGroup(id: number): Promise<UserGroup | undefined>;
+  createUserGroup(group: InsertUserGroup): Promise<UserGroup>;
+  updateUserGroup(id: number, group: Partial<InsertUserGroup>): Promise<UserGroup | undefined>;
+  deleteUserGroup(id: number): Promise<boolean>;
+  getUserCountByUserGroup(groupId: number): Promise<number>;
 }
 
 export class DrizzleStorage implements IStorage {
@@ -286,6 +296,49 @@ export class DrizzleStorage implements IStorage {
       .select()
       .from(schema.users)
       .where(eq(schema.users.department, departmentName));
+    return users.length;
+  }
+
+  // User Group operations
+  async getAllUserGroups(): Promise<UserGroup[]> {
+    return db.select().from(schema.userGroups).orderBy(schema.userGroups.name);
+  }
+
+  async getUserGroup(id: number): Promise<UserGroup | undefined> {
+    const groups = await db
+      .select()
+      .from(schema.userGroups)
+      .where(eq(schema.userGroups.id, id));
+    return groups[0];
+  }
+
+  async createUserGroup(group: InsertUserGroup): Promise<UserGroup> {
+    const [newGroup] = await db
+      .insert(schema.userGroups)
+      .values(group)
+      .returning();
+    return newGroup;
+  }
+
+  async updateUserGroup(id: number, group: Partial<InsertUserGroup>): Promise<UserGroup | undefined> {
+    const [updatedGroup] = await db
+      .update(schema.userGroups)
+      .set(group)
+      .where(eq(schema.userGroups.id, id))
+      .returning();
+    return updatedGroup;
+  }
+
+  async deleteUserGroup(id: number): Promise<boolean> {
+    await db.delete(schema.userGroups).where(eq(schema.userGroups.id, id));
+    return true;
+  }
+
+  async getUserCountByUserGroup(groupId: number): Promise<number> {
+    const users = await db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.userGroupId, groupId));
     return users.length;
   }
 }
