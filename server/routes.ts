@@ -104,7 +104,10 @@ export async function registerRoutes(
   // Update user
   app.patch("/api/users/:id", async (req, res) => {
     try {
-      const updatedUser = await storage.updateUser(req.params.id, req.body);
+      // Remove fields that shouldn't be updated
+      const { id, createdAt, ...updateData } = req.body;
+      
+      const updatedUser = await storage.updateUser(req.params.id, updateData);
       
       if (!updatedUser) {
         return res.status(404).json({ error: "User not found" });
