@@ -102,6 +102,16 @@ export const leaveBalanceApi = {
     return res.json();
   },
 
+  async create(balance: { userId: string; leaveType: string; total: number; taken?: number; pending?: number }): Promise<LeaveBalance> {
+    const res = await fetch(`${API_BASE}/leave-balances`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(balance),
+    });
+    if (!res.ok) throw new Error("Failed to create leave balance");
+    return res.json();
+  },
+
   async update(id: number, balance: Partial<LeaveBalance>): Promise<LeaveBalance> {
     const res = await fetch(`${API_BASE}/leave-balances/${id}`, {
       method: "PATCH",

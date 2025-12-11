@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { userApi, settingsApi, departmentApi, userGroupApi, leaveRequestApi, leaveBalanceApi, attendanceApi } from '@/lib/api';
 import type { User, Department, UserGroup, LeaveRequest, LeaveBalance, AttendanceRecord } from '@shared/schema';
-import { Plus, Pencil, Trash2, Save, Mail, Users, Settings, Camera, Building2, Loader2, CheckCircle2, UserCog, Shield, Calendar, Clock, FileText, Check, X, Search } from 'lucide-react';
+import { Plus, Pencil, Trash2, Save, Mail, Users, Settings, Camera, Building2, Loader2, CheckCircle2, UserCog, Shield, Calendar, Clock, FileText, Check, X, Search, ChevronDown, ChevronRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/lib/auth-context';
@@ -127,6 +127,7 @@ export default function AdminDashboard() {
   // Employee Balance View State
   const [isBalanceDialogOpen, setIsBalanceDialogOpen] = useState(false);
   const [selectedEmployeeForBalance, setSelectedEmployeeForBalance] = useState<User | null>(null);
+  const [expandedEmployees, setExpandedEmployees] = useState<Set<string>>(new Set());
 
   // Settings State
   const [emailSettings, setEmailSettings] = useState('');
@@ -265,6 +266,34 @@ export default function AdminDashboard() {
       toast({ title: "Leave Request Updated", description: "Status has been updated and notification sent." });
     },
   });
+
+  const createLeaveBalanceMutation = useMutation({
+    mutationFn: (balance: { userId: string; leaveType: string; total: number }) => leaveBalanceApi.create(balance),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leave-balances'] });
+      toast({ title: "Leave Balance Created", description: "New leave allocation has been added." });
+    },
+  });
+
+  const updateLeaveBalanceMutation = useMutation({
+    mutationFn: ({ id, total }: { id: number; total: number }) => leaveBalanceApi.update(id, { total }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leave-balances'] });
+      toast({ title: "Leave Balance Updated", description: "Leave allocation has been updated." });
+    },
+  });
+
+  const toggleEmployeeExpanded = (userId: string) => {
+    setExpandedEmployees(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(userId)) {
+        newSet.delete(userId);
+      } else {
+        newSet.add(userId);
+      }
+      return newSet;
+    });
+  };
 
   const createDeptMutation = useMutation({
     mutationFn: departmentApi.create,
@@ -635,7 +664,7 @@ export default function AdminDashboard() {
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
                   <CardTitle>Employees</CardTitle>
-                  <CardDescription>Manage worker access and IDs</CardDescription>
+                  <CardDescription>Manage worker access, IDs, and leave balances</CardDescription>
                 </div>
                 <Button onClick={handleOpenCreate} className="btn-industrial bg-primary text-white">
                   <Plus className="mr-2 h-4 w-4" /> Add Employee
@@ -645,52 +674,130 @@ export default function AdminDashboard() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-8"></TableHead>
                       <TableHead>ID Number</TableHead>
                       <TableHead>Name</TableHead>
                       <TableHead>Department</TableHead>
+                      <TableHead>Leave Balance</TableHead>
                       <TableHead>Role</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {users.map((user) => (
-                      <TableRow key={user.id}>
-                        <TableCell className="font-mono font-medium">{user.id}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <div className="h-8 w-8 rounded-full overflow-hidden bg-slate-100">
-                              <img src={user.photoUrl || 'https://github.com/shadcn.png'} alt={`${user.firstName} ${user.surname}`} className="h-full w-full object-cover" />
-                            </div>
-                            {user.firstName} {user.surname}
-                          </div>
-                        </TableCell>
-                        <TableCell>{user.department}</TableCell>
-                        <TableCell>
-                          <Badge variant={user.role === 'manager' ? 'default' : 'secondary'}>
-                            {user.role}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            onClick={() => {
-                              setSelectedEmployeeForBalance(user);
-                              setIsBalanceDialogOpen(true);
-                            }}
-                            title="View Leave Balances"
-                          >
-                            <Calendar className="h-4 w-4 text-blue-500" />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleOpenEdit(user)} title="Edit">
-                            <Pencil className="h-4 w-4 text-slate-500" />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleDeleteUser(user.id)} title="Delete">
-                            <Trash2 className="h-4 w-4 text-red-500" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {users.map((emp) => {
+                      const empBalances = leaveBalances.filter((b: LeaveBalance) => b.userId === emp.id);
+                      const totalAvailable = empBalances.reduce((sum: number, b: LeaveBalance) => sum + (b.total - b.taken - b.pending), 0);
+                      const isExpanded = expandedEmployees.has(emp.id);
+                      
+                      return (
+                        <>
+                          <TableRow key={emp.id} className="cursor-pointer hover:bg-slate-50" onClick={() => toggleEmployeeExpanded(emp.id)}>
+                            <TableCell className="w-8">
+                              {isExpanded ? (
+                                <ChevronDown className="h-4 w-4 text-slate-400" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4 text-slate-400" />
+                              )}
+                            </TableCell>
+                            <TableCell className="font-mono font-medium">{emp.id}</TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-3">
+                                <div className="h-8 w-8 rounded-full overflow-hidden bg-slate-100">
+                                  <img src={emp.photoUrl || 'https://github.com/shadcn.png'} alt={`${emp.firstName} ${emp.surname}`} className="h-full w-full object-cover" />
+                                </div>
+                                {emp.firstName} {emp.surname}
+                              </div>
+                            </TableCell>
+                            <TableCell>{emp.department}</TableCell>
+                            <TableCell>
+                              {empBalances.length > 0 ? (
+                                <Badge variant={totalAvailable > 5 ? 'default' : totalAvailable > 0 ? 'secondary' : 'destructive'}>
+                                  {totalAvailable} days available
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground text-sm">Not set</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={emp.role === 'manager' ? 'default' : 'secondary'}>
+                                {emp.role}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                              <Button variant="ghost" size="icon" onClick={() => handleOpenEdit(emp)} title="Edit">
+                                <Pencil className="h-4 w-4 text-slate-500" />
+                              </Button>
+                              <Button variant="ghost" size="icon" onClick={() => handleDeleteUser(emp.id)} title="Delete">
+                                <Trash2 className="h-4 w-4 text-red-500" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                          {isExpanded && (
+                            <TableRow key={`${emp.id}-expanded`} className="bg-slate-50">
+                              <TableCell colSpan={7} className="py-4">
+                                <div className="pl-8 space-y-4">
+                                  <p className="text-sm font-medium text-slate-700">Leave Balance Details</p>
+                                  <div className="grid grid-cols-4 gap-4">
+                                    {['Annual Leave', 'Sick Leave', 'Family Responsibility', 'Study Leave'].map(leaveType => {
+                                      const balance = empBalances.find((b: LeaveBalance) => b.leaveType === leaveType);
+                                      const available = balance ? balance.total - balance.taken - balance.pending : 0;
+                                      return (
+                                        <div key={leaveType} className="p-3 bg-white rounded-lg border">
+                                          <p className="text-xs text-muted-foreground mb-1">{leaveType}</p>
+                                          {balance ? (
+                                            <>
+                                              <div className="flex items-center gap-2 mb-2">
+                                                <Badge variant={available > 0 ? 'default' : 'destructive'} className="text-lg">
+                                                  {available}
+                                                </Badge>
+                                                <span className="text-xs text-muted-foreground">available</span>
+                                              </div>
+                                              <div className="text-xs text-muted-foreground space-y-1">
+                                                <div className="flex justify-between">
+                                                  <span>Total:</span>
+                                                  <Input 
+                                                    type="number"
+                                                    value={balance.total}
+                                                    onChange={(e) => {
+                                                      const newTotal = parseInt(e.target.value) || 0;
+                                                      updateLeaveBalanceMutation.mutate({ id: balance.id, total: newTotal });
+                                                    }}
+                                                    className="w-16 h-6 text-xs text-right"
+                                                    min={0}
+                                                  />
+                                                </div>
+                                                <div className="flex justify-between"><span>Taken:</span><span>{balance.taken}</span></div>
+                                                <div className="flex justify-between"><span>Pending:</span><span>{balance.pending}</span></div>
+                                              </div>
+                                            </>
+                                          ) : (
+                                            <div className="space-y-2">
+                                              <p className="text-xs text-muted-foreground">Not allocated</p>
+                                              <Button 
+                                                size="sm" 
+                                                variant="outline"
+                                                className="w-full text-xs"
+                                                onClick={() => createLeaveBalanceMutation.mutate({ 
+                                                  userId: emp.id, 
+                                                  leaveType, 
+                                                  total: leaveType === 'Annual Leave' ? 21 : leaveType === 'Sick Leave' ? 30 : 3 
+                                                })}
+                                              >
+                                                <Plus className="h-3 w-3 mr-1" /> Allocate
+                                              </Button>
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </CardContent>

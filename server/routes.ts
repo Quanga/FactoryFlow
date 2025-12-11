@@ -283,6 +283,30 @@ export async function registerRoutes(
     }
   });
 
+  // Create leave balance
+  app.post("/api/leave-balances", async (req, res) => {
+    try {
+      const { userId, leaveType, total, taken = 0, pending = 0 } = req.body;
+      
+      if (!userId || !leaveType || total === undefined) {
+        return res.status(400).json({ error: "userId, leaveType, and total are required" });
+      }
+
+      const newBalance = await storage.createLeaveBalance({
+        userId,
+        leaveType,
+        total,
+        taken,
+        pending,
+      });
+      
+      return res.status(201).json(newBalance);
+    } catch (error) {
+      console.error("Create balance error:", error);
+      return res.status(500).json({ error: "Failed to create leave balance" });
+    }
+  });
+
   // Update leave balance
   app.patch("/api/leave-balances/:id", async (req, res) => {
     try {
