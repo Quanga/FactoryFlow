@@ -1057,25 +1057,32 @@ export default function AdminDashboard() {
             <Card>
               <CardHeader>
                 <CardTitle>Notification Settings</CardTitle>
-                <CardDescription>Configure email notifications for HR</CardDescription>
+                <CardDescription>Configure email notifications for HR and Management</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6 max-w-xl">
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label>HR Email Address</Label>
-                    <div className="flex gap-2">
-                      <div className="relative flex-1">
-                        <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                        <Input 
-                          value={emailSettings} 
-                          onChange={(e) => setEmailSettings(e.target.value)}
-                          className="pl-9"
-                          placeholder="hr@company.com"
-                          data-testid="input-admin-email"
-                        />
-                      </div>
+                    <Label>Notification Email Addresses</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Textarea 
+                        value={emailSettings} 
+                        onChange={(e) => setEmailSettings(e.target.value)}
+                        className="pl-9 min-h-[80px]"
+                        placeholder="hr@company.com&#10;management@company.com&#10;supervisor@company.com"
+                        data-testid="input-admin-email"
+                      />
                     </div>
-                    <p className="text-xs text-muted-foreground">Leave requests and late attendance notifications will be sent to this email.</p>
+                    <p className="text-xs text-muted-foreground">
+                      Enter one email address per line. All listed emails will receive leave requests and attendance notifications.
+                    </p>
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {emailSettings.split('\n').filter(e => e.trim()).map((email, idx) => (
+                        <Badge key={idx} variant="secondary" className="text-xs">
+                          {email.trim()}
+                        </Badge>
+                      ))}
+                    </div>
                   </div>
 
                   <div className="flex items-center justify-between p-4 border rounded-lg bg-slate-50">

@@ -323,7 +323,7 @@ export async function registerRoutes(
       const validatedData = insertLeaveRequestSchema.parse(req.body);
       const newRequest = await storage.createLeaveRequest(validatedData);
       
-      // Send email notification to admin
+      // Send email notification to all configured recipients
       try {
         const adminEmailSetting = await storage.getSetting('admin_email');
         const senderEmail = "hr@aece.co.za";
@@ -331,19 +331,24 @@ export async function registerRoutes(
         if (adminEmailSetting?.value) {
           const user = await storage.getUser(validatedData.userId);
           
-          await sendLeaveRequestNotification(
-            adminEmailSetting.value,
-            senderEmail,
-            {
-              employeeName: user ? `${user.firstName} ${user.surname}` : 'Unknown',
-              employeeId: validatedData.userId,
-              leaveType: validatedData.leaveType,
-              startDate: validatedData.startDate,
-              endDate: validatedData.endDate,
-              reason: validatedData.reason || 'No reason provided',
-              department: user?.department || undefined,
-            }
-          );
+          // Support multiple email addresses (one per line)
+          const emails = adminEmailSetting.value.split('\n').map((e: string) => e.trim()).filter((e: string) => e);
+          
+          for (const recipientEmail of emails) {
+            await sendLeaveRequestNotification(
+              recipientEmail,
+              senderEmail,
+              {
+                employeeName: user ? `${user.firstName} ${user.surname}` : 'Unknown',
+                employeeId: validatedData.userId,
+                leaveType: validatedData.leaveType,
+                startDate: validatedData.startDate,
+                endDate: validatedData.endDate,
+                reason: validatedData.reason || 'No reason provided',
+                department: user?.department || undefined,
+              }
+            );
+          }
         }
       } catch (emailError) {
         console.error('Failed to send email notification:', emailError);
@@ -502,19 +507,24 @@ export async function registerRoutes(
               const messageSettingKey = infringementType === 'late_arrival' ? 'late_arrival_message' : 'early_departure_message';
               const messageSetting = await storage.getSetting(messageSettingKey);
               
-              await sendLateAttendanceNotification(
-                adminEmailSetting.value,
-                'hr@aece.co.za',
-                {
-                  employeeName: `${user.firstName} ${user.surname}`,
-                  employeeId: user.id,
-                  department: user.department || undefined,
-                  type: infringementType,
-                  actualTime: currentTime,
-                  cutoffTime: cutoffTime,
-                  customMessage: messageSetting?.value,
-                }
-              );
+              // Support multiple email addresses (one per line)
+              const emails = adminEmailSetting.value.split('\n').map((e: string) => e.trim()).filter((e: string) => e);
+              
+              for (const recipientEmail of emails) {
+                await sendLateAttendanceNotification(
+                  recipientEmail,
+                  'hr@aece.co.za',
+                  {
+                    employeeName: `${user.firstName} ${user.surname}`,
+                    employeeId: user.id,
+                    department: user.department || undefined,
+                    type: infringementType,
+                    actualTime: currentTime,
+                    cutoffTime: cutoffTime,
+                    customMessage: messageSetting?.value,
+                  }
+                );
+              }
             }
           }
         } catch (notificationError) {
