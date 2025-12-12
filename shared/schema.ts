@@ -33,6 +33,47 @@ export const insertUserGroupSchema = createInsertSchema(userGroups).omit({
 export type InsertUserGroup = z.infer<typeof insertUserGroupSchema>;
 export type UserGroup = typeof userGroups.$inferSelect;
 
+// Employee Types Table
+export const employeeTypes = pgTable("employee_types", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  description: text("description"),
+  leaveLabel: text("leave_label").notNull().default("Leave"), // "Leave" for employees, "Unavailable" for contractors
+  hasLeaveEntitlement: text("has_leave_entitlement").notNull().default("yes"), // "yes" or "no"
+  isDefault: text("is_default").notNull().default("no"), // "yes" for the default type
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertEmployeeTypeSchema = createInsertSchema(employeeTypes).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertEmployeeType = z.infer<typeof insertEmployeeTypeSchema>;
+export type EmployeeType = typeof employeeTypes.$inferSelect;
+
+// Leave Rules Table (for configuring leave accrual rules)
+export const leaveRules = pgTable("leave_rules", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  leaveType: text("leave_type").notNull(), // 'Annual Leave', 'Sick Leave', etc.
+  employeeTypeId: integer("employee_type_id").references(() => employeeTypes.id),
+  accrualType: text("accrual_type").notNull().default("monthly"), // 'monthly', 'annual', 'per_days_worked'
+  accrualRate: text("accrual_rate").notNull().default("0"), // e.g., "1.667" days per month
+  maxAccrual: integer("max_accrual"), // Maximum days that can be accrued
+  waitingPeriodDays: integer("waiting_period_days").default(0), // Days before accrual starts
+  cycleMonths: integer("cycle_months"), // e.g., 36 for "every 3 years"
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertLeaveRuleSchema = createInsertSchema(leaveRules).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertLeaveRule = z.infer<typeof insertLeaveRuleSchema>;
+export type LeaveRule = typeof leaveRules.$inferSelect;
+
 // Users Table
 export const users = pgTable("users", {
   id: text("id").primaryKey(),
@@ -47,6 +88,13 @@ export const users = pgTable("users", {
   role: text("role").notNull().default("worker"), // 'worker' or 'manager'
   department: text("department"), // for workers
   userGroupId: integer("user_group_id").references(() => userGroups.id), // for admins
+  employeeTypeId: integer("employee_type_id").references(() => employeeTypes.id), // employee type
+  nationalId: text("national_id"), // National ID number
+  taxNumber: text("tax_number"), // Tax number
+  nextOfKin: text("next_of_kin"), // Next of kin name and relationship
+  emergencyNumber: text("emergency_number"), // Emergency contact number
+  popiaWaiverUrl: text("popia_waiver_url"), // URL to uploaded POPIA waiver document
+  startDate: text("start_date"), // Employment start date for leave calculations
   photoUrl: text("photo_url"),
   faceDescriptor: text("face_descriptor"), // JSON array of 128 face embedding values
   createdAt: timestamp("created_at").defaultNow().notNull(),
