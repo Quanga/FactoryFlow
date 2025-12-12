@@ -38,6 +38,32 @@ export async function registerRoutes(
     }
   });
 
+  // Face-based login (for both workers and admins with registered faces)
+  app.post("/api/auth/login-by-face", async (req, res) => {
+    try {
+      const { id } = req.body;
+      
+      if (!id) {
+        return res.status(400).json({ error: "ID is required" });
+      }
+
+      const user = await storage.getUser(id);
+      
+      if (!user) {
+        return res.status(401).json({ error: "User not found" });
+      }
+
+      if (!user.faceDescriptor) {
+        return res.status(401).json({ error: "No face registered for this user" });
+      }
+
+      return res.json(user);
+    } catch (error) {
+      console.error("Face login error:", error);
+      return res.status(500).json({ error: "Face login failed" });
+    }
+  });
+
   // Admin login by email/password
   app.post("/api/auth/admin-login", async (req, res) => {
     try {

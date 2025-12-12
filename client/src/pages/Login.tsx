@@ -89,10 +89,17 @@ export default function Login() {
           setModelsReady(false);
           
           if (bestMatch.user.role === 'manager') {
-            setTimeout(() => {
-              setEmail(bestMatch.user.email || '');
-              setAdminFaceMode(false);
-              setRecognizedUser(null);
+            setTimeout(async () => {
+              try {
+                const user = await authApi.loginByFace(bestMatch.user.id);
+                setUser(user);
+                setLocation('/admin/dashboard');
+              } catch (err) {
+                setError('Face login failed');
+                setFaceStatus('scanning');
+                setRecognizedUser(null);
+                setModelsReady(true);
+              }
             }, 1000);
             return;
           }
