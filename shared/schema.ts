@@ -58,9 +58,12 @@ export const leaveRules = pgTable("leave_rules", {
   description: text("description"),
   leaveType: text("leave_type").notNull(), // 'Annual Leave', 'Sick Leave', etc.
   employeeTypeId: integer("employee_type_id").references(() => employeeTypes.id),
-  accrualType: text("accrual_type").notNull().default("monthly"), // 'monthly', 'annual', 'per_days_worked'
-  accrualRate: text("accrual_rate").notNull().default("0"), // e.g., "1.667" days per month
+  accrualType: text("accrual_type").notNull().default("per_days_worked"), // 'monthly', 'annual', 'per_days_worked', 'fixed_per_cycle'
+  daysEarned: text("days_earned").notNull().default("1"), // Numerator: days earned (e.g., "1" or "1.6")
+  periodDaysWorked: integer("period_days_worked").default(26), // Denominator: days worked to earn (e.g., 26 or 28)
+  accrualRate: text("accrual_rate").notNull().default("0"), // Legacy: e.g., "1.667" days per month
   maxAccrual: integer("max_accrual"), // Maximum days that can be accrued
+  carryOverLimit: integer("carry_over_limit"), // Max days that can carry over to next year
   waitingPeriodDays: integer("waiting_period_days").default(0), // Days before accrual starts
   cycleMonths: integer("cycle_months"), // e.g., 36 for "every 3 years"
   notes: text("notes"),
@@ -73,6 +76,30 @@ export const insertLeaveRuleSchema = createInsertSchema(leaveRules).omit({
 });
 export type InsertLeaveRule = z.infer<typeof insertLeaveRuleSchema>;
 export type LeaveRule = typeof leaveRules.$inferSelect;
+
+// Leave Rule Phases Table (for tiered rules like sick leave with different rates before/after probation)
+export const leaveRulePhases = pgTable("leave_rule_phases", {
+  id: serial("id").primaryKey(),
+  leaveRuleId: integer("leave_rule_id").notNull().references(() => leaveRules.id, { onDelete: "cascade" }),
+  sequence: integer("sequence").notNull().default(1), // Order of phases
+  phaseName: text("phase_name").notNull(), // e.g., "Probation Period", "After 6 Months"
+  startsAfterMonths: integer("starts_after_months").default(0), // Phase starts after X months of employment
+  startsAfterDaysWorked: integer("starts_after_days_worked"), // Or starts after X days worked
+  accrualType: text("accrual_type").notNull().default("per_days_worked"), // 'per_days_worked', 'fixed_per_cycle'
+  daysEarned: text("days_earned").notNull().default("1"), // Days earned in this phase
+  periodDaysWorked: integer("period_days_worked").default(26), // Days worked to earn (for per_days_worked)
+  cycleMonths: integer("cycle_months"), // Cycle length for fixed_per_cycle (e.g., 36 for 3 years)
+  maxBalanceDays: integer("max_balance_days"), // Max balance during this phase
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertLeaveRulePhaseSchema = createInsertSchema(leaveRulePhases).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertLeaveRulePhase = z.infer<typeof insertLeaveRulePhaseSchema>;
+export type LeaveRulePhase = typeof leaveRulePhases.$inferSelect;
 
 // Users Table
 export const users = pgTable("users", {

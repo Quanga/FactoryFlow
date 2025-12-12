@@ -22,6 +22,8 @@ import type {
   InsertEmployeeType,
   LeaveRule,
   InsertLeaveRule,
+  LeaveRulePhase,
+  InsertLeaveRulePhase,
 } from "@shared/schema";
 
 const pool = new Pool({
@@ -91,6 +93,13 @@ export interface IStorage {
   createLeaveRule(rule: InsertLeaveRule): Promise<LeaveRule>;
   updateLeaveRule(id: number, rule: Partial<InsertLeaveRule>): Promise<LeaveRule | undefined>;
   deleteLeaveRule(id: number): Promise<boolean>;
+
+  // Leave Rule Phase operations
+  getLeaveRulePhases(leaveRuleId: number): Promise<LeaveRulePhase[]>;
+  createLeaveRulePhase(phase: InsertLeaveRulePhase): Promise<LeaveRulePhase>;
+  updateLeaveRulePhase(id: number, phase: Partial<InsertLeaveRulePhase>): Promise<LeaveRulePhase | undefined>;
+  deleteLeaveRulePhase(id: number): Promise<boolean>;
+  deleteAllLeaveRulePhases(leaveRuleId: number): Promise<boolean>;
 }
 
 export class DrizzleStorage implements IStorage {
@@ -463,6 +472,42 @@ export class DrizzleStorage implements IStorage {
 
   async deleteLeaveRule(id: number): Promise<boolean> {
     await db.delete(schema.leaveRules).where(eq(schema.leaveRules.id, id));
+    return true;
+  }
+
+  // Leave Rule Phase operations
+  async getLeaveRulePhases(leaveRuleId: number): Promise<LeaveRulePhase[]> {
+    return db
+      .select()
+      .from(schema.leaveRulePhases)
+      .where(eq(schema.leaveRulePhases.leaveRuleId, leaveRuleId))
+      .orderBy(schema.leaveRulePhases.sequence);
+  }
+
+  async createLeaveRulePhase(phase: InsertLeaveRulePhase): Promise<LeaveRulePhase> {
+    const [newPhase] = await db
+      .insert(schema.leaveRulePhases)
+      .values(phase)
+      .returning();
+    return newPhase;
+  }
+
+  async updateLeaveRulePhase(id: number, phase: Partial<InsertLeaveRulePhase>): Promise<LeaveRulePhase | undefined> {
+    const [updatedPhase] = await db
+      .update(schema.leaveRulePhases)
+      .set(phase)
+      .where(eq(schema.leaveRulePhases.id, id))
+      .returning();
+    return updatedPhase;
+  }
+
+  async deleteLeaveRulePhase(id: number): Promise<boolean> {
+    await db.delete(schema.leaveRulePhases).where(eq(schema.leaveRulePhases.id, id));
+    return true;
+  }
+
+  async deleteAllLeaveRulePhases(leaveRuleId: number): Promise<boolean> {
+    await db.delete(schema.leaveRulePhases).where(eq(schema.leaveRulePhases.leaveRuleId, leaveRuleId));
     return true;
   }
 }
