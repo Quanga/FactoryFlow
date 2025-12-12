@@ -341,7 +341,7 @@ export default function AttendanceKiosk() {
 
       <div className={`p-4 ${isClockIn ? 'bg-green-800' : 'bg-red-800'} text-center`}>
         <p className="text-white/60 text-sm">
-          FactoryFlow Attendance System • {isClockIn ? 'Morning Entry' : 'Evening Departure'}
+          AECE Checkpoint • {isClockIn ? 'Morning Entry' : 'Evening Departure'}
         </p>
       </div>
     </div>

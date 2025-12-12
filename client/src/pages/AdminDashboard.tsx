@@ -866,7 +866,7 @@ export default function AdminDashboard() {
         {/* Left Navigation Sidebar */}
         <div className="w-64 shrink-0">
           <div className="sticky top-4 space-y-1">
-            <h2 className="text-lg font-heading font-bold text-slate-900 mb-4">Admin Panel</h2>
+            <h2 className="text-lg font-heading font-bold text-gray-900 mb-4">AECE Checkpoint</h2>
             <nav className="space-y-1">
               <button
                 onClick={() => setActiveSection('dashboard')}

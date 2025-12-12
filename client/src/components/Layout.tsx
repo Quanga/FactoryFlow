@@ -11,6 +11,7 @@ import {
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { useAuth } from '@/lib/auth-context';
+import aeceLogo from '@assets/AECE_Logo_1765516911038.png';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -29,19 +30,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const navItems = workerNav;
   
-  // Admin dashboard has its own navigation, so hide sidebar for admin pages
   const isAdminPage = location.startsWith('/admin');
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
       <header className="h-16 bg-sidebar text-sidebar-foreground flex items-center justify-between px-4 shadow-md z-50">
         <div className="flex items-center gap-3">
-          <div className={`h-8 w-8 rounded flex items-center justify-center font-heading font-bold text-xl ${user?.role === 'manager' ? 'bg-amber-500 text-black' : 'bg-primary text-white'}`}>
-            {user?.role === 'manager' ? 'A' : 'F'}
-          </div>
+          <img src={aeceLogo} alt="AECE" className="h-8" />
           <span className="font-heading text-xl tracking-wider hidden md:block">
-            {user?.role === 'manager' ? 'FACTORY ADMIN' : 'FACTORY FLOW'}
+            {user?.role === 'manager' ? 'AECE CHECKPOINT ADMIN' : 'AECE CHECKPOINT'}
           </span>
         </div>
 
@@ -58,7 +55,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </div>
           )}
           
-          {/* Mobile Menu */}
           <Sheet>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="md:hidden text-sidebar-foreground">
@@ -67,7 +63,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </SheetTrigger>
             <SheetContent side="left" className="w-[280px] bg-sidebar text-sidebar-foreground border-r-sidebar-border">
               <div className="flex flex-col h-full py-6">
-                <div className="font-heading text-2xl mb-8 px-4 text-primary">FACTORY FLOW</div>
+                <div className="flex items-center gap-2 mb-8 px-4">
+                  <img src={aeceLogo} alt="AECE" className="h-8" />
+                  <span className="font-heading text-xl text-primary">AECE CHECKPOINT</span>
+                </div>
                 <nav className="space-y-2 flex-1">
                   {navItems.map((item) => (
                     <Link key={item.href} href={item.href} className={`flex items-center gap-3 px-4 py-3 rounded-md transition-colors ${
@@ -107,7 +106,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Desktop Sidebar - hidden for admin pages which have their own navigation */}
         {!isAdminPage && (
           <aside className="hidden md:flex w-64 flex-col bg-card border-r border-border shadow-sm z-40">
             <nav className="flex-1 p-4 space-y-2">
@@ -135,7 +133,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </aside>
         )}
 
-        {/* Main Content */}
         <main className={`flex-1 overflow-auto bg-background ${isAdminPage ? 'p-4 md:p-6' : 'p-4 md:p-8'}`}>
           <div className={`${isAdminPage ? 'max-w-full' : 'max-w-5xl mx-auto'} animate-in fade-in slide-in-from-bottom-4 duration-500`}>
             {children}

@@ -10,6 +10,7 @@ import { useAuth } from '@/lib/auth-context';
 import { authApi, faceApi, type FaceDescriptorUser } from '@/lib/api';
 import { loadFaceModels, extractFaceDescriptor, compareFaceDescriptors, isFaceMatch, jsonToDescriptor } from '@/lib/face-recognition';
 import factoryBg from '@assets/generated_images/modern_clean_industrial_factory_interior_background.png';
+import aeceLogo from '@assets/AECE_Logo_1765516911038.png';
 
 export default function Login() {
   const [, setLocation] = useLocation();
@@ -173,19 +174,13 @@ export default function Login() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-cover bg-center relative"
          style={{ backgroundImage: `url(${factoryBg})` }}>
-      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
 
       <Card className="w-full max-w-md z-10 shadow-2xl border-0 bg-white/95 backdrop-blur-xl animate-in zoom-in-95 duration-500">
         <CardHeader className="text-center pb-2">
-          <div className={`mx-auto w-16 h-16 rounded-xl flex items-center justify-center mb-4 shadow-lg rotate-3 transition-transform hover:rotate-0 ${loginMode === 'admin' ? 'bg-amber-500' : 'bg-primary'}`}>
-            {loginMode === 'admin' ? (
-              <ShieldCheck className="h-8 w-8 text-white" />
-            ) : (
-              <span className="text-3xl font-heading font-bold text-white">F</span>
-            )}
-          </div>
-          <CardTitle className="text-3xl font-heading tracking-wide text-slate-900">FACTORY FLOW</CardTitle>
-          <CardDescription className="text-slate-600 text-base">
+          <img src={aeceLogo} alt="AECE Electronics" className="h-14 mx-auto mb-4" />
+          <CardTitle className="text-3xl font-heading tracking-wide text-gray-900">AECE CHECKPOINT</CardTitle>
+          <CardDescription className="text-gray-600 text-base">
             {loginMode === 'admin' ? 'Admin Portal Access' : 'Worker Portal Access'}
           </CardDescription>
         </CardHeader>

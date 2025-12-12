@@ -8,6 +8,7 @@ import { ShieldCheck, Mail, Lock, ArrowRight } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { authApi } from '@/lib/api';
 import factoryBg from '@assets/generated_images/modern_clean_industrial_factory_interior_background.png';
+import aeceLogo from '@assets/AECE_Logo_1765516911038.png';
 
 export default function AdminLogin() {
   const [, setLocation] = useLocation();
@@ -36,15 +37,13 @@ export default function AdminLogin() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-cover bg-center relative"
          style={{ backgroundImage: `url(${factoryBg})` }}>
-      <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
 
       <Card className="w-full max-w-md z-10 shadow-2xl border-0 bg-white/95 backdrop-blur-xl animate-in zoom-in-95 duration-500">
         <CardHeader className="text-center pb-2">
-          <div className="mx-auto w-16 h-16 bg-slate-800 rounded-xl flex items-center justify-center mb-4 shadow-lg">
-            <ShieldCheck className="h-8 w-8 text-primary" />
-          </div>
-          <CardTitle className="text-2xl font-heading tracking-wide text-slate-900">ADMIN PORTAL</CardTitle>
-          <CardDescription className="text-slate-600">System Configuration & Management</CardDescription>
+          <img src={aeceLogo} alt="AECE Electronics" className="h-14 mx-auto mb-4" />
+          <CardTitle className="text-2xl font-heading tracking-wide text-gray-900">CHECKPOINT ADMIN</CardTitle>
+          <CardDescription className="text-gray-600">System Configuration & Management</CardDescription>
         </CardHeader>
         <CardContent className="pt-6">
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -82,7 +81,7 @@ export default function AdminLogin() {
             
             {error && <p className="text-red-500 text-sm font-medium text-center animate-pulse">{error}</p>}
             
-            <Button type="submit" className="w-full h-12 btn-industrial text-lg mt-4 bg-slate-800 hover:bg-slate-700" disabled={loading}>
+            <Button type="submit" className="w-full h-12 btn-industrial text-lg mt-4 bg-primary hover:bg-primary/90" disabled={loading}>
               {loading ? 'Authenticating...' : 'Access Dashboard'}
               {!loading && <ArrowRight className="ml-2 h-5 w-5" />}
             </Button>

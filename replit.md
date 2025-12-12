@@ -1,8 +1,8 @@
-# FactoryFlow - Worker Portal
+# AECE Checkpoint - Worker Portal
 
 ## Overview
 
-FactoryFlow is an employee leave management and attendance tracking system designed for factory workers and administrators. The application provides a dual-interface system: a simplified worker portal for factory employees to manage leave requests and clock in/out, and an administrative dashboard for managers to oversee operations, approve leave requests, and manage employee data.
+AECE Checkpoint is an employee leave management and attendance tracking system designed for factory workers and administrators. Built for AEC Electronics (Pty) Ltd. The application provides a dual-interface system: a simplified worker portal for factory employees to manage leave requests and clock in/out, and an administrative dashboard for managers to oversee operations, approve leave requests, and manage employee data.
 
 The system emphasizes ease of use for workers (many of whom may have limited technical experience) by offering ID-based login with facial recognition verification, while providing administrators with comprehensive management tools including employee CRUD operations, department management, and system settings configuration.
 
