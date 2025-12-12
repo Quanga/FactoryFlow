@@ -249,9 +249,10 @@ export async function registerRoutes(
       }
       
       return res.status(201).json(newUser);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Create user error:", error);
-      return res.status(400).json({ error: "Invalid user data" });
+      const message = error?.message || "Invalid user data";
+      return res.status(400).json({ error: message });
     }
   });
 

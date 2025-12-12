@@ -76,7 +76,10 @@ export const userApi = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(user),
     });
-    if (!res.ok) throw new Error("Failed to create user");
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.error || errorData.message || "Failed to create user");
+    }
     return res.json();
   },
 
