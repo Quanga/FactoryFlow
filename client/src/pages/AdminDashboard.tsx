@@ -531,14 +531,21 @@ export default function AdminDashboard() {
   });
 
   const handleSaveUser = () => {
-    if (!currentUser.firstName || !currentUser.surname || !currentUser.id || !currentUser.department) {
-      toast({ variant: "destructive", title: "Error", description: "First name, surname, ID and department are required" });
+    if (!currentUser.firstName || !currentUser.surname || !currentUser.id) {
+      toast({ variant: "destructive", title: "Error", description: "First name, surname, and ID are required" });
+      return;
+    }
+    
+    // Workers require a department, but managers don't necessarily need one
+    if (currentUser.role !== 'manager' && !currentUser.department) {
+      toast({ variant: "destructive", title: "Error", description: "Department is required for workers" });
       return;
     }
 
     const userData = { 
       ...currentUser, 
-      role: 'worker', 
+      // Preserve existing role when editing, default to worker for new users
+      role: currentUser.role || 'worker', 
       photoUrl: currentUser.photoUrl || 'https://github.com/shadcn.png',
       employeeTypeId: currentUser.employeeTypeId || null,
       nationalId: currentUser.nationalId || null,
@@ -546,6 +553,8 @@ export default function AdminDashboard() {
       nextOfKin: currentUser.nextOfKin || null,
       emergencyNumber: currentUser.emergencyNumber || null,
       startDate: currentUser.startDate || null,
+      // Preserve userGroupId for managers
+      userGroupId: currentUser.userGroupId || null,
     };
 
     if (isEditing) {
