@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { userApi, settingsApi, departmentApi, userGroupApi, leaveRequestApi, leaveBalanceApi, attendanceApi, employeeTypeApi, leaveRuleApi, leaveRulePhaseApi } from '@/lib/api';
 import type { User, Department, UserGroup, LeaveRequest, LeaveBalance, AttendanceRecord, EmployeeType, LeaveRule, LeaveRulePhase } from '@shared/schema';
-import { Plus, Pencil, Trash2, Save, Mail, Users, Settings, Camera, Building2, Loader2, CheckCircle2, UserCog, Shield, Calendar, Clock, FileText, Check, X, Search, ChevronDown, ChevronRight, LayoutDashboard, AlertTriangle } from 'lucide-react';
+import { Plus, Pencil, Trash2, Save, Mail, Users, Settings, Camera, Building2, Loader2, CheckCircle2, UserCog, Shield, Calendar, Clock, FileText, Check, X, Search, ChevronDown, ChevronRight, LayoutDashboard, AlertTriangle, LogOut } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/lib/auth-context';
@@ -24,7 +24,7 @@ import { loadFaceModels, extractFaceDescriptorFromBase64, descriptorToJson } fro
 
 export default function AdminDashboard() {
   const { toast } = useToast();
-  const { user, setUser } = useAuth();
+  const { user, setUser, logout } = useAuth();
   const queryClient = useQueryClient();
   
   const { data: users = [] } = useQuery({
@@ -1095,6 +1095,16 @@ export default function AdminDashboard() {
               >
                 <Settings className="h-4 w-4" /> Settings
               </button>
+              
+              <div className="pt-4 mt-4 border-t">
+                <button
+                  onClick={logout}
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors hover:bg-red-50 text-red-600"
+                  data-testid="nav-logout"
+                >
+                  <LogOut className="h-4 w-4" /> Logout
+                </button>
+              </div>
             </nav>
           </div>
         </div>
