@@ -1,4 +1,4 @@
-import type { User, LeaveBalance, LeaveRequest, AttendanceRecord, Setting, Department, UserGroup, EmployeeType, LeaveRule } from "@shared/schema";
+import type { User, LeaveBalance, LeaveRequest, AttendanceRecord, Setting, Department, UserGroup, EmployeeType, LeaveRule, LeaveRulePhase } from "@shared/schema";
 
 const API_BASE = "/api";
 
@@ -425,7 +425,7 @@ export const leaveRuleApi = {
     return res.json();
   },
 
-  async create(rule: { name: string; leaveType: string; description?: string; employeeTypeId?: number; accrualType?: string; accrualRate?: string; maxAccrual?: number; waitingPeriodDays?: number; cycleMonths?: number; notes?: string }): Promise<LeaveRule> {
+  async create(rule: { name: string; leaveType: string; description?: string; employeeTypeId?: number; accrualType?: string; accrualRate?: string; daysEarned?: string; periodDaysWorked?: number; maxAccrual?: number; waitingPeriodDays?: number; cycleMonths?: number; notes?: string }): Promise<LeaveRule> {
     const res = await fetch(`${API_BASE}/leave-rules`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -458,6 +458,61 @@ export const leaveRuleApi = {
     if (!res.ok) {
       const error = await res.json();
       throw new Error(error.error || "Failed to delete leave rule");
+    }
+  },
+};
+
+// Leave Rule Phase API
+export const leaveRulePhaseApi = {
+  async getByRuleId(ruleId: number): Promise<LeaveRulePhase[]> {
+    const res = await fetch(`${API_BASE}/leave-rules/${ruleId}/phases`);
+    if (!res.ok) throw new Error("Failed to fetch leave rule phases");
+    return res.json();
+  },
+
+  async create(ruleId: number, phase: { phaseName: string; sequence: number; accrualType: string; daysEarned: string; periodDaysWorked?: number | null; startsAfterMonths?: number | null; startsAfterDaysWorked?: number | null; cycleMonths?: number | null; maxBalanceDays?: number | null; notes?: string | null }): Promise<LeaveRulePhase> {
+    const res = await fetch(`${API_BASE}/leave-rules/${ruleId}/phases`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(phase),
+    });
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.error || "Failed to create leave rule phase");
+    }
+    return res.json();
+  },
+
+  async update(id: number, phase: Partial<LeaveRulePhase>): Promise<LeaveRulePhase> {
+    const res = await fetch(`${API_BASE}/leave-rule-phases/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(phase),
+    });
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.error || "Failed to update leave rule phase");
+    }
+    return res.json();
+  },
+
+  async delete(id: number): Promise<void> {
+    const res = await fetch(`${API_BASE}/leave-rule-phases/${id}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.error || "Failed to delete leave rule phase");
+    }
+  },
+
+  async deleteAll(ruleId: number): Promise<void> {
+    const res = await fetch(`${API_BASE}/leave-rules/${ruleId}/phases`, {
+      method: "DELETE",
+    });
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.error || "Failed to delete leave rule phases");
     }
   },
 };
