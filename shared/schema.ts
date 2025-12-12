@@ -104,6 +104,7 @@ export type LeaveRulePhase = typeof leaveRulePhases.$inferSelect;
 // Users Table
 export const users = pgTable("users", {
   id: text("id").primaryKey(),
+  name: text("name"), // Legacy field - auto-populated from firstName + surname
   firstName: text("first_name").notNull(),
   surname: text("surname").notNull(),
   nickname: text("nickname"),

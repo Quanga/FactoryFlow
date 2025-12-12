@@ -119,7 +119,12 @@ export class DrizzleStorage implements IStorage {
   }
 
   async createUser(user: InsertUser): Promise<User> {
-    const [newUser] = await db.insert(schema.users).values(user).returning();
+    // Auto-populate the legacy 'name' field from firstName + surname
+    const userWithName = {
+      ...user,
+      name: `${user.firstName} ${user.surname}`,
+    };
+    const [newUser] = await db.insert(schema.users).values(userWithName).returning();
     
     // Create default leave balances for new users
     if (user.role === 'worker') {
