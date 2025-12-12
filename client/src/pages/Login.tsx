@@ -35,7 +35,7 @@ export default function Login() {
 
   useEffect(() => {
     if (loginMode === 'worker') {
-      initFaceRecognition(false);
+      initFaceRecognition(true);
     } else if (loginMode === 'admin' && adminFaceMode) {
       initFaceRecognition(true);
     }
