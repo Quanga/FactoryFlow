@@ -1,0 +1,173 @@
+2025-12-12 10:12:04.17
+bf0b0681
+User
+routine: 'ExecConstraints'
+2025-12-12 10:12:04.17
+bf0b0681
+User
+length: 396,
+2025-12-12 10:12:04.17
+bf0b0681
+User
+Create user error: error: null value in column "name" of relation "users" violates not-null constraint
+2025-12-12 10:12:04.17
+bf0b0681
+User
+schema: 'public',
+2025-12-12 10:12:04.17
+bf0b0681
+User
+internalPosition: undefined,
+2025-12-12 10:12:04.17
+bf0b0681
+User
+where: undefined,
+2025-12-12 10:12:04.17
+bf0b0681
+User
+file: 'execMain.c',
+2025-12-12 10:12:04.17
+bf0b0681
+User
+dataType: undefined,
+2025-12-12 10:12:04.17
+bf0b0681
+User
+constraint: undefined,
+2025-12-12 10:12:04.17
+bf0b0681
+User
+at async mf.createUser (/home/runner/workspace/dist/index.cjs:70:103268)
+2025-12-12 10:12:04.17
+bf0b0681
+User
+at async /home/runner/workspace/dist/index.cjs:70:31397
+2025-12-12 10:12:04.17
+bf0b0681
+User
+at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-12-12 10:12:04.17
+bf0b0681
+User
+}
+2025-12-12 10:12:04.17
+bf0b0681
+User
+severity: 'ERROR',
+2025-12-12 10:12:04.17
+bf0b0681
+User
+code: '23502',
+2025-12-12 10:12:04.17
+bf0b0681
+User
+internalQuery: undefined,
+2025-12-12 10:12:04.17
+bf0b0681
+User
+at /home/runner/workspace/dist/index.cjs:64:13326
+2025-12-12 10:12:04.17
+bf0b0681
+User
+8:12:04 AM [express] POST /api/users 400 in 219ms :: {"error":"Invalid user data"}
+2025-12-12 10:12:13.40
+bf0b0681
+User
+at async /home/runner/workspace/dist/index.cjs:70:31397
+2025-12-12 10:12:13.40
+bf0b0681
+User
+dataType: undefined,
+2025-12-12 10:12:13.40
+bf0b0681
+User
+file: 'execMain.c',
+2025-12-12 10:12:13.40
+bf0b0681
+User
+table: 'users',
+2025-12-12 10:12:13.40
+bf0b0681
+User
+internalPosition: undefined,
+2025-12-12 10:12:13.40
+bf0b0681
+User
+at async mf.createUser (/home/runner/workspace/dist/index.cjs:70:103268)
+2025-12-12 10:12:13.40
+bf0b0681
+User
+}
+2025-12-12 10:12:13.40
+bf0b0681
+User
+length: 397,
+2025-12-12 10:12:13.40
+bf0b0681
+User
+at /home/runner/workspace/dist/index.cjs:64:13326
+2025-12-12 10:12:13.40
+bf0b0681
+User
+hint: undefined,
+2025-12-12 10:12:13.40
+bf0b0681
+User
+at async /home/runner/workspace/dist/index.cjs:272:3821 {
+2025-12-12 10:12:13.40
+bf0b0681
+User
+line: '2067',
+2025-12-12 10:12:13.40
+bf0b0681
+User
+schema: 'public',
+2025-12-12 10:12:13.40
+bf0b0681
+User
+severity: 'ERROR',
+2025-12-12 10:12:13.40
+bf0b0681
+User
+Create user error: error: null value in column "name" of relation "users" violates not-null constraint
+2025-12-12 10:12:13.40
+bf0b0681
+User
+routine: 'ExecConstraints'
+2025-12-12 10:12:13.40
+bf0b0681
+User
+internalQuery: undefined,
+2025-12-12 10:12:13.40
+bf0b0681
+User
+column: 'name',
+2025-12-12 10:12:13.40
+bf0b0681
+User
+code: '23502',
+2025-12-12 10:12:13.40
+bf0b0681
+User
+at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-12-12 10:12:13.40
+bf0b0681
+User
+where: undefined,
+2025-12-12 10:12:13.40
+bf0b0681
+User
+constraint: undefined,
+
+2025-12-12 10:12:13.40
+bf0b0681
+User
+position: undefined,
+2025-12-12 10:12:13.40
+bf0b0681
+User
+detail: 'Failing row contains (11, null, martin@aece.co.za, null, worker, Administration, https://github.com/shadcn.png, 2025-12-12 08:12:13.390662, null, Martin, Plichta, null, null, null, null, null, null, null, null, null, null, null, null).',
+2025-12-12 10:12:13.40
+bf0b0681
+User
+8:12:13 AM [express] POST /api/users 400 in 226ms :: {"error":"Invalid user data"}
