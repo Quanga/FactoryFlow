@@ -292,7 +292,11 @@ export default function AttendanceKiosk() {
                       {status === 'scanning' && (
                         <>
                           <ScanFace className="w-6 h-6 animate-pulse" />
-                          <span>Look at the camera</span>
+                          <span>
+                            {faceUsers.length === 0 
+                              ? 'No faces registered - Use ID instead'
+                              : 'Look at the camera'}
+                          </span>
                         </>
                       )}
                       {status === 'recognized' && recognizedWorker && (
