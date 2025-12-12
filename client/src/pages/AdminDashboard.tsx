@@ -337,6 +337,33 @@ export default function AdminDashboard() {
     });
   };
 
+  // Helper function to calculate employment duration
+  const getEmploymentDuration = (startDateStr: string | null | undefined): string => {
+    if (!startDateStr) return '-';
+    
+    const startDate = new Date(startDateStr);
+    const today = new Date();
+    
+    let years = today.getFullYear() - startDate.getFullYear();
+    let months = today.getMonth() - startDate.getMonth();
+    
+    if (months < 0) {
+      years--;
+      months += 12;
+    }
+    
+    if (years > 0 && months > 0) {
+      return `${years}y ${months}m`;
+    } else if (years > 0) {
+      return `${years} year${years > 1 ? 's' : ''}`;
+    } else if (months > 0) {
+      return `${months} month${months > 1 ? 's' : ''}`;
+    } else {
+      const days = Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+      return `${days} day${days !== 1 ? 's' : ''}`;
+    }
+  };
+
   const createDeptMutation = useMutation({
     mutationFn: departmentApi.create,
     onSuccess: () => {
@@ -510,6 +537,7 @@ export default function AdminDashboard() {
       taxNumber: currentUser.taxNumber || null,
       nextOfKin: currentUser.nextOfKin || null,
       emergencyNumber: currentUser.emergencyNumber || null,
+      startDate: currentUser.startDate || null,
     };
 
     if (isEditing) {
@@ -1254,6 +1282,7 @@ export default function AdminDashboard() {
                       <TableHead>ID Number</TableHead>
                       <TableHead>Name</TableHead>
                       <TableHead>Department</TableHead>
+                      <TableHead>Tenure</TableHead>
                       <TableHead>Leave Balance</TableHead>
                       <TableHead>Role</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
@@ -1286,6 +1315,11 @@ export default function AdminDashboard() {
                             </TableCell>
                             <TableCell>{emp.department}</TableCell>
                             <TableCell>
+                              <span className="text-sm" title={emp.startDate ? `Started: ${format(new Date(emp.startDate), 'MMM d, yyyy')}` : 'Start date not set'}>
+                                {getEmploymentDuration(emp.startDate)}
+                              </span>
+                            </TableCell>
+                            <TableCell>
                               {empBalances.length > 0 ? (
                                 <Badge variant={totalAvailable > 5 ? 'default' : totalAvailable > 0 ? 'secondary' : 'destructive'}>
                                   {totalAvailable} days available
@@ -1310,8 +1344,26 @@ export default function AdminDashboard() {
                           </TableRow>
                           {isExpanded && (
                             <TableRow key={`${emp.id}-expanded`} className="bg-slate-50">
-                              <TableCell colSpan={7} className="py-4">
+                              <TableCell colSpan={8} className="py-4">
                                 <div className="pl-8 space-y-4">
+                                  {/* Employment Details */}
+                                  <div className="flex gap-8 p-3 bg-white rounded-lg border mb-4">
+                                    <div>
+                                      <p className="text-xs text-muted-foreground">Start Date</p>
+                                      <p className="font-medium">{emp.startDate ? format(new Date(emp.startDate), 'MMM d, yyyy') : 'Not set'}</p>
+                                    </div>
+                                    <div>
+                                      <p className="text-xs text-muted-foreground">Employment Duration</p>
+                                      <p className="font-medium">{getEmploymentDuration(emp.startDate)}</p>
+                                    </div>
+                                    {emp.employeeTypeId && (
+                                      <div>
+                                        <p className="text-xs text-muted-foreground">Employee Type</p>
+                                        <p className="font-medium">{employeeTypes.find(t => t.id === emp.employeeTypeId)?.name || '-'}</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                  
                                   <p className="text-sm font-medium text-slate-700">Leave Balance Details</p>
                                   <div className="grid grid-cols-4 gap-4">
                                     {['Annual Leave', 'Sick Leave', 'Family Responsibility', 'Study Leave'].map(leaveType => {
@@ -2953,6 +3005,17 @@ export default function AdminDashboard() {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="startDate" className="text-right">Start Date</Label>
+                <Input 
+                  id="startDate" 
+                  type="date"
+                  value={currentUser.startDate || ''} 
+                  onChange={(e) => setCurrentUser({...currentUser, startDate: e.target.value})}
+                  className="col-span-3"
+                  data-testid="input-start-date"
+                />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="nationalId" className="text-right">National ID</Label>
