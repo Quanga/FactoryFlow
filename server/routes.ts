@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
-import { insertUserSchema, insertLeaveRequestSchema, insertAttendanceRecordSchema, insertDepartmentSchema, insertUserGroupSchema, insertEmployeeTypeSchema, insertLeaveRuleSchema } from "@shared/schema";
+import { insertUserSchema, insertLeaveRequestSchema, insertAttendanceRecordSchema, insertDepartmentSchema, insertUserGroupSchema, insertEmployeeTypeSchema, insertLeaveRuleSchema, insertLeaveRulePhaseSchema } from "@shared/schema";
 import { sendLeaveRequestNotification, sendLateAttendanceNotification, sendAdminWelcomeEmail, sendLeaveStatusNotification, sendPasswordResetEmail } from "./email";
 import crypto from "crypto";
 
@@ -958,6 +958,70 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Delete leave rule error:", error);
       return res.status(500).json({ error: "Failed to delete leave rule" });
+    }
+  });
+
+  // ========== LEAVE RULE PHASES ROUTES ==========
+
+  // Get all phases for a leave rule
+  app.get("/api/leave-rules/:id/phases", async (req, res) => {
+    try {
+      const phases = await storage.getLeaveRulePhases(parseInt(req.params.id));
+      return res.json(phases);
+    } catch (error) {
+      console.error("Get leave rule phases error:", error);
+      return res.status(500).json({ error: "Failed to fetch leave rule phases" });
+    }
+  });
+
+  // Create a new phase for a leave rule
+  app.post("/api/leave-rules/:id/phases", async (req, res) => {
+    try {
+      const leaveRuleId = parseInt(req.params.id);
+      const validated = insertLeaveRulePhaseSchema.parse({ ...req.body, leaveRuleId });
+      const newPhase = await storage.createLeaveRulePhase(validated);
+      return res.status(201).json(newPhase);
+    } catch (error: any) {
+      console.error("Create leave rule phase error:", error);
+      return res.status(400).json({ error: "Invalid leave rule phase data" });
+    }
+  });
+
+  // Update a leave rule phase
+  app.patch("/api/leave-rule-phases/:id", async (req, res) => {
+    try {
+      const updatedPhase = await storage.updateLeaveRulePhase(parseInt(req.params.id), req.body);
+      
+      if (!updatedPhase) {
+        return res.status(404).json({ error: "Leave rule phase not found" });
+      }
+
+      return res.json(updatedPhase);
+    } catch (error: any) {
+      console.error("Update leave rule phase error:", error);
+      return res.status(500).json({ error: "Failed to update leave rule phase" });
+    }
+  });
+
+  // Delete a leave rule phase
+  app.delete("/api/leave-rule-phases/:id", async (req, res) => {
+    try {
+      await storage.deleteLeaveRulePhase(parseInt(req.params.id));
+      return res.status(204).send();
+    } catch (error) {
+      console.error("Delete leave rule phase error:", error);
+      return res.status(500).json({ error: "Failed to delete leave rule phase" });
+    }
+  });
+
+  // Delete all phases for a leave rule (used when replacing phases)
+  app.delete("/api/leave-rules/:id/phases", async (req, res) => {
+    try {
+      await storage.deleteAllLeaveRulePhases(parseInt(req.params.id));
+      return res.status(204).send();
+    } catch (error) {
+      console.error("Delete all leave rule phases error:", error);
+      return res.status(500).json({ error: "Failed to delete leave rule phases" });
     }
   });
 
