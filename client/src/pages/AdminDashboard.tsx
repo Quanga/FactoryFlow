@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -128,6 +128,7 @@ export default function AdminDashboard() {
   const [isBalanceDialogOpen, setIsBalanceDialogOpen] = useState(false);
   const [selectedEmployeeForBalance, setSelectedEmployeeForBalance] = useState<User | null>(null);
   const [expandedEmployees, setExpandedEmployees] = useState<Set<string>>(new Set());
+  const [expandedLeaveBalanceEmployees, setExpandedLeaveBalanceEmployees] = useState<Set<string>>(new Set());
 
   // Navigation State
   const [activeSection, setActiveSection] = useState<'dashboard' | 'employees' | 'leave-requests' | 'attendance' | 'departments' | 'groups' | 'settings'>('dashboard');
@@ -288,6 +289,18 @@ export default function AdminDashboard() {
 
   const toggleEmployeeExpanded = (userId: string) => {
     setExpandedEmployees(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(userId)) {
+        newSet.delete(userId);
+      } else {
+        newSet.add(userId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleLeaveBalanceEmployeeExpanded = (userId: string) => {
+    setExpandedLeaveBalanceEmployees(prev => {
       const newSet = new Set(prev);
       if (newSet.has(userId)) {
         newSet.delete(userId);
@@ -1220,7 +1233,7 @@ export default function AdminDashboard() {
             <Card>
               <CardHeader>
                 <CardTitle>Leave Balances</CardTitle>
-                <CardDescription>View and manage employee leave balances</CardDescription>
+                <CardDescription>View and manage employee leave balances - click employee name to expand</CardDescription>
               </CardHeader>
               <CardContent>
                 {leaveBalances.length === 0 ? (
@@ -1231,35 +1244,81 @@ export default function AdminDashboard() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-8"></TableHead>
                         <TableHead>Employee</TableHead>
-                        <TableHead>Leave Type</TableHead>
-                        <TableHead>Total</TableHead>
+                        <TableHead>Total Days</TableHead>
                         <TableHead>Taken</TableHead>
                         <TableHead>Pending</TableHead>
                         <TableHead>Available</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {leaveBalances.map((balance: LeaveBalance) => {
-                        const employee = users.find(u => u.id === balance.userId);
-                        const available = balance.total - balance.taken - balance.pending;
-                        return (
-                          <TableRow key={balance.id} data-testid={`row-balance-${balance.id}`}>
-                            <TableCell className="font-medium">
-                              {employee ? `${employee.firstName} ${employee.surname}` : balance.userId}
-                            </TableCell>
-                            <TableCell className="capitalize">{balance.leaveType.replace('_', ' ')}</TableCell>
-                            <TableCell>{balance.total}</TableCell>
-                            <TableCell>{balance.taken}</TableCell>
-                            <TableCell>{balance.pending}</TableCell>
-                            <TableCell>
-                              <Badge variant={available > 0 ? 'default' : 'destructive'}>
-                                {available}
-                              </Badge>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
+                      {(() => {
+                        const employeeBalances = new Map<string, LeaveBalance[]>();
+                        leaveBalances.forEach((balance: LeaveBalance) => {
+                          const existing = employeeBalances.get(balance.userId) || [];
+                          existing.push(balance);
+                          employeeBalances.set(balance.userId, existing);
+                        });
+                        
+                        return Array.from(employeeBalances.entries()).map(([userId, balances]) => {
+                          const employee = users.find(u => u.id === userId);
+                          const isExpanded = expandedLeaveBalanceEmployees.has(userId);
+                          const totalDays = balances.reduce((sum, b) => sum + b.total, 0);
+                          const totalTaken = balances.reduce((sum, b) => sum + b.taken, 0);
+                          const totalPending = balances.reduce((sum, b) => sum + b.pending, 0);
+                          const totalAvailable = totalDays - totalTaken - totalPending;
+                          
+                          return (
+                            <React.Fragment key={userId}>
+                              <TableRow 
+                                className="cursor-pointer hover:bg-slate-50"
+                                onClick={() => toggleLeaveBalanceEmployeeExpanded(userId)}
+                                data-testid={`row-balance-employee-${userId}`}
+                              >
+                                <TableCell>
+                                  {isExpanded ? (
+                                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                  ) : (
+                                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                  )}
+                                </TableCell>
+                                <TableCell className="font-medium">
+                                  {employee ? `${employee.firstName} ${employee.surname}` : userId}
+                                </TableCell>
+                                <TableCell>{totalDays}</TableCell>
+                                <TableCell>{totalTaken}</TableCell>
+                                <TableCell>{totalPending}</TableCell>
+                                <TableCell>
+                                  <Badge variant={totalAvailable > 0 ? 'default' : 'destructive'}>
+                                    {totalAvailable}
+                                  </Badge>
+                                </TableCell>
+                              </TableRow>
+                              
+                              {isExpanded && balances.map((balance) => {
+                                const available = balance.total - balance.taken - balance.pending;
+                                return (
+                                  <TableRow key={balance.id} className="bg-slate-50/50" data-testid={`row-balance-detail-${balance.id}`}>
+                                    <TableCell></TableCell>
+                                    <TableCell className="pl-8 text-muted-foreground capitalize">
+                                      {balance.leaveType.replace('_', ' ')}
+                                    </TableCell>
+                                    <TableCell>{balance.total}</TableCell>
+                                    <TableCell>{balance.taken}</TableCell>
+                                    <TableCell>{balance.pending}</TableCell>
+                                    <TableCell>
+                                      <Badge variant={available > 0 ? 'outline' : 'destructive'} className="text-xs">
+                                        {available}
+                                      </Badge>
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </React.Fragment>
+                          );
+                        });
+                      })()}
                     </TableBody>
                   </Table>
                 )}
