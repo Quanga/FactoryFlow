@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
-import { insertUserSchema, insertLeaveRequestSchema, insertAttendanceRecordSchema, insertDepartmentSchema, insertUserGroupSchema } from "@shared/schema";
+import { insertUserSchema, insertLeaveRequestSchema, insertAttendanceRecordSchema, insertDepartmentSchema, insertUserGroupSchema, insertEmployeeTypeSchema, insertLeaveRuleSchema } from "@shared/schema";
 import { sendLeaveRequestNotification, sendLateAttendanceNotification, sendAdminWelcomeEmail, sendLeaveStatusNotification, sendPasswordResetEmail } from "./email";
 import crypto from "crypto";
 
@@ -778,6 +778,160 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Delete user group error:", error);
       return res.status(500).json({ error: "Failed to delete user group" });
+    }
+  });
+
+  // ========== EMPLOYEE TYPE ROUTES ==========
+
+  // Get all employee types
+  app.get("/api/employee-types", async (req, res) => {
+    try {
+      const types = await storage.getAllEmployeeTypes();
+      return res.json(types);
+    } catch (error) {
+      console.error("Get employee types error:", error);
+      return res.status(500).json({ error: "Failed to fetch employee types" });
+    }
+  });
+
+  // Get single employee type
+  app.get("/api/employee-types/:id", async (req, res) => {
+    try {
+      const type = await storage.getEmployeeType(parseInt(req.params.id));
+      
+      if (!type) {
+        return res.status(404).json({ error: "Employee type not found" });
+      }
+
+      return res.json(type);
+    } catch (error) {
+      console.error("Get employee type error:", error);
+      return res.status(500).json({ error: "Failed to fetch employee type" });
+    }
+  });
+
+  // Create employee type
+  app.post("/api/employee-types", async (req, res) => {
+    try {
+      const validated = insertEmployeeTypeSchema.parse(req.body);
+      const newType = await storage.createEmployeeType(validated);
+      return res.status(201).json(newType);
+    } catch (error: any) {
+      console.error("Create employee type error:", error);
+      if (error.code === '23505') {
+        return res.status(400).json({ error: "Employee type name already exists" });
+      }
+      return res.status(400).json({ error: "Invalid employee type data" });
+    }
+  });
+
+  // Update employee type
+  app.patch("/api/employee-types/:id", async (req, res) => {
+    try {
+      const updatedType = await storage.updateEmployeeType(parseInt(req.params.id), req.body);
+      
+      if (!updatedType) {
+        return res.status(404).json({ error: "Employee type not found" });
+      }
+
+      return res.json(updatedType);
+    } catch (error: any) {
+      console.error("Update employee type error:", error);
+      if (error.code === '23505') {
+        return res.status(400).json({ error: "Employee type name already exists" });
+      }
+      return res.status(500).json({ error: "Failed to update employee type" });
+    }
+  });
+
+  // Delete employee type
+  app.delete("/api/employee-types/:id", async (req, res) => {
+    try {
+      const type = await storage.getEmployeeType(parseInt(req.params.id));
+      
+      if (!type) {
+        return res.status(404).json({ error: "Employee type not found" });
+      }
+
+      await storage.deleteEmployeeType(parseInt(req.params.id));
+      return res.status(204).send();
+    } catch (error) {
+      console.error("Delete employee type error:", error);
+      return res.status(500).json({ error: "Failed to delete employee type" });
+    }
+  });
+
+  // ========== LEAVE RULE ROUTES ==========
+
+  // Get all leave rules
+  app.get("/api/leave-rules", async (req, res) => {
+    try {
+      const rules = await storage.getAllLeaveRules();
+      return res.json(rules);
+    } catch (error) {
+      console.error("Get leave rules error:", error);
+      return res.status(500).json({ error: "Failed to fetch leave rules" });
+    }
+  });
+
+  // Get single leave rule
+  app.get("/api/leave-rules/:id", async (req, res) => {
+    try {
+      const rule = await storage.getLeaveRule(parseInt(req.params.id));
+      
+      if (!rule) {
+        return res.status(404).json({ error: "Leave rule not found" });
+      }
+
+      return res.json(rule);
+    } catch (error) {
+      console.error("Get leave rule error:", error);
+      return res.status(500).json({ error: "Failed to fetch leave rule" });
+    }
+  });
+
+  // Create leave rule
+  app.post("/api/leave-rules", async (req, res) => {
+    try {
+      const validated = insertLeaveRuleSchema.parse(req.body);
+      const newRule = await storage.createLeaveRule(validated);
+      return res.status(201).json(newRule);
+    } catch (error: any) {
+      console.error("Create leave rule error:", error);
+      return res.status(400).json({ error: "Invalid leave rule data" });
+    }
+  });
+
+  // Update leave rule
+  app.patch("/api/leave-rules/:id", async (req, res) => {
+    try {
+      const updatedRule = await storage.updateLeaveRule(parseInt(req.params.id), req.body);
+      
+      if (!updatedRule) {
+        return res.status(404).json({ error: "Leave rule not found" });
+      }
+
+      return res.json(updatedRule);
+    } catch (error: any) {
+      console.error("Update leave rule error:", error);
+      return res.status(500).json({ error: "Failed to update leave rule" });
+    }
+  });
+
+  // Delete leave rule
+  app.delete("/api/leave-rules/:id", async (req, res) => {
+    try {
+      const rule = await storage.getLeaveRule(parseInt(req.params.id));
+      
+      if (!rule) {
+        return res.status(404).json({ error: "Leave rule not found" });
+      }
+
+      await storage.deleteLeaveRule(parseInt(req.params.id));
+      return res.status(204).send();
+    } catch (error) {
+      console.error("Delete leave rule error:", error);
+      return res.status(500).json({ error: "Failed to delete leave rule" });
     }
   });
 

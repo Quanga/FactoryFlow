@@ -18,6 +18,10 @@ import type {
   InsertDepartment,
   UserGroup,
   InsertUserGroup,
+  EmployeeType,
+  InsertEmployeeType,
+  LeaveRule,
+  InsertLeaveRule,
 } from "@shared/schema";
 
 const pool = new Pool({
@@ -72,6 +76,21 @@ export interface IStorage {
   updateUserGroup(id: number, group: Partial<InsertUserGroup>): Promise<UserGroup | undefined>;
   deleteUserGroup(id: number): Promise<boolean>;
   getUserCountByUserGroup(groupId: number): Promise<number>;
+
+  // Employee Type operations
+  getAllEmployeeTypes(): Promise<EmployeeType[]>;
+  getEmployeeType(id: number): Promise<EmployeeType | undefined>;
+  getDefaultEmployeeType(): Promise<EmployeeType | undefined>;
+  createEmployeeType(type: InsertEmployeeType): Promise<EmployeeType>;
+  updateEmployeeType(id: number, type: Partial<InsertEmployeeType>): Promise<EmployeeType | undefined>;
+  deleteEmployeeType(id: number): Promise<boolean>;
+
+  // Leave Rule operations
+  getAllLeaveRules(): Promise<LeaveRule[]>;
+  getLeaveRule(id: number): Promise<LeaveRule | undefined>;
+  createLeaveRule(rule: InsertLeaveRule): Promise<LeaveRule>;
+  updateLeaveRule(id: number, rule: Partial<InsertLeaveRule>): Promise<LeaveRule | undefined>;
+  deleteLeaveRule(id: number): Promise<boolean>;
 }
 
 export class DrizzleStorage implements IStorage {
@@ -367,6 +386,84 @@ export class DrizzleStorage implements IStorage {
       .from(schema.users)
       .where(eq(schema.users.userGroupId, groupId));
     return users.length;
+  }
+
+  // Employee Type operations
+  async getAllEmployeeTypes(): Promise<EmployeeType[]> {
+    return db.select().from(schema.employeeTypes).orderBy(schema.employeeTypes.name);
+  }
+
+  async getEmployeeType(id: number): Promise<EmployeeType | undefined> {
+    const types = await db
+      .select()
+      .from(schema.employeeTypes)
+      .where(eq(schema.employeeTypes.id, id));
+    return types[0];
+  }
+
+  async getDefaultEmployeeType(): Promise<EmployeeType | undefined> {
+    const types = await db
+      .select()
+      .from(schema.employeeTypes)
+      .where(eq(schema.employeeTypes.isDefault, 'yes'));
+    return types[0];
+  }
+
+  async createEmployeeType(type: InsertEmployeeType): Promise<EmployeeType> {
+    const [newType] = await db
+      .insert(schema.employeeTypes)
+      .values(type)
+      .returning();
+    return newType;
+  }
+
+  async updateEmployeeType(id: number, type: Partial<InsertEmployeeType>): Promise<EmployeeType | undefined> {
+    const [updatedType] = await db
+      .update(schema.employeeTypes)
+      .set(type)
+      .where(eq(schema.employeeTypes.id, id))
+      .returning();
+    return updatedType;
+  }
+
+  async deleteEmployeeType(id: number): Promise<boolean> {
+    await db.delete(schema.employeeTypes).where(eq(schema.employeeTypes.id, id));
+    return true;
+  }
+
+  // Leave Rule operations
+  async getAllLeaveRules(): Promise<LeaveRule[]> {
+    return db.select().from(schema.leaveRules).orderBy(schema.leaveRules.name);
+  }
+
+  async getLeaveRule(id: number): Promise<LeaveRule | undefined> {
+    const rules = await db
+      .select()
+      .from(schema.leaveRules)
+      .where(eq(schema.leaveRules.id, id));
+    return rules[0];
+  }
+
+  async createLeaveRule(rule: InsertLeaveRule): Promise<LeaveRule> {
+    const [newRule] = await db
+      .insert(schema.leaveRules)
+      .values(rule)
+      .returning();
+    return newRule;
+  }
+
+  async updateLeaveRule(id: number, rule: Partial<InsertLeaveRule>): Promise<LeaveRule | undefined> {
+    const [updatedRule] = await db
+      .update(schema.leaveRules)
+      .set(rule)
+      .where(eq(schema.leaveRules.id, id))
+      .returning();
+    return updatedRule;
+  }
+
+  async deleteLeaveRule(id: number): Promise<boolean> {
+    await db.delete(schema.leaveRules).where(eq(schema.leaveRules.id, id));
+    return true;
   }
 }
 

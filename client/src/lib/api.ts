@@ -1,4 +1,4 @@
-import type { User, LeaveBalance, LeaveRequest, AttendanceRecord, Setting, Department, UserGroup } from "@shared/schema";
+import type { User, LeaveBalance, LeaveRequest, AttendanceRecord, Setting, Department, UserGroup, EmployeeType, LeaveRule } from "@shared/schema";
 
 const API_BASE = "/api";
 
@@ -346,6 +346,108 @@ export const userGroupApi = {
     if (!res.ok) {
       const error = await res.json();
       throw new Error(error.error || "Failed to delete user group");
+    }
+  },
+};
+
+// Employee Type API
+export const employeeTypeApi = {
+  async getAll(): Promise<EmployeeType[]> {
+    const res = await fetch(`${API_BASE}/employee-types`);
+    if (!res.ok) throw new Error("Failed to fetch employee types");
+    return res.json();
+  },
+
+  async getById(id: number): Promise<EmployeeType> {
+    const res = await fetch(`${API_BASE}/employee-types/${id}`);
+    if (!res.ok) throw new Error("Failed to fetch employee type");
+    return res.json();
+  },
+
+  async create(type: { name: string; description?: string; leaveLabel?: string; hasLeaveEntitlement?: string; isDefault?: string }): Promise<EmployeeType> {
+    const res = await fetch(`${API_BASE}/employee-types`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(type),
+    });
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.error || "Failed to create employee type");
+    }
+    return res.json();
+  },
+
+  async update(id: number, type: Partial<EmployeeType>): Promise<EmployeeType> {
+    const res = await fetch(`${API_BASE}/employee-types/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(type),
+    });
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.error || "Failed to update employee type");
+    }
+    return res.json();
+  },
+
+  async delete(id: number): Promise<void> {
+    const res = await fetch(`${API_BASE}/employee-types/${id}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.error || "Failed to delete employee type");
+    }
+  },
+};
+
+// Leave Rule API
+export const leaveRuleApi = {
+  async getAll(): Promise<LeaveRule[]> {
+    const res = await fetch(`${API_BASE}/leave-rules`);
+    if (!res.ok) throw new Error("Failed to fetch leave rules");
+    return res.json();
+  },
+
+  async getById(id: number): Promise<LeaveRule> {
+    const res = await fetch(`${API_BASE}/leave-rules/${id}`);
+    if (!res.ok) throw new Error("Failed to fetch leave rule");
+    return res.json();
+  },
+
+  async create(rule: { name: string; leaveType: string; description?: string; employeeTypeId?: number; accrualType?: string; accrualRate?: string; maxAccrual?: number; waitingPeriodDays?: number; cycleMonths?: number; notes?: string }): Promise<LeaveRule> {
+    const res = await fetch(`${API_BASE}/leave-rules`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(rule),
+    });
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.error || "Failed to create leave rule");
+    }
+    return res.json();
+  },
+
+  async update(id: number, rule: Partial<LeaveRule>): Promise<LeaveRule> {
+    const res = await fetch(`${API_BASE}/leave-rules/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(rule),
+    });
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.error || "Failed to update leave rule");
+    }
+    return res.json();
+  },
+
+  async delete(id: number): Promise<void> {
+    const res = await fetch(`${API_BASE}/leave-rules/${id}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.error || "Failed to delete leave rule");
     }
   },
 };
