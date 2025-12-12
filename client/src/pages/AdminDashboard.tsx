@@ -536,16 +536,31 @@ export default function AdminDashboard() {
       return;
     }
     
-    // Workers require a department, but managers don't necessarily need one
-    if (currentUser.role !== 'manager' && !currentUser.department) {
+    // Determine role based on userGroupId
+    const role = currentUser.userGroupId ? 'manager' : 'worker';
+    
+    // Workers require a department
+    if (role === 'worker' && !currentUser.department) {
       toast({ variant: "destructive", title: "Error", description: "Department is required for workers" });
+      return;
+    }
+    
+    // Admins require email
+    if (currentUser.userGroupId && !currentUser.email) {
+      toast({ variant: "destructive", title: "Error", description: "Email is required for admin users" });
+      return;
+    }
+    
+    // New admins or promoted workers without existing password need a password
+    // We check if they're being newly created OR if they don't have an existing password
+    if (currentUser.userGroupId && !isEditing && !currentUser.password) {
+      toast({ variant: "destructive", title: "Error", description: "Password is required for new admin users" });
       return;
     }
 
     const userData = { 
       ...currentUser, 
-      // Preserve existing role when editing, default to worker for new users
-      role: currentUser.role || 'worker', 
+      role,
       photoUrl: currentUser.photoUrl || 'https://github.com/shadcn.png',
       employeeTypeId: currentUser.employeeTypeId || null,
       nationalId: currentUser.nationalId || null,
@@ -553,7 +568,6 @@ export default function AdminDashboard() {
       nextOfKin: currentUser.nextOfKin || null,
       emergencyNumber: currentUser.emergencyNumber || null,
       startDate: currentUser.startDate || null,
-      // Preserve userGroupId for managers
       userGroupId: currentUser.userGroupId || null,
     };
 
@@ -2929,17 +2943,31 @@ export default function AdminDashboard() {
                 />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="email" className="text-right">Email</Label>
+                <Label htmlFor="email" className="text-right">Email {currentUser.userGroupId ? '*' : ''}</Label>
                 <Input 
                   id="email" 
                   type="email"
                   value={currentUser.email || ''} 
                   onChange={(e) => setCurrentUser({...currentUser, email: e.target.value})}
                   className="col-span-3"
-                  placeholder="Optional"
+                  placeholder={currentUser.userGroupId ? "Required for admin login" : "Optional"}
                   data-testid="input-email"
                 />
               </div>
+              {currentUser.userGroupId && (
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="password" className="text-right">Password {!currentUser.password && !isEditing ? '*' : ''}</Label>
+                  <Input 
+                    id="password" 
+                    type="password"
+                    value={currentUser.password || ''} 
+                    onChange={(e) => setCurrentUser({...currentUser, password: e.target.value})}
+                    className="col-span-3"
+                    placeholder={isEditing ? "Leave blank to keep current password" : "Required for admin login"}
+                    data-testid="input-password"
+                  />
+                </div>
+              )}
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="mobile" className="text-right">Mobile</Label>
                 <Input 
@@ -3021,6 +3049,38 @@ export default function AdminDashboard() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="userGroup" className="text-right">Admin Access</Label>
+                <div className="col-span-3">
+                  <Select 
+                    value={currentUser.userGroupId?.toString() || 'none'} 
+                    onValueChange={(value) => {
+                      if (value === 'none') {
+                        setCurrentUser({...currentUser, userGroupId: undefined, role: 'worker'});
+                      } else {
+                        setCurrentUser({...currentUser, userGroupId: parseInt(value), role: 'manager'});
+                      }
+                    }}
+                  >
+                    <SelectTrigger data-testid="select-user-group">
+                      <SelectValue placeholder="No admin access" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No admin access (Worker only)</SelectItem>
+                      {userGroups.map((group) => (
+                        <SelectItem key={group.id} value={group.id.toString()}>
+                          {group.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {currentUser.userGroupId ? 
+                      "This user has admin access and can log into the admin dashboard." : 
+                      "Select a group to grant admin access to this user."}
+                  </p>
                 </div>
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
