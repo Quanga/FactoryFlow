@@ -549,6 +549,7 @@ export default function AdminDashboard() {
     setIsUserDialogOpen(true);
     setFaceExtracted(!!user.faceDescriptor);
     setExtractingFace(false);
+    setIsCapturingPhoto(false);
   };
 
   const handleOpenCreate = () => {
@@ -557,6 +558,7 @@ export default function AdminDashboard() {
     setIsUserDialogOpen(true);
     setFaceExtracted(false);
     setExtractingFace(false);
+    setIsCapturingPhoto(false);
   };
 
   const handleSaveSettings = async () => {
@@ -2687,7 +2689,19 @@ export default function AdminDashboard() {
               <div className="grid grid-cols-4 items-start gap-4 pt-2">
                 <Label className="text-right pt-2">Profile Photo</Label>
                 <div className="col-span-3 space-y-3">
-                  {currentUser.photoUrl ? (
+                  {isCapturingPhoto ? (
+                    <div className="border rounded-lg p-2 bg-slate-50">
+                      <WebcamCapture onCapture={handlePhotoCapture} label="Capture Profile Photo" />
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="w-full mt-2 text-red-500 hover:text-red-600"
+                        onClick={() => setIsCapturingPhoto(false)}
+                      >
+                        Cancel Camera
+                      </Button>
+                    </div>
+                  ) : currentUser.photoUrl ? (
                     <div className="space-y-3">
                       <div className="flex items-center gap-4">
                         <div className="h-20 w-20 rounded-full overflow-hidden border-2 border-slate-200 relative">
@@ -2730,20 +2744,6 @@ export default function AdminDashboard() {
                     >
                       <Camera className="mr-2 h-5 w-5" /> Take Photo for Facial Rec
                     </Button>
-                  )}
-                  
-                  {isCapturingPhoto && (
-                     <div className="border rounded-lg p-2 bg-slate-50 mt-2">
-                        <WebcamCapture onCapture={handlePhotoCapture} label="Capture Profile Photo" />
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="w-full mt-2 text-red-500 hover:text-red-600"
-                          onClick={() => setIsCapturingPhoto(false)}
-                        >
-                          Cancel Camera
-                        </Button>
-                     </div>
                   )}
                 </div>
               </div>
