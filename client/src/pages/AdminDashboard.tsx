@@ -884,7 +884,7 @@ export default function AdminDashboard() {
                 }`}
                 data-testid="nav-employees"
               >
-                <Users className="h-4 w-4" /> Employees
+                <Users className="h-4 w-4" /> Personnel
               </button>
               <button
                 onClick={() => setActiveSection('leave-requests')}
@@ -973,7 +973,7 @@ export default function AdminDashboard() {
                       </div>
                       <div>
                         <p className="text-2xl font-bold">{users.filter(u => u.role === 'worker').length}</p>
-                        <p className="text-sm text-muted-foreground">Total Employees</p>
+                        <p className="text-sm text-muted-foreground">Total Personnel</p>
                       </div>
                     </div>
                   </CardContent>
@@ -1104,7 +1104,7 @@ export default function AdminDashboard() {
                     <AlertTriangle className="h-5 w-5 text-amber-500" />
                     Low Leave Balance Alerts
                   </CardTitle>
-                  <CardDescription>Employees with 2 or fewer leave days remaining</CardDescription>
+                  <CardDescription>Personnel with 2 or fewer leave days remaining</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
@@ -1134,7 +1134,7 @@ export default function AdminDashboard() {
                       const empBalances = leaveBalances.filter((b: LeaveBalance) => b.userId === emp.id);
                       return empBalances.every((b: LeaveBalance) => (b.total - b.taken - b.pending) > 2 || b.total === 0);
                     }) && (
-                      <p className="text-muted-foreground text-center py-4">No employees with low leave balances</p>
+                      <p className="text-muted-foreground text-center py-4">No personnel with low leave balances</p>
                     )}
                   </div>
                 </CardContent>
@@ -1142,21 +1142,21 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* Employees Section */}
+          {/* Personnel Section */}
           {activeSection === 'employees' && (
             <div className="space-y-4">
               <div>
-                <h1 className="text-3xl font-heading font-bold text-slate-900">Employees</h1>
-                <p className="text-muted-foreground">Manage worker access, IDs, and leave balances</p>
+                <h1 className="text-3xl font-heading font-bold text-gray-900">Personnel</h1>
+                <p className="text-muted-foreground">Manage personnel access, IDs, and leave balances</p>
               </div>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
-                  <CardTitle>Employees</CardTitle>
-                  <CardDescription>Manage worker access, IDs, and leave balances</CardDescription>
+                  <CardTitle>Personnel</CardTitle>
+                  <CardDescription>Manage personnel access, IDs, and leave balances</CardDescription>
                 </div>
                 <Button onClick={handleOpenCreate} className="btn-industrial bg-primary text-white">
-                  <Plus className="mr-2 h-4 w-4" /> Add Employee
+                  <Plus className="mr-2 h-4 w-4" /> Add Person
                 </Button>
               </CardHeader>
               <CardContent>
@@ -1347,7 +1347,7 @@ export default function AdminDashboard() {
                           const empBalances = leaveBalances.filter((b: LeaveBalance) => b.userId === emp.id);
                           return empBalances.every((b: LeaveBalance) => (b.total - b.taken - b.pending) > 2 || b.total === 0);
                         }) && (
-                          <p className="text-sm text-muted-foreground">No employees with low leave balances.</p>
+                          <p className="text-sm text-muted-foreground">No personnel with low leave balances.</p>
                         )}
                       </div>
                     </div>
@@ -1664,7 +1664,7 @@ export default function AdminDashboard() {
                       <TableRow>
                         <TableHead>Name</TableHead>
                         <TableHead>Description</TableHead>
-                        <TableHead>Employees</TableHead>
+                        <TableHead>Personnel</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -1687,7 +1687,7 @@ export default function AdminDashboard() {
                                 size="icon" 
                                 onClick={() => handleDeleteDept(dept.id)}
                                 disabled={employeeCount > 0}
-                                title={employeeCount > 0 ? "Cannot delete department with employees" : "Delete department"}
+                                title={employeeCount > 0 ? "Cannot delete department with personnel" : "Delete department"}
                                 data-testid={`button-delete-dept-${dept.id}`}
                               >
                                 <Trash2 className={`h-4 w-4 ${employeeCount > 0 ? 'text-slate-300' : 'text-red-500'}`} />
@@ -1834,7 +1834,7 @@ export default function AdminDashboard() {
               <Card>
                 <CardHeader>
                   <CardTitle>Employee Types</CardTitle>
-                  <CardDescription>Define different categories of employees (e.g., permanent, contractor, consultant)</CardDescription>
+                  <CardDescription>Define different categories of personnel (e.g., permanent, contractor, consultant)</CardDescription>
                 </CardHeader>
                 <CardContent>
                 <Table>
@@ -2230,12 +2230,12 @@ export default function AdminDashboard() {
                       <SelectValue placeholder="Select leave label" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="leave">Leave (for employees)</SelectItem>
+                      <SelectItem value="leave">Leave (for permanent staff)</SelectItem>
                       <SelectItem value="unavailable">Unavailable (for contractors)</SelectItem>
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground mt-1">
-                    "Leave" for permanent employees, "Unavailable" for contractors
+                    "Leave" for permanent staff, "Unavailable" for contractors
                   </p>
                 </div>
               </div>
