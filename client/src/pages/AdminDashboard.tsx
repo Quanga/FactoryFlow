@@ -12,8 +12,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { userApi, settingsApi, departmentApi, userGroupApi, leaveRequestApi, leaveBalanceApi, attendanceApi } from '@/lib/api';
-import type { User, Department, UserGroup, LeaveRequest, LeaveBalance, AttendanceRecord } from '@shared/schema';
+import { userApi, settingsApi, departmentApi, userGroupApi, leaveRequestApi, leaveBalanceApi, attendanceApi, employeeTypeApi, leaveRuleApi } from '@/lib/api';
+import type { User, Department, UserGroup, LeaveRequest, LeaveBalance, AttendanceRecord, EmployeeType, LeaveRule } from '@shared/schema';
 import { Plus, Pencil, Trash2, Save, Mail, Users, Settings, Camera, Building2, Loader2, CheckCircle2, UserCog, Shield, Calendar, Clock, FileText, Check, X, Search, ChevronDown, ChevronRight, LayoutDashboard, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from "@/hooks/use-toast";
@@ -65,6 +65,16 @@ export default function AdminDashboard() {
   const { data: userGroups = [] } = useQuery({
     queryKey: ['userGroups'],
     queryFn: userGroupApi.getAll,
+  });
+
+  const { data: employeeTypes = [] } = useQuery({
+    queryKey: ['employeeTypes'],
+    queryFn: employeeTypeApi.getAll,
+  });
+
+  const { data: leaveRules = [] } = useQuery({
+    queryKey: ['leaveRules'],
+    queryFn: leaveRuleApi.getAll,
   });
 
   const { data: leaveRequests = [] } = useQuery({
@@ -131,7 +141,17 @@ export default function AdminDashboard() {
   const [expandedLeaveBalanceEmployees, setExpandedLeaveBalanceEmployees] = useState<Set<string>>(new Set());
 
   // Navigation State
-  const [activeSection, setActiveSection] = useState<'dashboard' | 'employees' | 'leave-requests' | 'attendance' | 'departments' | 'groups' | 'settings'>('dashboard');
+  const [activeSection, setActiveSection] = useState<'dashboard' | 'employees' | 'leave-requests' | 'attendance' | 'departments' | 'groups' | 'employee-types' | 'leave-rules' | 'settings'>('dashboard');
+
+  // Employee Types Management State
+  const [isTypeDialogOpen, setIsTypeDialogOpen] = useState(false);
+  const [currentType, setCurrentType] = useState<Partial<EmployeeType>>({});
+  const [isEditingType, setIsEditingType] = useState(false);
+
+  // Leave Rules Management State
+  const [isRuleDialogOpen, setIsRuleDialogOpen] = useState(false);
+  const [currentRule, setCurrentRule] = useState<Partial<LeaveRule>>({});
+  const [isEditingRule, setIsEditingRule] = useState(false);
 
   // Settings State
   const [emailSettings, setEmailSettings] = useState('');
@@ -389,13 +409,102 @@ export default function AdminDashboard() {
     },
   });
 
+  // Employee Type Mutations
+  const createTypeMutation = useMutation({
+    mutationFn: employeeTypeApi.create,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employeeTypes'] });
+      toast({ title: "Employee Type Created", description: "Employee type has been added successfully." });
+      setIsTypeDialogOpen(false);
+      setCurrentType({});
+      setIsEditingType(false);
+    },
+    onError: (error: Error) => {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    },
+  });
+
+  const updateTypeMutation = useMutation({
+    mutationFn: ({ id, ...data }: any) => employeeTypeApi.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employeeTypes'] });
+      toast({ title: "Employee Type Updated", description: "Employee type has been updated successfully." });
+      setIsTypeDialogOpen(false);
+      setCurrentType({});
+      setIsEditingType(false);
+    },
+    onError: (error: Error) => {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    },
+  });
+
+  const deleteTypeMutation = useMutation({
+    mutationFn: employeeTypeApi.delete,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employeeTypes'] });
+      toast({ title: "Employee Type Deleted", description: "Employee type has been removed." });
+    },
+    onError: (error: Error) => {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    },
+  });
+
+  // Leave Rule Mutations
+  const createRuleMutation = useMutation({
+    mutationFn: leaveRuleApi.create,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leaveRules'] });
+      toast({ title: "Leave Rule Created", description: "Leave rule has been added successfully." });
+      setIsRuleDialogOpen(false);
+      setCurrentRule({});
+      setIsEditingRule(false);
+    },
+    onError: (error: Error) => {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    },
+  });
+
+  const updateRuleMutation = useMutation({
+    mutationFn: ({ id, ...data }: any) => leaveRuleApi.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leaveRules'] });
+      toast({ title: "Leave Rule Updated", description: "Leave rule has been updated successfully." });
+      setIsRuleDialogOpen(false);
+      setCurrentRule({});
+      setIsEditingRule(false);
+    },
+    onError: (error: Error) => {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    },
+  });
+
+  const deleteRuleMutation = useMutation({
+    mutationFn: leaveRuleApi.delete,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leaveRules'] });
+      toast({ title: "Leave Rule Deleted", description: "Leave rule has been removed." });
+    },
+    onError: (error: Error) => {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    },
+  });
+
   const handleSaveUser = () => {
     if (!currentUser.firstName || !currentUser.surname || !currentUser.id || !currentUser.department) {
       toast({ variant: "destructive", title: "Error", description: "First name, surname, ID and department are required" });
       return;
     }
 
-    const userData = { ...currentUser, role: 'worker', photoUrl: currentUser.photoUrl || 'https://github.com/shadcn.png' };
+    const userData = { 
+      ...currentUser, 
+      role: 'worker', 
+      photoUrl: currentUser.photoUrl || 'https://github.com/shadcn.png',
+      employeeTypeId: currentUser.employeeTypeId || null,
+      nationalId: currentUser.nationalId || null,
+      taxNumber: currentUser.taxNumber || null,
+      nextOfKin: currentUser.nextOfKin || null,
+      emergencyNumber: currentUser.emergencyNumber || null,
+    };
 
     if (isEditing) {
       updateUserMutation.mutate(userData);
@@ -515,6 +624,100 @@ export default function AdminDashboard() {
 
   const handleDeleteGroup = (id: number) => {
     deleteGroupMutation.mutate(id);
+  };
+
+  // Employee Type Handlers
+  const handleSaveType = () => {
+    if (!currentType.name) {
+      toast({ variant: "destructive", title: "Error", description: "Type name is required" });
+      return;
+    }
+
+    if (isEditingType && currentType.id) {
+      updateTypeMutation.mutate({
+        id: currentType.id,
+        name: currentType.name,
+        description: currentType.description || null,
+        leaveLabel: currentType.leaveLabel || 'leave',
+        hasLeaveEntitlement: currentType.hasLeaveEntitlement || 'true',
+      });
+    } else {
+      createTypeMutation.mutate({
+        name: currentType.name,
+        description: currentType.description || undefined,
+        leaveLabel: currentType.leaveLabel || 'leave',
+        hasLeaveEntitlement: currentType.hasLeaveEntitlement || 'true',
+      });
+    }
+  };
+
+  const handleOpenEditType = (type: EmployeeType) => {
+    setCurrentType(type);
+    setIsEditingType(true);
+    setIsTypeDialogOpen(true);
+  };
+
+  const handleOpenCreateType = () => {
+    setCurrentType({ leaveLabel: 'leave', hasLeaveEntitlement: 'true' });
+    setIsEditingType(false);
+    setIsTypeDialogOpen(true);
+  };
+
+  const handleDeleteType = (id: number) => {
+    deleteTypeMutation.mutate(id);
+  };
+
+  // Leave Rule Handlers
+  const handleSaveRule = () => {
+    if (!currentRule.name || !currentRule.leaveType) {
+      toast({ variant: "destructive", title: "Error", description: "Rule name and leave type are required" });
+      return;
+    }
+
+    if (isEditingRule && currentRule.id) {
+      updateRuleMutation.mutate({
+        id: currentRule.id,
+        name: currentRule.name,
+        leaveType: currentRule.leaveType,
+        description: currentRule.description || null,
+        employeeTypeId: currentRule.employeeTypeId || null,
+        accrualType: currentRule.accrualType || 'fixed',
+        accrualRate: currentRule.accrualRate || null,
+        maxAccrual: currentRule.maxAccrual || null,
+        waitingPeriodDays: currentRule.waitingPeriodDays || null,
+        cycleMonths: currentRule.cycleMonths || null,
+        notes: currentRule.notes || null,
+      });
+    } else {
+      createRuleMutation.mutate({
+        name: currentRule.name,
+        leaveType: currentRule.leaveType,
+        description: currentRule.description || undefined,
+        employeeTypeId: currentRule.employeeTypeId || undefined,
+        accrualType: currentRule.accrualType || 'fixed',
+        accrualRate: currentRule.accrualRate || undefined,
+        maxAccrual: currentRule.maxAccrual || undefined,
+        waitingPeriodDays: currentRule.waitingPeriodDays || undefined,
+        cycleMonths: currentRule.cycleMonths || undefined,
+        notes: currentRule.notes || undefined,
+      });
+    }
+  };
+
+  const handleOpenEditRule = (rule: LeaveRule) => {
+    setCurrentRule(rule);
+    setIsEditingRule(true);
+    setIsRuleDialogOpen(true);
+  };
+
+  const handleOpenCreateRule = () => {
+    setCurrentRule({ accrualType: 'fixed' });
+    setIsEditingRule(false);
+    setIsRuleDialogOpen(true);
+  };
+
+  const handleDeleteRule = (id: number) => {
+    deleteRuleMutation.mutate(id);
   };
 
   // Admin User Handlers
@@ -718,6 +921,24 @@ export default function AdminDashboard() {
                 data-testid="nav-groups"
               >
                 <Shield className="h-4 w-4" /> User Groups
+              </button>
+              <button
+                onClick={() => setActiveSection('employee-types')}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
+                  activeSection === 'employee-types' ? 'bg-primary text-white' : 'hover:bg-slate-100 text-slate-700'
+                }`}
+                data-testid="nav-employee-types"
+              >
+                <UserCog className="h-4 w-4" /> Employee Types
+              </button>
+              <button
+                onClick={() => setActiveSection('leave-rules')}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
+                  activeSection === 'leave-rules' ? 'bg-primary text-white' : 'hover:bg-slate-100 text-slate-700'
+                }`}
+                data-testid="nav-leave-rules"
+              >
+                <Calendar className="h-4 w-4" /> Leave Rules
               </button>
               <button
                 onClick={() => setActiveSection('settings')}
@@ -1598,6 +1819,165 @@ export default function AdminDashboard() {
             </div>
           )}
 
+          {/* Employee Types Section */}
+          {activeSection === 'employee-types' && (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h1 className="text-3xl font-heading font-bold text-slate-900">Employee Types</h1>
+                  <p className="text-muted-foreground">Manage employee classifications and their leave settings</p>
+                </div>
+                <Button onClick={handleOpenCreateType} data-testid="button-create-type">
+                  <Plus className="h-4 w-4 mr-2" /> Add Employee Type
+                </Button>
+              </div>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Employee Types</CardTitle>
+                  <CardDescription>Define different categories of employees (e.g., permanent, contractor, consultant)</CardDescription>
+                </CardHeader>
+                <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Leave Label</TableHead>
+                      <TableHead>Has Leave Entitlement</TableHead>
+                      <TableHead>Default</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {employeeTypes.map((type) => (
+                      <TableRow key={type.id} data-testid={`row-type-${type.id}`}>
+                        <TableCell className="font-medium">{type.name}</TableCell>
+                        <TableCell>{type.description || '-'}</TableCell>
+                        <TableCell>
+                          <Badge variant={type.leaveLabel === 'unavailable' ? 'secondary' : 'default'}>
+                            {type.leaveLabel || 'leave'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {type.hasLeaveEntitlement === 'true' ? (
+                            <CheckCircle2 className="h-4 w-4 text-green-500" />
+                          ) : (
+                            <X className="h-4 w-4 text-red-500" />
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {type.isDefault === 'true' && (
+                            <Badge variant="outline">Default</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="icon" onClick={() => handleOpenEditType(type)} data-testid={`button-edit-type-${type.id}`}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => handleDeleteType(type.id)}
+                            data-testid={`button-delete-type-${type.id}`}
+                            disabled={type.isDefault === 'true'}
+                          >
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Leave Rules Section */}
+          {activeSection === 'leave-rules' && (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h1 className="text-3xl font-heading font-bold text-slate-900">Leave Rules</h1>
+                  <p className="text-muted-foreground">Configure leave accrual and entitlement rules</p>
+                </div>
+                <Button onClick={handleOpenCreateRule} data-testid="button-create-rule">
+                  <Plus className="h-4 w-4 mr-2" /> Add Leave Rule
+                </Button>
+              </div>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Leave Accrual Rules</CardTitle>
+                  <CardDescription>Define how leave is accrued for different employee types and leave types</CardDescription>
+                </CardHeader>
+                <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Leave Type</TableHead>
+                      <TableHead>Employee Type</TableHead>
+                      <TableHead>Accrual Type</TableHead>
+                      <TableHead>Accrual Rate</TableHead>
+                      <TableHead>Max Accrual</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {leaveRules.map((rule) => {
+                      const empType = employeeTypes.find(t => t.id === rule.employeeTypeId);
+                      return (
+                        <TableRow key={rule.id} data-testid={`row-rule-${rule.id}`}>
+                          <TableCell className="font-medium">{rule.name}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{rule.leaveType}</Badge>
+                          </TableCell>
+                          <TableCell>{empType?.name || 'All Types'}</TableCell>
+                          <TableCell>
+                            <Badge variant="secondary">{rule.accrualType || 'fixed'}</Badge>
+                          </TableCell>
+                          <TableCell>{rule.accrualRate || '-'}</TableCell>
+                          <TableCell>{rule.maxAccrual ? `${rule.maxAccrual} days` : '-'}</TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="ghost" size="icon" onClick={() => handleOpenEditRule(rule)} data-testid={`button-edit-rule-${rule.id}`}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              onClick={() => handleDeleteRule(rule.id)}
+                              data-testid={`button-delete-rule-${rule.id}`}
+                            >
+                              <Trash2 className="h-4 w-4 text-red-500" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Leave Calculation Guide</CardTitle>
+                  <CardDescription>How leave entitlements are calculated</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="p-4 bg-blue-50 rounded-lg">
+                    <h4 className="font-semibold text-blue-900">Annual Leave</h4>
+                    <p className="text-sm text-blue-700">Days leave per month, accrued pro-rata based on days worked</p>
+                  </div>
+                  <div className="p-4 bg-amber-50 rounded-lg">
+                    <h4 className="font-semibold text-amber-900">Sick Leave</h4>
+                    <p className="text-sm text-amber-700">1 day for every 26 days worked for the first 6 months. After 6 months, 30 days every 3 years.</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
           {/* Settings Section */}
           {activeSection === 'settings' && (
             <div className="space-y-4">
@@ -1810,6 +2190,223 @@ export default function AdminDashboard() {
           </DialogContent>
         </Dialog>
 
+        {/* Employee Type Dialog */}
+        <Dialog open={isTypeDialogOpen} onOpenChange={setIsTypeDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{isEditingType ? 'Edit Employee Type' : 'Add New Employee Type'}</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="typeName" className="text-right">Name</Label>
+                <Input 
+                  id="typeName" 
+                  value={currentType.name || ''} 
+                  onChange={(e) => setCurrentType({...currentType, name: e.target.value})}
+                  className="col-span-3"
+                  placeholder="e.g., Permanent Employee"
+                  data-testid="input-type-name"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="typeDesc" className="text-right">Description</Label>
+                <Input 
+                  id="typeDesc" 
+                  value={currentType.description || ''} 
+                  onChange={(e) => setCurrentType({...currentType, description: e.target.value})}
+                  className="col-span-3"
+                  placeholder="Optional description"
+                  data-testid="input-type-description"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="leaveLabel" className="text-right">Leave Label</Label>
+                <div className="col-span-3">
+                  <Select 
+                    value={currentType.leaveLabel || 'leave'} 
+                    onValueChange={(value) => setCurrentType({...currentType, leaveLabel: value})}
+                  >
+                    <SelectTrigger data-testid="select-leave-label">
+                      <SelectValue placeholder="Select leave label" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="leave">Leave (for employees)</SelectItem>
+                      <SelectItem value="unavailable">Unavailable (for contractors)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    "Leave" for permanent employees, "Unavailable" for contractors
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="hasLeaveEntitlement" className="text-right">Has Leave Entitlement</Label>
+                <div className="col-span-3 flex items-center gap-2">
+                  <Switch 
+                    id="hasLeaveEntitlement"
+                    checked={currentType.hasLeaveEntitlement === 'true'}
+                    onCheckedChange={(checked) => setCurrentType({...currentType, hasLeaveEntitlement: checked ? 'true' : 'false'})}
+                    data-testid="switch-has-leave"
+                  />
+                  <span className="text-sm text-muted-foreground">
+                    {currentType.hasLeaveEntitlement === 'true' ? 'Yes - Can accrue leave' : 'No - Cannot accrue leave'}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button onClick={handleSaveType} data-testid="button-save-type">
+                {isEditingType ? 'Save Changes' : 'Create Employee Type'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Leave Rule Dialog */}
+        <Dialog open={isRuleDialogOpen} onOpenChange={setIsRuleDialogOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>{isEditingRule ? 'Edit Leave Rule' : 'Add New Leave Rule'}</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="ruleName" className="text-right">Name</Label>
+                <Input 
+                  id="ruleName" 
+                  value={currentRule.name || ''} 
+                  onChange={(e) => setCurrentRule({...currentRule, name: e.target.value})}
+                  className="col-span-3"
+                  placeholder="e.g., Annual Leave Accrual"
+                  data-testid="input-rule-name"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="leaveType" className="text-right">Leave Type</Label>
+                <div className="col-span-3">
+                  <Select 
+                    value={currentRule.leaveType || ''} 
+                    onValueChange={(value) => setCurrentRule({...currentRule, leaveType: value})}
+                  >
+                    <SelectTrigger data-testid="select-rule-leave-type">
+                      <SelectValue placeholder="Select leave type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Annual">Annual Leave</SelectItem>
+                      <SelectItem value="Sick">Sick Leave</SelectItem>
+                      <SelectItem value="Family Responsibility">Family Responsibility</SelectItem>
+                      <SelectItem value="Study">Study Leave</SelectItem>
+                      <SelectItem value="Unpaid">Unpaid Leave</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="ruleEmpType" className="text-right">Employee Type</Label>
+                <div className="col-span-3">
+                  <Select 
+                    value={currentRule.employeeTypeId?.toString() || 'all'} 
+                    onValueChange={(value) => setCurrentRule({...currentRule, employeeTypeId: value === 'all' ? undefined : parseInt(value)})}
+                  >
+                    <SelectTrigger data-testid="select-rule-emp-type">
+                      <SelectValue placeholder="Select employee type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Employee Types</SelectItem>
+                      {employeeTypes.map((type) => (
+                        <SelectItem key={type.id} value={type.id.toString()}>
+                          {type.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="accrualType" className="text-right">Accrual Type</Label>
+                <div className="col-span-3">
+                  <Select 
+                    value={currentRule.accrualType || 'fixed'} 
+                    onValueChange={(value) => setCurrentRule({...currentRule, accrualType: value})}
+                  >
+                    <SelectTrigger data-testid="select-accrual-type">
+                      <SelectValue placeholder="Select accrual type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="fixed">Fixed (days per year)</SelectItem>
+                      <SelectItem value="monthly">Monthly (days per month)</SelectItem>
+                      <SelectItem value="days_worked">Days Worked (1 day per X days)</SelectItem>
+                      <SelectItem value="cycle">Cycle Based (days per X months)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="accrualRate" className="text-right">Accrual Rate</Label>
+                <Input 
+                  id="accrualRate" 
+                  value={currentRule.accrualRate || ''} 
+                  onChange={(e) => setCurrentRule({...currentRule, accrualRate: e.target.value})}
+                  className="col-span-3"
+                  placeholder="e.g., 1.25 days/month or 1:26"
+                  data-testid="input-accrual-rate"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="maxAccrual" className="text-right">Max Accrual</Label>
+                <Input 
+                  id="maxAccrual" 
+                  type="number"
+                  value={currentRule.maxAccrual || ''} 
+                  onChange={(e) => setCurrentRule({...currentRule, maxAccrual: e.target.value ? parseInt(e.target.value) : undefined})}
+                  className="col-span-3"
+                  placeholder="Maximum days (e.g., 30)"
+                  data-testid="input-max-accrual"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="waitingPeriod" className="text-right">Waiting Period</Label>
+                <Input 
+                  id="waitingPeriod" 
+                  type="number"
+                  value={currentRule.waitingPeriodDays || ''} 
+                  onChange={(e) => setCurrentRule({...currentRule, waitingPeriodDays: e.target.value ? parseInt(e.target.value) : undefined})}
+                  className="col-span-3"
+                  placeholder="Days before rule applies (e.g., 180)"
+                  data-testid="input-waiting-period"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="cycleMonths" className="text-right">Cycle Months</Label>
+                <Input 
+                  id="cycleMonths" 
+                  type="number"
+                  value={currentRule.cycleMonths || ''} 
+                  onChange={(e) => setCurrentRule({...currentRule, cycleMonths: e.target.value ? parseInt(e.target.value) : undefined})}
+                  className="col-span-3"
+                  placeholder="Cycle length in months (e.g., 36)"
+                  data-testid="input-cycle-months"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-start gap-4">
+                <Label htmlFor="ruleNotes" className="text-right pt-2">Notes</Label>
+                <Textarea 
+                  id="ruleNotes" 
+                  value={currentRule.notes || ''} 
+                  onChange={(e) => setCurrentRule({...currentRule, notes: e.target.value})}
+                  className="col-span-3"
+                  placeholder="Additional notes about this rule"
+                  data-testid="input-rule-notes"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button onClick={handleSaveRule} data-testid="button-save-rule">
+                {isEditingRule ? 'Save Changes' : 'Create Leave Rule'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* Admin User Dialog */}
         <Dialog open={isAdminDialogOpen} onOpenChange={setIsAdminDialogOpen}>
           <DialogContent>
@@ -1902,11 +2499,11 @@ export default function AdminDashboard() {
 
         {/* User Dialog */}
         <Dialog open={isUserDialogOpen} onOpenChange={setIsUserDialogOpen}>
-          <DialogContent>
+          <DialogContent className="max-w-lg max-h-[90vh]">
             <DialogHeader>
               <DialogTitle>{isEditing ? 'Edit Employee' : 'Add New Employee'}</DialogTitle>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
+            <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="firstName" className="text-right">First Name</Label>
                 <Input 
@@ -2022,6 +2619,70 @@ export default function AdminDashboard() {
                     <p className="text-xs text-muted-foreground mt-1">No departments available. Create one in the Departments tab first.</p>
                   )}
                 </div>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="empType" className="text-right">Employee Type</Label>
+                <div className="col-span-3">
+                  <Select 
+                    value={currentUser.employeeTypeId?.toString() || ''} 
+                    onValueChange={(value) => setCurrentUser({...currentUser, employeeTypeId: value ? parseInt(value) : undefined})}
+                  >
+                    <SelectTrigger data-testid="select-employee-type">
+                      <SelectValue placeholder="Select employee type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {employeeTypes.map((type) => (
+                        <SelectItem key={type.id} value={type.id.toString()}>
+                          {type.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="nationalId" className="text-right">National ID</Label>
+                <Input 
+                  id="nationalId" 
+                  value={currentUser.nationalId || ''} 
+                  onChange={(e) => setCurrentUser({...currentUser, nationalId: e.target.value})}
+                  className="col-span-3"
+                  placeholder="ID / Passport number"
+                  data-testid="input-national-id"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="taxNumber" className="text-right">Tax Number</Label>
+                <Input 
+                  id="taxNumber" 
+                  value={currentUser.taxNumber || ''} 
+                  onChange={(e) => setCurrentUser({...currentUser, taxNumber: e.target.value})}
+                  className="col-span-3"
+                  placeholder="Tax / PAYE number"
+                  data-testid="input-tax-number"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="nextOfKin" className="text-right">Next of Kin</Label>
+                <Input 
+                  id="nextOfKin" 
+                  value={currentUser.nextOfKin || ''} 
+                  onChange={(e) => setCurrentUser({...currentUser, nextOfKin: e.target.value})}
+                  className="col-span-3"
+                  placeholder="Name and relationship"
+                  data-testid="input-next-of-kin"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="emergencyNumber" className="text-right">Emergency Contact</Label>
+                <Input 
+                  id="emergencyNumber" 
+                  value={currentUser.emergencyNumber || ''} 
+                  onChange={(e) => setCurrentUser({...currentUser, emergencyNumber: e.target.value})}
+                  className="col-span-3"
+                  placeholder="Emergency phone number"
+                  data-testid="input-emergency-number"
+                />
               </div>
               <div className="grid grid-cols-4 items-start gap-4 pt-2">
                 <Label className="text-right pt-2">Profile Photo</Label>
