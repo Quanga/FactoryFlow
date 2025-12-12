@@ -258,6 +258,10 @@ export default function AdminDashboard() {
       setIsEditing(false);
       setIsCapturingPhoto(false);
     },
+    onError: (error: any) => {
+      console.error('Create user error:', error);
+      toast({ variant: "destructive", title: "Error Creating User", description: error.message || "Failed to create user. Please try again." });
+    },
   });
 
   const updateUserMutation = useMutation({
@@ -269,6 +273,10 @@ export default function AdminDashboard() {
       setCurrentUser({});
       setIsEditing(false);
       setIsCapturingPhoto(false);
+    },
+    onError: (error: any) => {
+      console.error('Update user error:', error);
+      toast({ variant: "destructive", title: "Error Updating User", description: error.message || "Failed to update user. Please try again." });
     },
   });
 
