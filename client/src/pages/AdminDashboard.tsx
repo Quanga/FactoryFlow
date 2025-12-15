@@ -7,13 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { userApi, settingsApi, departmentApi, userGroupApi, leaveRequestApi, leaveBalanceApi, attendanceApi, employeeTypeApi, leaveRuleApi, leaveRulePhaseApi } from '@/lib/api';
-import type { User, Department, UserGroup, LeaveRequest, LeaveBalance, AttendanceRecord, EmployeeType, LeaveRule, LeaveRulePhase } from '@shared/schema';
+import { userApi, settingsApi, departmentApi, userGroupApi, leaveRequestApi, leaveBalanceApi, attendanceApi, employeeTypeApi, leaveRuleApi, leaveRulePhaseApi, contractHistoryApi } from '@/lib/api';
+import type { User, Department, UserGroup, LeaveRequest, LeaveBalance, AttendanceRecord, EmployeeType, LeaveRule, LeaveRulePhase, ContractHistory } from '@shared/schema';
 import { Plus, Pencil, Trash2, Save, Mail, Users, Settings, Camera, Building2, Loader2, CheckCircle2, UserCog, Shield, Calendar, Clock, FileText, Check, X, Search, ChevronDown, ChevronRight, LayoutDashboard, AlertTriangle, LogOut } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from "@/hooks/use-toast";
@@ -158,6 +158,14 @@ export default function AdminDashboard() {
   const [currentPhaseRule, setCurrentPhaseRule] = useState<LeaveRule | null>(null);
   const [phases, setPhases] = useState<LeaveRulePhase[]>([]);
   const [loadingPhases, setLoadingPhases] = useState(false);
+
+  // Contract Management State
+  const [isContractDialogOpen, setIsContractDialogOpen] = useState(false);
+  const [contractActionUser, setContractActionUser] = useState<User | null>(null);
+  const [contractAction, setContractAction] = useState<'extend' | 'convert'>('extend');
+  const [contractNewEndDate, setContractNewEndDate] = useState('');
+  const [contractNewTypeId, setContractNewTypeId] = useState<number | null>(null);
+  const [contractReason, setContractReason] = useState('');
 
   // Settings State
   const [emailSettings, setEmailSettings] = useState('');
@@ -866,6 +874,75 @@ export default function AdminDashboard() {
     }
   };
 
+  // Contract Management Handlers
+  const handleContractAction = async () => {
+    if (!contractActionUser || !user) return;
+    
+    try {
+      const previousType = employeeTypes.find(t => t.id === contractActionUser.employeeTypeId);
+      const newType = contractNewTypeId ? employeeTypes.find(t => t.id === contractNewTypeId) : null;
+      
+      if (contractAction === 'extend') {
+        if (!contractNewEndDate) {
+          toast({ variant: "destructive", title: "Error", description: "New end date is required for contract extension" });
+          return;
+        }
+        
+        // Update user's contract end date
+        await userApi.update(contractActionUser.id, { contractEndDate: contractNewEndDate });
+        
+        // Log the extension in contract history
+        await contractHistoryApi.create(contractActionUser.id, {
+          action: 'extended',
+          previousEmployeeTypeId: contractActionUser.employeeTypeId,
+          newEmployeeTypeId: contractActionUser.employeeTypeId,
+          previousEndDate: contractActionUser.contractEndDate,
+          newEndDate: contractNewEndDate,
+          reason: contractReason || 'Contract extended',
+          performedBy: user.id,
+        });
+        
+        toast({ title: "Success", description: "Contract extended successfully" });
+      } else {
+        // Convert to different type
+        if (!contractNewTypeId) {
+          toast({ variant: "destructive", title: "Error", description: "Please select a new employee type" });
+          return;
+        }
+        
+        const isNewTypePermanent = newType?.isPermanent === 'yes';
+        const updateData: Partial<User> = { 
+          employeeTypeId: contractNewTypeId,
+          contractEndDate: isNewTypePermanent ? null : (contractNewEndDate || null),
+        };
+        
+        // Update user
+        await userApi.update(contractActionUser.id, updateData);
+        
+        // Log the conversion in contract history
+        await contractHistoryApi.create(contractActionUser.id, {
+          action: 'converted',
+          previousEmployeeTypeId: contractActionUser.employeeTypeId,
+          newEmployeeTypeId: contractNewTypeId,
+          previousEndDate: contractActionUser.contractEndDate,
+          newEndDate: isNewTypePermanent ? null : contractNewEndDate,
+          reason: contractReason || `Converted to ${newType?.name}`,
+          performedBy: user.id,
+        });
+        
+        toast({ title: "Success", description: `Personnel converted to ${newType?.name}` });
+      }
+      
+      // Refresh data - await to ensure cache updates before dialog closes
+      await queryClient.invalidateQueries({ queryKey: ['users'] });
+      setIsContractDialogOpen(false);
+      setContractActionUser(null);
+    } catch (error) {
+      console.error('Contract action error:', error);
+      toast({ variant: "destructive", title: "Error", description: "Failed to update contract" });
+    }
+  };
+
   // Admin User Handlers
   const generatePassword = () => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
@@ -1403,6 +1480,42 @@ export default function AdminDashboard() {
                                         <p className="font-medium">{employeeTypes.find(t => t.id === emp.employeeTypeId)?.name || '-'}</p>
                                       </div>
                                     )}
+                                    {(() => {
+                                      const empType = employeeTypes.find(t => t.id === emp.employeeTypeId);
+                                      if (empType && empType.isPermanent === 'no') {
+                                        const isExpired = emp.contractEndDate && new Date(emp.contractEndDate) < new Date();
+                                        return (
+                                          <>
+                                            <div>
+                                              <p className="text-xs text-muted-foreground">Contract End Date</p>
+                                              <p className={`font-medium ${isExpired ? 'text-red-600' : ''}`}>
+                                                {emp.contractEndDate ? format(new Date(emp.contractEndDate), 'MMM d, yyyy') : 'Not set'}
+                                                {isExpired && <span className="ml-2 text-red-600 text-xs">(Expired)</span>}
+                                              </p>
+                                            </div>
+                                            <div className="flex items-end">
+                                              <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setContractActionUser(emp);
+                                                  setContractAction('extend');
+                                                  setContractNewEndDate('');
+                                                  setContractNewTypeId(null);
+                                                  setContractReason('');
+                                                  setIsContractDialogOpen(true);
+                                                }}
+                                                data-testid={`button-manage-contract-${emp.id}`}
+                                              >
+                                                Extend / Convert
+                                              </Button>
+                                            </div>
+                                          </>
+                                        );
+                                      }
+                                      return null;
+                                    })()}
                                   </div>
                                   
                                   <p className="text-sm font-medium text-slate-700">Leave Balance Details</p>
@@ -2823,6 +2936,126 @@ export default function AdminDashboard() {
               </Button>
               <Button onClick={handleSavePhases} data-testid="button-save-phases">
                 Save Phases
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Contract Management Dialog */}
+        <Dialog open={isContractDialogOpen} onOpenChange={setIsContractDialogOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>
+                Manage Contract - {contractActionUser?.firstName} {contractActionUser?.surname}
+              </DialogTitle>
+              <DialogDescription>
+                Extend the current contract or convert to a different employment type.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right">Current Type</Label>
+                <p className="col-span-3 font-medium">
+                  {employeeTypes.find(t => t.id === contractActionUser?.employeeTypeId)?.name || 'Not set'}
+                </p>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right">Current End Date</Label>
+                <p className="col-span-3 font-medium">
+                  {contractActionUser?.contractEndDate 
+                    ? format(new Date(contractActionUser.contractEndDate), 'MMM d, yyyy')
+                    : 'Not set'}
+                </p>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right">Action</Label>
+                <div className="col-span-3">
+                  <Select 
+                    value={contractAction} 
+                    onValueChange={(value: 'extend' | 'convert') => {
+                      setContractAction(value);
+                      if (value === 'convert') {
+                        setContractNewTypeId(null);
+                      }
+                    }}
+                  >
+                    <SelectTrigger data-testid="select-contract-action">
+                      <SelectValue placeholder="Select action" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="extend">Extend Contract</SelectItem>
+                      <SelectItem value="convert">Convert to Different Type</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
+              {contractAction === 'convert' && (
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label className="text-right">New Type</Label>
+                  <div className="col-span-3">
+                    <Select 
+                      value={contractNewTypeId?.toString() || ''} 
+                      onValueChange={(value) => setContractNewTypeId(value ? parseInt(value) : null)}
+                    >
+                      <SelectTrigger data-testid="select-new-employee-type">
+                        <SelectValue placeholder="Select new employee type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {employeeTypes.map((type) => (
+                          <SelectItem key={type.id} value={type.id.toString()}>
+                            {type.name} {type.isPermanent === 'yes' ? '(Permanent)' : '(Contract)'}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+              
+              {(() => {
+                const selectedNewType = employeeTypes.find(t => t.id === contractNewTypeId);
+                const needsEndDate = contractAction === 'extend' || 
+                  (contractAction === 'convert' && selectedNewType?.isPermanent === 'no');
+                
+                if (needsEndDate) {
+                  return (
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="contractNewEndDate" className="text-right">
+                        New End Date
+                      </Label>
+                      <Input 
+                        id="contractNewEndDate" 
+                        type="date"
+                        value={contractNewEndDate} 
+                        onChange={(e) => setContractNewEndDate(e.target.value)}
+                        className="col-span-3"
+                        data-testid="input-new-end-date"
+                      />
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+              
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="contractReason" className="text-right">Reason</Label>
+                <Input 
+                  id="contractReason" 
+                  value={contractReason} 
+                  onChange={(e) => setContractReason(e.target.value)}
+                  className="col-span-3"
+                  placeholder="Reason for extension/conversion"
+                  data-testid="input-contract-reason"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsContractDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleContractAction} data-testid="button-save-contract">
+                {contractAction === 'extend' ? 'Extend Contract' : 'Convert'}
               </Button>
             </DialogFooter>
           </DialogContent>
