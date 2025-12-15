@@ -41,6 +41,7 @@ export const employeeTypes = pgTable("employee_types", {
   leaveLabel: text("leave_label").notNull().default("Leave"), // "Leave" for employees, "Unavailable" for contractors
   hasLeaveEntitlement: text("has_leave_entitlement").notNull().default("yes"), // "yes" or "no"
   isDefault: text("is_default").notNull().default("no"), // "yes" for the default type
+  isPermanent: text("is_permanent").notNull().default("yes"), // "yes" for permanent employees (no end date), "no" for contract-based
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -123,6 +124,7 @@ export const users = pgTable("users", {
   emergencyNumber: text("emergency_number"), // Emergency contact number
   popiaWaiverUrl: text("popia_waiver_url"), // URL to uploaded POPIA waiver document
   startDate: text("start_date"), // Employment start date for leave calculations
+  contractEndDate: text("contract_end_date"), // End date for contractors/temps (null for permanent)
   photoUrl: text("photo_url"),
   faceDescriptor: text("face_descriptor"), // JSON array of 128 face embedding values
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -202,3 +204,24 @@ export const insertSettingSchema = createInsertSchema(settings).omit({
 });
 export type InsertSetting = z.infer<typeof insertSettingSchema>;
 export type Setting = typeof settings.$inferSelect;
+
+// Contract History Table (tracks contract extensions and type changes)
+export const contractHistory = pgTable("contract_history", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  action: text("action").notNull(), // 'created', 'extended', 'converted', 'ended'
+  previousEmployeeTypeId: integer("previous_employee_type_id").references(() => employeeTypes.id),
+  newEmployeeTypeId: integer("new_employee_type_id").references(() => employeeTypes.id),
+  previousEndDate: text("previous_end_date"),
+  newEndDate: text("new_end_date"),
+  reason: text("reason"), // Reason for extension/conversion
+  performedBy: text("performed_by").references(() => users.id), // Admin who made the change
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertContractHistorySchema = createInsertSchema(contractHistory).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertContractHistory = z.infer<typeof insertContractHistorySchema>;
+export type ContractHistory = typeof contractHistory.$inferSelect;
