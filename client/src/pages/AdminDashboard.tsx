@@ -725,7 +725,7 @@ export default function AdminDashboard() {
   };
 
   const handleOpenCreateType = () => {
-    setCurrentType({ leaveLabel: 'leave', hasLeaveEntitlement: 'true' });
+    setCurrentType({ leaveLabel: 'leave', hasLeaveEntitlement: 'true', isPermanent: 'yes' });
     setIsEditingType(false);
     setIsTypeDialogOpen(true);
   };
@@ -2452,6 +2452,20 @@ export default function AdminDashboard() {
                   </span>
                 </div>
               </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="isPermanent" className="text-right">Permanent Position</Label>
+                <div className="col-span-3 flex items-center gap-2">
+                  <Switch 
+                    id="isPermanent"
+                    checked={currentType.isPermanent === 'yes'}
+                    onCheckedChange={(checked) => setCurrentType({...currentType, isPermanent: checked ? 'yes' : 'no'})}
+                    data-testid="switch-is-permanent"
+                  />
+                  <span className="text-sm text-muted-foreground">
+                    {currentType.isPermanent === 'yes' ? 'Yes - No contract end date required' : 'No - Requires contract end date'}
+                  </span>
+                </div>
+              </div>
             </div>
             <DialogFooter>
               <Button onClick={handleSaveType} data-testid="button-save-type">
@@ -3104,6 +3118,29 @@ export default function AdminDashboard() {
                   data-testid="input-start-date"
                 />
               </div>
+              {(() => {
+                const selectedType = employeeTypes.find(t => t.id === currentUser.employeeTypeId);
+                if (selectedType && selectedType.isPermanent === 'no') {
+                  return (
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="contractEndDate" className="text-right">Contract End Date</Label>
+                      <div className="col-span-3">
+                        <Input 
+                          id="contractEndDate" 
+                          type="date"
+                          value={currentUser.contractEndDate || ''} 
+                          onChange={(e) => setCurrentUser({...currentUser, contractEndDate: e.target.value})}
+                          data-testid="input-contract-end-date"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Required for contract-based personnel. Set the expected contract end date.
+                        </p>
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="nationalId" className="text-right">National ID</Label>
                 <Input 

@@ -1,4 +1,4 @@
-import type { User, LeaveBalance, LeaveRequest, AttendanceRecord, Setting, Department, UserGroup, EmployeeType, LeaveRule, LeaveRulePhase } from "@shared/schema";
+import type { User, LeaveBalance, LeaveRequest, AttendanceRecord, Setting, Department, UserGroup, EmployeeType, LeaveRule, LeaveRulePhase, ContractHistory } from "@shared/schema";
 
 const API_BASE = "/api";
 
@@ -517,5 +517,27 @@ export const leaveRulePhaseApi = {
       const error = await res.json();
       throw new Error(error.error || "Failed to delete leave rule phases");
     }
+  },
+};
+
+// Contract History API
+export const contractHistoryApi = {
+  async getByUserId(userId: string): Promise<ContractHistory[]> {
+    const res = await fetch(`${API_BASE}/users/${userId}/contract-history`);
+    if (!res.ok) throw new Error("Failed to fetch contract history");
+    return res.json();
+  },
+
+  async create(userId: string, history: { action: string; previousEmployeeTypeId?: number | null; newEmployeeTypeId?: number | null; previousEndDate?: string | null; newEndDate?: string | null; reason?: string | null; performedBy?: string | null }): Promise<ContractHistory> {
+    const res = await fetch(`${API_BASE}/users/${userId}/contract-history`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(history),
+    });
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.error || "Failed to create contract history");
+    }
+    return res.json();
   },
 };
