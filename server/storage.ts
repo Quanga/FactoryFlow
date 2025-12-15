@@ -24,6 +24,8 @@ import type {
   InsertLeaveRule,
   LeaveRulePhase,
   InsertLeaveRulePhase,
+  ContractHistory,
+  InsertContractHistory,
 } from "@shared/schema";
 
 const pool = new Pool({
@@ -100,6 +102,10 @@ export interface IStorage {
   updateLeaveRulePhase(id: number, phase: Partial<InsertLeaveRulePhase>): Promise<LeaveRulePhase | undefined>;
   deleteLeaveRulePhase(id: number): Promise<boolean>;
   deleteAllLeaveRulePhases(leaveRuleId: number): Promise<boolean>;
+
+  // Contract History operations
+  getContractHistory(userId: string): Promise<ContractHistory[]>;
+  createContractHistory(history: InsertContractHistory): Promise<ContractHistory>;
 }
 
 export class DrizzleStorage implements IStorage {
@@ -514,6 +520,23 @@ export class DrizzleStorage implements IStorage {
   async deleteAllLeaveRulePhases(leaveRuleId: number): Promise<boolean> {
     await db.delete(schema.leaveRulePhases).where(eq(schema.leaveRulePhases.leaveRuleId, leaveRuleId));
     return true;
+  }
+
+  // Contract History operations
+  async getContractHistory(userId: string): Promise<ContractHistory[]> {
+    return db
+      .select()
+      .from(schema.contractHistory)
+      .where(eq(schema.contractHistory.userId, userId))
+      .orderBy(desc(schema.contractHistory.createdAt));
+  }
+
+  async createContractHistory(history: InsertContractHistory): Promise<ContractHistory> {
+    const [newHistory] = await db
+      .insert(schema.contractHistory)
+      .values(history)
+      .returning();
+    return newHistory;
   }
 }
 

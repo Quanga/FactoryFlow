@@ -1026,5 +1026,29 @@ export async function registerRoutes(
     }
   });
 
+  // Contract History Routes
+  app.get("/api/users/:id/contract-history", async (req, res) => {
+    try {
+      const history = await storage.getContractHistory(req.params.id);
+      return res.json(history);
+    } catch (error) {
+      console.error("Get contract history error:", error);
+      return res.status(500).json({ error: "Failed to get contract history" });
+    }
+  });
+
+  app.post("/api/users/:id/contract-history", async (req, res) => {
+    try {
+      const history = await storage.createContractHistory({
+        userId: req.params.id,
+        ...req.body,
+      });
+      return res.status(201).json(history);
+    } catch (error) {
+      console.error("Create contract history error:", error);
+      return res.status(500).json({ error: "Failed to create contract history" });
+    }
+  });
+
   return httpServer;
 }
