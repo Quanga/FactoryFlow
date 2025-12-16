@@ -1068,7 +1068,7 @@ export async function registerRoutes(
       }
       
       const fromEmailSetting = await storage.getSetting('from_email');
-      const fromEmail = fromEmailSetting?.value || 'noreply@aece-checkpoint.com';
+      const fromEmail = fromEmailSetting?.value || 'noreply@aece.co.za';
       
       const siteUrl = 'https://factory-flow--quanga01.replit.app';
       
