@@ -99,6 +99,17 @@ export const userApi = {
     });
     if (!res.ok) throw new Error("Failed to delete user");
   },
+
+  async resendCredentials(id: string): Promise<{ message: string }> {
+    const res = await fetch(`${API_BASE}/users/${id}/resend-credentials`, {
+      method: "POST",
+    });
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to send credentials email");
+    }
+    return res.json();
+  },
 };
 
 // Leave Balance API

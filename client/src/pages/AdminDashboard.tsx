@@ -616,6 +616,15 @@ export default function AdminDashboard() {
     deleteUserMutation.mutate(id);
   };
 
+  const handleResendCredentials = async (id: string) => {
+    try {
+      const result = await userApi.resendCredentials(id);
+      toast({ title: "Email Sent", description: result.message });
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Error", description: error.message || "Failed to send credentials email" });
+    }
+  };
+
   const handleOpenEdit = (user: User) => {
     setCurrentUser(user);
     setIsEditing(true);
@@ -2097,7 +2106,16 @@ export default function AdminDashboard() {
                               <span className="text-muted-foreground">-</span>
                             )}
                           </TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="text-right space-x-1">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              onClick={() => handleResendCredentials(admin.id)}
+                              title="Resend credentials email"
+                              data-testid={`button-resend-credentials-${admin.id}`}
+                            >
+                              <Mail className="h-4 w-4 text-blue-500" />
+                            </Button>
                             <Button variant="ghost" size="icon" onClick={() => handleDeleteUser(admin.id)}>
                               <Trash2 className="h-4 w-4 text-red-500" />
                             </Button>

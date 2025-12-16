@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
 import { insertUserSchema, insertLeaveRequestSchema, insertAttendanceRecordSchema, insertDepartmentSchema, insertUserGroupSchema, insertEmployeeTypeSchema, insertLeaveRuleSchema, insertLeaveRulePhaseSchema } from "@shared/schema";
-import { sendLeaveRequestNotification, sendLateAttendanceNotification, sendAdminWelcomeEmail, sendLeaveStatusNotification, sendPasswordResetEmail } from "./email";
+import { sendLeaveRequestNotification, sendLateAttendanceNotification, sendAdminWelcomeEmail, sendLeaveStatusNotification, sendPasswordResetEmail, sendAdminCredentialsEmail } from "./email";
 import crypto from "crypto";
 
 // Simple in-memory store for password reset tokens (in production, use database)
@@ -1047,6 +1047,51 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Create contract history error:", error);
       return res.status(500).json({ error: "Failed to create contract history" });
+    }
+  });
+
+  // Resend admin credentials email
+  app.post("/api/users/:id/resend-credentials", async (req, res) => {
+    try {
+      const user = await storage.getUser(req.params.id);
+      
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      if (!user.email) {
+        return res.status(400).json({ error: "User does not have an email address" });
+      }
+      
+      if (!user.password) {
+        return res.status(400).json({ error: "User does not have a password set" });
+      }
+      
+      const fromEmailSetting = await storage.getSetting('from_email');
+      const fromEmail = fromEmailSetting?.value || 'noreply@aece-checkpoint.com';
+      
+      const siteUrl = 'https://factory-flow--quanga01.replit.app';
+      
+      const success = await sendAdminCredentialsEmail(
+        user.email,
+        fromEmail,
+        {
+          firstName: user.firstName,
+          surname: user.surname,
+          email: user.email,
+          password: user.password,
+          siteUrl: siteUrl,
+        }
+      );
+      
+      if (success) {
+        return res.json({ message: "Credentials email sent successfully" });
+      } else {
+        return res.status(500).json({ error: "Failed to send email. Email service may not be configured." });
+      }
+    } catch (error) {
+      console.error("Resend credentials error:", error);
+      return res.status(500).json({ error: "Failed to resend credentials" });
     }
   });
 
