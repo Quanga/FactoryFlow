@@ -696,8 +696,8 @@ export default function AdminDashboard() {
       return;
     }
     
-    // Determine role based on userGroupId
-    const role = currentUser.userGroupId ? 'manager' : 'worker';
+    // Use explicitly set role, default to 'worker' if not set
+    const role = currentUser.role || 'worker';
     
     // Workers require a department
     if (role === 'worker' && !currentUser.department) {
@@ -3773,7 +3773,27 @@ export default function AdminDashboard() {
                 </div>
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="manager" className="text-right">Manager</Label>
+                <Label htmlFor="positionType" className="text-right">Position Type</Label>
+                <div className="col-span-3">
+                  <Select 
+                    value={currentUser.role || 'worker'} 
+                    onValueChange={(value) => setCurrentUser({...currentUser, role: value as 'worker' | 'manager'})}
+                  >
+                    <SelectTrigger data-testid="select-position-type">
+                      <SelectValue placeholder="Select position type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="worker">Worker</SelectItem>
+                      <SelectItem value="manager">Manager</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Managers can be assigned as supervisors to other employees.
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="manager" className="text-right">Reports To</Label>
                 <div className="col-span-3">
                   <Select 
                     value={currentUser.managerId || 'none'} 
@@ -3785,7 +3805,7 @@ export default function AdminDashboard() {
                     <SelectContent>
                       <SelectItem value="none">No Manager</SelectItem>
                       {users
-                        .filter(u => u.id !== currentUser.id && (u.userGroupId || u.role === 'manager'))
+                        .filter(u => u.id !== currentUser.id && u.role === 'manager')
                         .map((mgr) => (
                           <SelectItem key={mgr.id} value={mgr.id} data-testid={`option-manager-${mgr.id}`}>
                             {mgr.firstName} {mgr.surname} {mgr.department ? `(${mgr.department})` : ''}
@@ -3794,7 +3814,7 @@ export default function AdminDashboard() {
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Select the direct manager for this employee. Only admin users are shown.
+                    Select the direct manager for this employee. Only users with "Manager" position type are shown.
                   </p>
                 </div>
               </div>
