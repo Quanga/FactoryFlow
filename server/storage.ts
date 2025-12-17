@@ -1,7 +1,7 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import pkg from "pg";
 const { Pool } = pkg;
-import { eq, and, desc, gte, lte } from "drizzle-orm";
+import { eq, and, desc, gte, lte, inArray } from "drizzle-orm";
 import * as schema from "@shared/schema";
 import type {
   User,
@@ -51,9 +51,15 @@ export interface IStorage {
 
   // Leave request operations
   getLeaveRequests(userId?: string): Promise<LeaveRequest[]>;
+  getLeaveRequestsByStatus(status: string | string[]): Promise<LeaveRequest[]>;
   getLeaveRequest(id: number): Promise<LeaveRequest | undefined>;
   createLeaveRequest(request: InsertLeaveRequest): Promise<LeaveRequest>;
   updateLeaveRequestStatus(id: number, status: string, adminNotes?: string): Promise<LeaveRequest | undefined>;
+  
+  // Approval workflow operations
+  updateManagerDecision(id: number, approverId: string, decision: 'approved' | 'rejected', notes?: string): Promise<LeaveRequest | undefined>;
+  updateHRDecision(id: number, approverId: string, decision: 'approved' | 'rejected', notes?: string): Promise<LeaveRequest | undefined>;
+  updateMDDecision(id: number, approverId: string, decision: 'approved' | 'rejected', notes?: string, bypassHR?: boolean): Promise<LeaveRequest | undefined>;
   
   // Attendance operations
   getAttendanceRecords(userId: string, limit?: number, startDate?: Date, endDate?: Date): Promise<AttendanceRecord[]>;
@@ -235,6 +241,105 @@ export class DrizzleStorage implements IStorage {
     if (adminNotes !== undefined) {
       updateData.adminNotes = adminNotes;
     }
+    const [updatedRequest] = await db
+      .update(schema.leaveRequests)
+      .set(updateData)
+      .where(eq(schema.leaveRequests.id, id))
+      .returning();
+    return updatedRequest;
+  }
+
+  async getLeaveRequestsByStatus(status: string | string[]): Promise<LeaveRequest[]> {
+    const statuses = Array.isArray(status) ? status : [status];
+    return db
+      .select()
+      .from(schema.leaveRequests)
+      .where(inArray(schema.leaveRequests.status, statuses))
+      .orderBy(desc(schema.leaveRequests.createdAt));
+  }
+
+  async updateManagerDecision(id: number, approverId: string, decision: 'approved' | 'rejected', notes?: string): Promise<LeaveRequest | undefined> {
+    const now = new Date();
+    const nextStatus = decision === 'approved' ? 'pending_hr' : 'rejected';
+    
+    const updateData: Record<string, unknown> = {
+      status: nextStatus,
+      managerApproverId: approverId,
+      managerDecision: decision,
+      managerDecisionAt: now,
+      updatedAt: now,
+    };
+    
+    if (notes) {
+      updateData.managerNotes = notes;
+    }
+    
+    if (decision === 'rejected') {
+      updateData.finalizedById = approverId;
+      updateData.finalizedAt = now;
+    }
+    
+    const [updatedRequest] = await db
+      .update(schema.leaveRequests)
+      .set(updateData)
+      .where(eq(schema.leaveRequests.id, id))
+      .returning();
+    return updatedRequest;
+  }
+
+  async updateHRDecision(id: number, approverId: string, decision: 'approved' | 'rejected', notes?: string): Promise<LeaveRequest | undefined> {
+    const now = new Date();
+    const nextStatus = decision === 'approved' ? 'pending_md' : 'rejected';
+    
+    const updateData: Record<string, unknown> = {
+      status: nextStatus,
+      hrApproverId: approverId,
+      hrDecision: decision,
+      hrDecisionAt: now,
+      updatedAt: now,
+    };
+    
+    if (notes) {
+      updateData.hrNotes = notes;
+    }
+    
+    if (decision === 'rejected') {
+      updateData.finalizedById = approverId;
+      updateData.finalizedAt = now;
+    }
+    
+    const [updatedRequest] = await db
+      .update(schema.leaveRequests)
+      .set(updateData)
+      .where(eq(schema.leaveRequests.id, id))
+      .returning();
+    return updatedRequest;
+  }
+
+  async updateMDDecision(id: number, approverId: string, decision: 'approved' | 'rejected', notes?: string, bypassHR?: boolean): Promise<LeaveRequest | undefined> {
+    const now = new Date();
+    const finalStatus = decision === 'approved' ? 'approved' : 'rejected';
+    
+    const updateData: Record<string, unknown> = {
+      status: finalStatus,
+      mdApproverId: approverId,
+      mdDecision: decision,
+      mdDecisionAt: now,
+      finalizedById: approverId,
+      finalizedAt: now,
+      updatedAt: now,
+    };
+    
+    if (notes) {
+      updateData.mdNotes = notes;
+    }
+    
+    // If MD bypasses HR (approving directly from pending_hr status), mark HR as skipped
+    if (bypassHR && decision === 'approved') {
+      updateData.hrDecision = 'skipped';
+      updateData.hrDecisionAt = now;
+    }
+    
     const [updatedRequest] = await db
       .update(schema.leaveRequests)
       .set(updateData)
