@@ -385,6 +385,11 @@ export async function registerRoutes(
           // Support multiple email addresses (one per line)
           const emails = adminEmailSetting.value.split('\n').map((e: string) => e.trim()).filter((e: string) => e);
           
+          // Construct the app URL from the request
+          const appUrl = process.env.REPLIT_DEV_DOMAIN 
+            ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+            : process.env.REPLIT_DEPLOYMENT_URL || 'https://aece-checkpoint.replit.app';
+          
           for (const recipientEmail of emails) {
             await sendLeaveRequestNotification(
               recipientEmail,
@@ -397,6 +402,8 @@ export async function registerRoutes(
                 endDate: validatedData.endDate,
                 reason: validatedData.reason || 'No reason provided',
                 department: user?.department || undefined,
+                requestId: newRequest.id,
+                appUrl: appUrl,
               }
             );
           }

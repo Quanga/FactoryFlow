@@ -23,6 +23,8 @@ export interface LeaveRequestEmailData {
   endDate: string;
   reason: string;
   department?: string;
+  requestId?: number;
+  appUrl?: string;
 }
 
 export async function sendLeaveRequestNotification(
@@ -75,7 +77,15 @@ export async function sendLeaveRequestNotification(
             <td style="padding: 8px; border: 1px solid #ddd;">${data.reason}</td>
           </tr>
         </table>
-        <p style="margin-top: 20px;">Please log in to the AECE Checkpoint admin portal to review and approve/reject this request.</p>
+        ${data.appUrl && data.requestId ? `
+        <p style="margin-top: 20px;">
+          <a href="${data.appUrl}/admin?section=leave-requests&requestId=${data.requestId}" 
+             style="display: inline-block; padding: 12px 24px; background-color: #2563eb; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">
+            Review Leave Request
+          </a>
+        </p>
+        ` : ''}
+        <p style="margin-top: 20px; color: #666;">Please log in to the AECE Checkpoint admin portal to review and approve/reject this request.</p>
       `,
       TextBody: `
 New Leave Request Submitted
@@ -87,6 +97,8 @@ Leave Type: ${data.leaveType}
 Start Date: ${data.startDate}
 End Date: ${data.endDate}
 Reason: ${data.reason}
+
+${data.appUrl && data.requestId ? `Review this request: ${data.appUrl}/admin?section=leave-requests&requestId=${data.requestId}` : ''}
 
 Please log in to the AECE Checkpoint admin portal to review and approve/reject this request.
       `.trim(),
