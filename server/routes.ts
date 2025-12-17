@@ -114,7 +114,7 @@ export async function registerRoutes(
       passwordResetTokens.set(token, { email, expiry });
 
       // Send reset email
-      const senderEmail = "hr@aece.co.za";
+      const senderEmail = "noreply@aece.co.za";
       const baseUrl = process.env.REPLIT_DEV_DOMAIN 
         ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
         : 'http://localhost:5000';
@@ -234,7 +234,7 @@ export async function registerRoutes(
         try {
           await sendAdminWelcomeEmail(
             validatedData.email,
-            'hr@aece.co.za',
+            'noreply@aece.co.za',
             {
               firstName: validatedData.firstName,
               surname: validatedData.surname,
@@ -377,7 +377,7 @@ export async function registerRoutes(
       // Send email notification to all configured recipients
       try {
         const adminEmailSetting = await storage.getSetting('admin_email');
-        const senderEmail = "hr@aece.co.za";
+        const senderEmail = "noreply@aece.co.za";
         
         if (adminEmailSetting?.value) {
           const user = await storage.getUser(validatedData.userId);
@@ -434,7 +434,7 @@ export async function registerRoutes(
       if (status === 'approved' || status === 'rejected') {
         try {
           const user = await storage.getUser(updatedRequest.userId);
-          const senderEmail = "hr@aece.co.za";
+          const senderEmail = "noreply@aece.co.za";
           
           if (user && user.email) {
             await sendLeaveStatusNotification(
@@ -564,7 +564,7 @@ export async function registerRoutes(
               for (const recipientEmail of emails) {
                 await sendLateAttendanceNotification(
                   recipientEmail,
-                  'hr@aece.co.za',
+                  'noreply@aece.co.za',
                   {
                     employeeName: `${user.firstName} ${user.surname}`,
                     firstName: user.firstName,
