@@ -16,6 +16,7 @@ import AdminDashboard from "@/pages/AdminDashboard";
 import ResetPassword from "@/pages/ResetPassword";
 import EmployeeProfile from "@/pages/EmployeeProfile";
 import OrgChart from "@/pages/OrgChart";
+import Grievances from "@/pages/Grievances";
 
 function Router() {
   return (
@@ -31,6 +32,7 @@ function Router() {
       <Route path="/attendance-kiosk" component={AttendanceKiosk} />
       <Route path="/reset-password" component={ResetPassword} />
       <Route path="/profile" component={EmployeeProfile} />
+      <Route path="/grievances" component={Grievances} />
       <Route component={NotFound} />
     </Switch>
   );

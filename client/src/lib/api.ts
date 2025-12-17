@@ -1,4 +1,4 @@
-import type { User, LeaveBalance, LeaveRequest, AttendanceRecord, Setting, Department, UserGroup, EmployeeType, LeaveRule, LeaveRulePhase, ContractHistory } from "@shared/schema";
+import type { User, LeaveBalance, LeaveRequest, AttendanceRecord, Setting, Department, UserGroup, EmployeeType, LeaveRule, LeaveRulePhase, ContractHistory, Grievance, InsertGrievance } from "@shared/schema";
 
 const API_BASE = "/api";
 
@@ -605,6 +605,66 @@ export const contractHistoryApi = {
     if (!res.ok) {
       const error = await res.json();
       throw new Error(error.error || "Failed to create contract history");
+    }
+    return res.json();
+  },
+};
+
+// Grievance API
+export const grievanceApi = {
+  async getAll(): Promise<Grievance[]> {
+    const res = await fetch(`${API_BASE}/grievances`);
+    if (!res.ok) throw new Error("Failed to fetch grievances");
+    return res.json();
+  },
+
+  async getByUserId(userId: string): Promise<Grievance[]> {
+    const res = await fetch(`${API_BASE}/grievances?userId=${userId}`);
+    if (!res.ok) throw new Error("Failed to fetch grievances");
+    return res.json();
+  },
+
+  async getById(id: number): Promise<Grievance> {
+    const res = await fetch(`${API_BASE}/grievances/${id}`);
+    if (!res.ok) throw new Error("Failed to fetch grievance");
+    return res.json();
+  },
+
+  async create(grievance: InsertGrievance): Promise<Grievance> {
+    const res = await fetch(`${API_BASE}/grievances`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(grievance),
+    });
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.error || "Failed to create grievance");
+    }
+    return res.json();
+  },
+
+  async update(id: number, grievance: Partial<InsertGrievance>): Promise<Grievance> {
+    const res = await fetch(`${API_BASE}/grievances/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(grievance),
+    });
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.error || "Failed to update grievance");
+    }
+    return res.json();
+  },
+
+  async updateStatus(id: number, status: string, adminNotes?: string, resolution?: string): Promise<Grievance> {
+    const res = await fetch(`${API_BASE}/grievances/${id}/status`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status, adminNotes, resolution }),
+    });
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.error || "Failed to update grievance status");
     }
     return res.json();
   },
