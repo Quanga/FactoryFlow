@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { userApi, settingsApi, departmentApi, userGroupApi, leaveRequestApi, leaveBalanceApi, attendanceApi, employeeTypeApi, leaveRuleApi, leaveRulePhaseApi, contractHistoryApi } from '@/lib/api';
 import type { User, Department, UserGroup, LeaveRequest, LeaveBalance, AttendanceRecord, EmployeeType, LeaveRule, LeaveRulePhase, ContractHistory } from '@shared/schema';
-import { Plus, Pencil, Trash2, Save, Mail, Users, Settings, Camera, Building2, Loader2, CheckCircle2, UserCog, Shield, Calendar, Clock, FileText, Check, X, Search, ChevronDown, ChevronRight, LayoutDashboard, AlertTriangle, LogOut } from 'lucide-react';
+import { Plus, Pencil, Trash2, Save, Mail, Users, Settings, Camera, Building2, Loader2, CheckCircle2, UserCog, Shield, Calendar, Clock, FileText, Check, X, Search, ChevronDown, ChevronRight, LayoutDashboard, AlertTriangle, LogOut, UserX } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/lib/auth-context';
@@ -167,6 +167,11 @@ export default function AdminDashboard() {
   const [contractNewEndDate, setContractNewEndDate] = useState('');
   const [contractNewTypeId, setContractNewTypeId] = useState<number | null>(null);
   const [contractReason, setContractReason] = useState('');
+
+  // Termination State
+  const [isTerminationDialogOpen, setIsTerminationDialogOpen] = useState(false);
+  const [terminationUser, setTerminationUser] = useState<User | null>(null);
+  const [terminationDate, setTerminationDate] = useState('');
 
   // Settings State
   const [emailSettings, setEmailSettings] = useState('');
@@ -1468,6 +1473,21 @@ export default function AdminDashboard() {
                               <Button variant="ghost" size="icon" onClick={() => handleOpenEdit(emp)} title="Edit">
                                 <Pencil className="h-4 w-4 text-slate-500" />
                               </Button>
+                              {!emp.terminationDate && (
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  onClick={() => {
+                                    setTerminationUser(emp);
+                                    setTerminationDate('');
+                                    setIsTerminationDialogOpen(true);
+                                  }} 
+                                  title="Terminate"
+                                  data-testid={`button-terminate-${emp.id}`}
+                                >
+                                  <UserX className="h-4 w-4 text-amber-600" />
+                                </Button>
+                              )}
                               <Button variant="ghost" size="icon" onClick={() => handleDeleteUser(emp.id)} title="Delete">
                                 <Trash2 className="h-4 w-4 text-red-500" />
                               </Button>
@@ -3084,6 +3104,79 @@ export default function AdminDashboard() {
           </DialogContent>
         </Dialog>
 
+        {/* Personnel Termination Dialog */}
+        <Dialog open={isTerminationDialogOpen} onOpenChange={setIsTerminationDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-amber-600">
+                <UserX className="h-5 w-5" />
+                Terminate Personnel
+              </DialogTitle>
+              <DialogDescription>
+                This will mark {terminationUser?.firstName} {terminationUser?.surname} as terminated.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right">Employee</Label>
+                <p className="col-span-3 font-medium">
+                  {terminationUser?.firstName} {terminationUser?.surname}
+                </p>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right">ID</Label>
+                <p className="col-span-3 font-medium">
+                  {terminationUser?.id}
+                </p>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="terminationDateInput" className="text-right">Termination Date</Label>
+                <Input 
+                  id="terminationDateInput" 
+                  type="date"
+                  value={terminationDate} 
+                  onChange={(e) => setTerminationDate(e.target.value)}
+                  className="col-span-3"
+                  data-testid="input-termination-date-dialog"
+                />
+              </div>
+              <p className="text-sm text-muted-foreground">
+                The employee will be marked as terminated on this date. They will no longer be able to clock in or submit leave requests.
+              </p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsTerminationDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button 
+                variant="destructive"
+                onClick={() => {
+                  if (terminationUser && terminationDate) {
+                    updateUserMutation.mutate({
+                      ...terminationUser,
+                      terminationDate: terminationDate
+                    });
+                    setIsTerminationDialogOpen(false);
+                    toast({
+                      title: "Personnel Terminated",
+                      description: `${terminationUser.firstName} ${terminationUser.surname} has been marked as terminated.`,
+                    });
+                  } else if (!terminationDate) {
+                    toast({
+                      variant: "destructive",
+                      title: "Error",
+                      description: "Please select a termination date.",
+                    });
+                  }
+                }}
+                data-testid="button-confirm-termination"
+              >
+                Confirm Termination
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* Admin User Dialog */}
         <Dialog open={isAdminDialogOpen} onOpenChange={setIsAdminDialogOpen}>
           <DialogContent>
@@ -3397,6 +3490,23 @@ export default function AdminDashboard() {
                 }
                 return null;
               })()}
+              {isEditing && (
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="terminationDate" className="text-right">Termination Date</Label>
+                  <div className="col-span-3">
+                    <Input 
+                      id="terminationDate" 
+                      type="date"
+                      value={currentUser.terminationDate || ''} 
+                      onChange={(e) => setCurrentUser({...currentUser, terminationDate: e.target.value})}
+                      data-testid="input-termination-date"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Leave blank for active personnel. Set when employee is terminated.
+                    </p>
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="nationalId" className="text-right">National ID</Label>
                 <Input 

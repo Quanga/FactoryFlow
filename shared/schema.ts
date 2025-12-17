@@ -125,6 +125,7 @@ export const users = pgTable("users", {
   popiaWaiverUrl: text("popia_waiver_url"), // URL to uploaded POPIA waiver document
   startDate: text("start_date"), // Employment start date for leave calculations
   contractEndDate: text("contract_end_date"), // End date for contractors/temps (null for permanent)
+  terminationDate: text("termination_date"), // Date when employee was terminated (null if active)
   photoUrl: text("photo_url"),
   faceDescriptor: text("face_descriptor"), // JSON array of 128 face embedding values
   createdAt: timestamp("created_at").defaultNow().notNull(),
