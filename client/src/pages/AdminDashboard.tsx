@@ -13,9 +13,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { userApi, settingsApi, departmentApi, userGroupApi, leaveRequestApi, leaveBalanceApi, attendanceApi, employeeTypeApi, leaveRuleApi, leaveRulePhaseApi, contractHistoryApi } from '@/lib/api';
-import type { User, Department, UserGroup, LeaveRequest, LeaveBalance, AttendanceRecord, EmployeeType, LeaveRule, LeaveRulePhase, ContractHistory } from '@shared/schema';
-import { Plus, Pencil, Trash2, Save, Mail, Users, Settings, Camera, Building2, Loader2, CheckCircle2, UserCog, Shield, Calendar, Clock, FileText, Check, X, Search, ChevronDown, ChevronRight, LayoutDashboard, AlertTriangle, LogOut, UserX, Network } from 'lucide-react';
+import { userApi, settingsApi, departmentApi, userGroupApi, leaveRequestApi, leaveBalanceApi, attendanceApi, employeeTypeApi, leaveRuleApi, leaveRulePhaseApi, contractHistoryApi, grievanceApi } from '@/lib/api';
+import type { User, Department, UserGroup, LeaveRequest, LeaveBalance, AttendanceRecord, EmployeeType, LeaveRule, LeaveRulePhase, ContractHistory, Grievance } from '@shared/schema';
+import { Plus, Pencil, Trash2, Save, Mail, Users, Settings, Camera, Building2, Loader2, CheckCircle2, UserCog, Shield, Calendar, Clock, FileText, Check, X, Search, ChevronDown, ChevronRight, LayoutDashboard, AlertTriangle, LogOut, UserX, Network, MessageSquareWarning, Eye } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/lib/auth-context';
@@ -96,6 +96,11 @@ export default function AdminDashboard() {
     queryKey: ['attendance', attendanceStartDate, attendanceEndDate],
     queryFn: () => attendanceApi.getAll(attendanceStartDate || undefined, attendanceEndDate || undefined),
   });
+
+  const { data: grievances = [] } = useQuery({
+    queryKey: ['grievances'],
+    queryFn: () => grievanceApi.getAll(),
+  });
   
   // User Management State
   const [isUserDialogOpen, setIsUserDialogOpen] = useState(false);
@@ -137,6 +142,12 @@ export default function AdminDashboard() {
   const [selectedLeaveRequest, setSelectedLeaveRequest] = useState<LeaveRequest | null>(null);
   const [adminNotes, setAdminNotes] = useState('');
 
+  // Grievance Management State
+  const [isGrievanceDialogOpen, setIsGrievanceDialogOpen] = useState(false);
+  const [selectedGrievance, setSelectedGrievance] = useState<Grievance | null>(null);
+  const [grievanceNotes, setGrievanceNotes] = useState('');
+  const [grievanceResolution, setGrievanceResolution] = useState('');
+
   // Employee Balance View State
   const [isBalanceDialogOpen, setIsBalanceDialogOpen] = useState(false);
   const [selectedEmployeeForBalance, setSelectedEmployeeForBalance] = useState<User | null>(null);
@@ -144,7 +155,7 @@ export default function AdminDashboard() {
   const [expandedLeaveBalanceEmployees, setExpandedLeaveBalanceEmployees] = useState<Set<string>>(new Set());
 
   // Navigation State
-  const [activeSection, setActiveSection] = useState<'dashboard' | 'employees' | 'leave-requests' | 'attendance' | 'departments' | 'groups' | 'employee-types' | 'leave-rules' | 'settings'>('dashboard');
+  const [activeSection, setActiveSection] = useState<'dashboard' | 'employees' | 'leave-requests' | 'attendance' | 'departments' | 'groups' | 'employee-types' | 'leave-rules' | 'grievances' | 'settings'>('dashboard');
 
   // Employee Types Management State
   const [isTypeDialogOpen, setIsTypeDialogOpen] = useState(false);
@@ -386,6 +397,22 @@ export default function AdminDashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leave-balances'] });
       toast({ title: "Leave Balance Created", description: "New leave allocation has been added." });
+    },
+  });
+
+  const updateGrievanceStatusMutation = useMutation({
+    mutationFn: ({ id, status, adminNotes, resolution }: { id: number; status: string; adminNotes?: string; resolution?: string }) =>
+      grievanceApi.updateStatus(id, status, adminNotes, resolution),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['grievances'] });
+      setIsGrievanceDialogOpen(false);
+      setSelectedGrievance(null);
+      setGrievanceNotes('');
+      setGrievanceResolution('');
+      toast({ title: "Grievance Updated", description: "The grievance status has been updated." });
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Error", description: error.message || "Failed to update grievance" });
     },
   });
 
@@ -1292,6 +1319,20 @@ export default function AdminDashboard() {
                 data-testid="nav-leave-rules"
               >
                 <Calendar className="h-4 w-4" /> Leave Rules
+              </button>
+              <button
+                onClick={() => setActiveSection('grievances')}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
+                  activeSection === 'grievances' ? 'bg-primary text-white' : 'hover:bg-slate-100 text-slate-700'
+                }`}
+                data-testid="nav-grievances"
+              >
+                <MessageSquareWarning className="h-4 w-4" /> Grievances
+                {grievances.filter(g => g.status === 'submitted' || g.status === 'in_review').length > 0 && (
+                  <Badge className="ml-auto bg-red-500 text-white text-xs">
+                    {grievances.filter(g => g.status === 'submitted' || g.status === 'in_review').length}
+                  </Badge>
+                )}
               </button>
               <button
                 onClick={() => setActiveSection('settings')}
@@ -2499,6 +2540,108 @@ export default function AdminDashboard() {
                     <h4 className="font-semibold text-amber-900">Sick Leave</h4>
                     <p className="text-sm text-amber-700">1 day for every 26 days worked for the first 6 months. After 6 months, 30 days every 3 years.</p>
                   </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Grievances Section */}
+          {activeSection === 'grievances' && (
+            <div className="space-y-4">
+              <div>
+                <h1 className="text-3xl font-heading font-bold text-slate-900">Grievances</h1>
+                <p className="text-muted-foreground">Review and manage employee grievances and complaints</p>
+              </div>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>All Grievances</CardTitle>
+                  <CardDescription>Employee complaints and concerns requiring attention</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {grievances.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <MessageSquareWarning className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p>No grievances have been submitted yet.</p>
+                    </div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Employee</TableHead>
+                          <TableHead>Title</TableHead>
+                          <TableHead>Category</TableHead>
+                          <TableHead>Against</TableHead>
+                          <TableHead>Priority</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {grievances.map((grievance) => {
+                          const employee = users.find(u => u.id === grievance.userId);
+                          const targetEmployee = grievance.targetEmployeeId ? users.find(u => u.id === grievance.targetEmployeeId) : null;
+                          return (
+                            <TableRow key={grievance.id}>
+                              <TableCell className="text-sm">
+                                {format(new Date(grievance.submittedAt), 'MMM d, yyyy')}
+                              </TableCell>
+                              <TableCell>
+                                <div className="font-medium">{employee?.firstName} {employee?.surname}</div>
+                                <div className="text-xs text-muted-foreground">{employee?.id}</div>
+                              </TableCell>
+                              <TableCell className="max-w-[200px] truncate">{grievance.title}</TableCell>
+                              <TableCell className="capitalize">{grievance.category.replace('_', ' ')}</TableCell>
+                              <TableCell>
+                                {grievance.targetType === 'company' ? (
+                                  <Badge variant="outline">Company</Badge>
+                                ) : (
+                                  <span className="text-sm">{targetEmployee?.firstName} {targetEmployee?.surname}</span>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <Badge className={
+                                  grievance.priority === 'urgent' ? 'bg-red-100 text-red-700' :
+                                  grievance.priority === 'high' ? 'bg-orange-100 text-orange-700' :
+                                  grievance.priority === 'normal' ? 'bg-blue-100 text-blue-700' :
+                                  'bg-gray-100 text-gray-700'
+                                }>
+                                  {grievance.priority}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Badge className={
+                                  grievance.status === 'submitted' ? 'bg-yellow-100 text-yellow-700' :
+                                  grievance.status === 'in_review' ? 'bg-blue-100 text-blue-700' :
+                                  grievance.status === 'resolved' ? 'bg-green-100 text-green-700' :
+                                  grievance.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                                  'bg-gray-100 text-gray-700'
+                                }>
+                                  {grievance.status.replace('_', ' ')}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => {
+                                    setSelectedGrievance(grievance);
+                                    setGrievanceNotes(grievance.adminNotes || '');
+                                    setGrievanceResolution(grievance.resolution || '');
+                                    setIsGrievanceDialogOpen(true);
+                                  }}
+                                  data-testid={`button-view-grievance-${grievance.id}`}
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -4074,6 +4217,143 @@ export default function AdminDashboard() {
                       </>
                     );
                   })()}
+                </div>
+              );
+            })()}
+          </DialogContent>
+        </Dialog>
+
+        {/* Grievance Review Dialog */}
+        <Dialog open={isGrievanceDialogOpen} onOpenChange={setIsGrievanceDialogOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Grievance Details</DialogTitle>
+              <DialogDescription>Review and update this employee grievance</DialogDescription>
+            </DialogHeader>
+            {selectedGrievance && (() => {
+              const employee = users.find(u => u.id === selectedGrievance.userId);
+              const targetEmployee = selectedGrievance.targetEmployeeId ? users.find(u => u.id === selectedGrievance.targetEmployeeId) : null;
+              return (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-muted-foreground text-sm">Submitted By</Label>
+                      <p className="font-medium">{employee?.firstName} {employee?.surname}</p>
+                      <p className="text-xs text-muted-foreground">{employee?.id}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground text-sm">Date Submitted</Label>
+                      <p className="font-medium">{format(new Date(selectedGrievance.submittedAt), 'MMMM d, yyyy h:mm a')}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground text-sm">Target</Label>
+                      <p className="font-medium">
+                        {selectedGrievance.targetType === 'company' ? 'The Company' : `${targetEmployee?.firstName} ${targetEmployee?.surname}`}
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground text-sm">Category</Label>
+                      <p className="font-medium capitalize">{selectedGrievance.category.replace('_', ' ')}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground text-sm">Priority</Label>
+                      <Badge className={
+                        selectedGrievance.priority === 'urgent' ? 'bg-red-100 text-red-700' :
+                        selectedGrievance.priority === 'high' ? 'bg-orange-100 text-orange-700' :
+                        selectedGrievance.priority === 'normal' ? 'bg-blue-100 text-blue-700' :
+                        'bg-gray-100 text-gray-700'
+                      }>
+                        {selectedGrievance.priority}
+                      </Badge>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground text-sm">Status</Label>
+                      <Badge className={
+                        selectedGrievance.status === 'submitted' ? 'bg-yellow-100 text-yellow-700' :
+                        selectedGrievance.status === 'in_review' ? 'bg-blue-100 text-blue-700' :
+                        selectedGrievance.status === 'resolved' ? 'bg-green-100 text-green-700' :
+                        selectedGrievance.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                        'bg-gray-100 text-gray-700'
+                      }>
+                        {selectedGrievance.status.replace('_', ' ')}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label className="text-muted-foreground text-sm">Title</Label>
+                    <p className="font-medium">{selectedGrievance.title}</p>
+                  </div>
+
+                  <div>
+                    <Label className="text-muted-foreground text-sm">Description</Label>
+                    <div className="mt-1 p-3 bg-slate-50 rounded-lg border whitespace-pre-wrap">
+                      {selectedGrievance.description}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="grievanceNotes">Admin Notes</Label>
+                    <Textarea
+                      id="grievanceNotes"
+                      placeholder="Add internal notes about this grievance..."
+                      value={grievanceNotes}
+                      onChange={(e) => setGrievanceNotes(e.target.value)}
+                      className="min-h-[80px]"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="grievanceResolution">Resolution (if resolved)</Label>
+                    <Textarea
+                      id="grievanceResolution"
+                      placeholder="Describe how this grievance was resolved..."
+                      value={grievanceResolution}
+                      onChange={(e) => setGrievanceResolution(e.target.value)}
+                      className="min-h-[80px]"
+                    />
+                  </div>
+
+                  <div className="flex justify-between pt-4 border-t">
+                    <div className="flex gap-2">
+                      {selectedGrievance.status === 'submitted' && (
+                        <Button
+                          variant="outline"
+                          onClick={() => updateGrievanceStatusMutation.mutate({
+                            id: selectedGrievance.id,
+                            status: 'in_review',
+                            adminNotes: grievanceNotes || undefined,
+                          })}
+                        >
+                          Mark In Review
+                        </Button>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        className="text-red-600 border-red-200 hover:bg-red-50"
+                        onClick={() => updateGrievanceStatusMutation.mutate({
+                          id: selectedGrievance.id,
+                          status: 'rejected',
+                          adminNotes: grievanceNotes || undefined,
+                        })}
+                      >
+                        <X className="mr-2 h-4 w-4" /> Reject
+                      </Button>
+                      <Button
+                        className="bg-green-600 hover:bg-green-700"
+                        onClick={() => updateGrievanceStatusMutation.mutate({
+                          id: selectedGrievance.id,
+                          status: 'resolved',
+                          adminNotes: grievanceNotes || undefined,
+                          resolution: grievanceResolution || undefined,
+                        })}
+                      >
+                        <Check className="mr-2 h-4 w-4" /> Mark Resolved
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               );
             })()}
