@@ -53,7 +53,7 @@ export interface IStorage {
   getLeaveRequests(userId?: string): Promise<LeaveRequest[]>;
   getLeaveRequest(id: number): Promise<LeaveRequest | undefined>;
   createLeaveRequest(request: InsertLeaveRequest): Promise<LeaveRequest>;
-  updateLeaveRequestStatus(id: number, status: string): Promise<LeaveRequest | undefined>;
+  updateLeaveRequestStatus(id: number, status: string, adminNotes?: string): Promise<LeaveRequest | undefined>;
   
   // Attendance operations
   getAttendanceRecords(userId: string, limit?: number, startDate?: Date, endDate?: Date): Promise<AttendanceRecord[]>;
@@ -227,10 +227,17 @@ export class DrizzleStorage implements IStorage {
     return newRequest;
   }
 
-  async updateLeaveRequestStatus(id: number, status: string): Promise<LeaveRequest | undefined> {
+  async updateLeaveRequestStatus(id: number, status: string, adminNotes?: string): Promise<LeaveRequest | undefined> {
+    const updateData: { status: string; updatedAt: Date; adminNotes?: string } = { 
+      status, 
+      updatedAt: new Date() 
+    };
+    if (adminNotes !== undefined) {
+      updateData.adminNotes = adminNotes;
+    }
     const [updatedRequest] = await db
       .update(schema.leaveRequests)
-      .set({ status, updatedAt: new Date() })
+      .set(updateData)
       .where(eq(schema.leaveRequests.id, id))
       .returning();
     return updatedRequest;

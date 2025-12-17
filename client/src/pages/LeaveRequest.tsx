@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
-import { CalendarIcon, Upload, X } from "lucide-react";
+import { CalendarIcon, Upload, X, CheckCircle2, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/lib/auth-context';
@@ -25,6 +25,7 @@ export default function LeaveRequest() {
   });
   const [leaveType, setLeaveType] = useState('');
   const [reason, setReason] = useState('');
+  const [comments, setComments] = useState('');
   const [files, setFiles] = useState<File[]>([]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -48,6 +49,7 @@ export default function LeaveRequest() {
       // Reset form
       setLeaveType('');
       setReason('');
+      setComments('');
       setFiles([]);
       setDateRange({ from: undefined, to: undefined });
     },
@@ -77,6 +79,7 @@ export default function LeaveRequest() {
       startDate: format(dateRange.from, 'yyyy-MM-dd'),
       endDate: dateRange.to ? format(dateRange.to, 'yyyy-MM-dd') : format(dateRange.from, 'yyyy-MM-dd'),
       reason,
+      comments: comments || undefined,
       status: 'pending',
       documents: files.map(f => f.name),
     });
@@ -110,6 +113,10 @@ export default function LeaveRequest() {
                         <SelectItem value="annual">Annual Leave</SelectItem>
                         <SelectItem value="sick">Sick Leave</SelectItem>
                         <SelectItem value="family">Family Responsibility</SelectItem>
+                        <SelectItem value="maternity">Maternity Leave</SelectItem>
+                        <SelectItem value="paternity">Paternity Leave</SelectItem>
+                        <SelectItem value="adoption">Adoption Leave</SelectItem>
+                        <SelectItem value="special">Special Leave</SelectItem>
                         <SelectItem value="unpaid">Unpaid Leave</SelectItem>
                       </SelectContent>
                     </Select>
@@ -166,6 +173,20 @@ export default function LeaveRequest() {
                     className="min-h-[100px]"
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
+                    data-testid="input-reason"
+                  />
+                </div>
+
+                {/* Additional Comments */}
+                <div className="space-y-2">
+                  <Label htmlFor="comments">Additional Comments (Optional)</Label>
+                  <Textarea 
+                    id="comments" 
+                    placeholder="Any additional information or special circumstances..." 
+                    className="min-h-[80px]"
+                    value={comments}
+                    onChange={(e) => setComments(e.target.value)}
+                    data-testid="input-comments"
                   />
                 </div>
 
@@ -190,15 +211,23 @@ export default function LeaveRequest() {
                   {/* File List */}
                   {files.length > 0 && (
                     <div className="space-y-2 mt-4">
+                      <div className="flex items-center gap-2 text-sm text-green-600 font-medium">
+                        <CheckCircle2 className="h-4 w-4" />
+                        <span>{files.length} document{files.length > 1 ? 's' : ''} uploaded</span>
+                      </div>
                       {files.map((file, index) => (
-                        <div key={index} className="flex items-center justify-between p-2 bg-muted rounded text-sm">
-                          <span className="truncate max-w-[200px]">{file.name}</span>
+                        <div key={index} className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg text-sm" data-testid={`uploaded-file-${index}`}>
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-4 w-4 text-green-600" />
+                            <span className="truncate max-w-[250px] font-medium">{file.name}</span>
+                          </div>
                           <Button 
                             type="button"
                             variant="ghost" 
                             size="icon" 
                             className="h-6 w-6 text-destructive hover:text-destructive"
                             onClick={() => removeFile(index)}
+                            data-testid={`button-remove-file-${index}`}
                           >
                             <X className="h-4 w-4" />
                           </Button>

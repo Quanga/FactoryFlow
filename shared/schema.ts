@@ -160,7 +160,9 @@ export const leaveRequests = pgTable("leave_requests", {
   startDate: text("start_date").notNull(),
   endDate: text("end_date").notNull(),
   reason: text("reason").notNull(),
-  status: text("status").notNull().default("pending"), // 'pending', 'approved', 'rejected'
+  comments: text("comments"), // Employee's additional comments
+  status: text("status").notNull().default("pending"), // 'pending', 'approved', 'rejected', 'needs_documentation'
+  adminNotes: text("admin_notes"), // Admin evaluation notes/comments
   documents: text("documents").array(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

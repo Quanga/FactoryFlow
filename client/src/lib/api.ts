@@ -168,11 +168,11 @@ export const leaveRequestApi = {
     return res.json();
   },
 
-  async updateStatus(id: number, status: string): Promise<LeaveRequest> {
+  async updateStatus(id: number, status: string, adminNotes?: string): Promise<LeaveRequest> {
     const res = await fetch(`${API_BASE}/leave-requests/${id}/status`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status, adminNotes }),
     });
     if (!res.ok) throw new Error("Failed to update leave request");
     return res.json();

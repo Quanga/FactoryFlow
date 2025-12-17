@@ -133,6 +133,7 @@ export default function AdminDashboard() {
   // Leave Request Review State
   const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
   const [selectedLeaveRequest, setSelectedLeaveRequest] = useState<LeaveRequest | null>(null);
+  const [adminNotes, setAdminNotes] = useState('');
 
   // Employee Balance View State
   const [isBalanceDialogOpen, setIsBalanceDialogOpen] = useState(false);
@@ -305,10 +306,12 @@ export default function AdminDashboard() {
   });
 
   const updateLeaveStatusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: number; status: string }) => leaveRequestApi.updateStatus(id, status),
+    mutationFn: ({ id, status, adminNotes }: { id: number; status: string; adminNotes?: string }) => 
+      leaveRequestApi.updateStatus(id, status, adminNotes),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leave-requests'] });
       queryClient.invalidateQueries({ queryKey: ['leave-balances'] });
+      setAdminNotes('');
       toast({ title: "Leave Request Updated", description: "Status has been updated and notification sent." });
     },
   });
@@ -1306,6 +1309,7 @@ export default function AdminDashboard() {
                                 variant="outline"
                                 onClick={() => {
                                   setSelectedLeaveRequest(request);
+                                  setAdminNotes('');
                                   setIsReviewDialogOpen(true);
                                 }}
                               >
@@ -1714,6 +1718,7 @@ export default function AdminDashboard() {
                                 size="icon"
                                 onClick={() => {
                                   setSelectedLeaveRequest(request);
+                                  setAdminNotes('');
                                   setIsReviewDialogOpen(true);
                                 }}
                                 data-testid={`button-review-${request.id}`}
@@ -3604,6 +3609,24 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
+                  {selectedLeaveRequest.comments && (
+                    <div>
+                      <Label className="text-muted-foreground text-sm">Additional Comments from Employee</Label>
+                      <div className="mt-1 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                        <p className="text-blue-800">{selectedLeaveRequest.comments}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedLeaveRequest.adminNotes && selectedLeaveRequest.status !== 'pending' && (
+                    <div>
+                      <Label className="text-muted-foreground text-sm">Admin Notes</Label>
+                      <div className="mt-1 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                        <p className="text-amber-800">{selectedLeaveRequest.adminNotes}</p>
+                      </div>
+                    </div>
+                  )}
+
                   {selectedLeaveRequest.documents && selectedLeaveRequest.documents.length > 0 && (
                     <div>
                       <Label className="text-muted-foreground text-sm">Supporting Documents</Label>
@@ -3636,27 +3659,48 @@ export default function AdminDashboard() {
                   )}
 
                   {selectedLeaveRequest.status === 'pending' && (
-                    <div className="flex justify-end gap-2 pt-4 border-t">
-                      <Button 
-                        variant="outline"
-                        onClick={() => {
-                          updateLeaveStatusMutation.mutate({ id: selectedLeaveRequest.id, status: 'rejected' });
-                          setIsReviewDialogOpen(false);
-                        }}
-                        className="text-red-600 border-red-200 hover:bg-red-50"
-                      >
-                        <X className="mr-2 h-4 w-4" /> Reject
-                      </Button>
-                      <Button 
-                        onClick={() => {
-                          updateLeaveStatusMutation.mutate({ id: selectedLeaveRequest.id, status: 'approved' });
-                          setIsReviewDialogOpen(false);
-                        }}
-                        className="bg-green-600 hover:bg-green-700"
-                      >
-                        <Check className="mr-2 h-4 w-4" /> Approve
-                      </Button>
-                    </div>
+                    <>
+                      <div>
+                        <Label htmlFor="adminNotes" className="text-muted-foreground text-sm">Admin Notes / Evaluation Comments (Optional)</Label>
+                        <Textarea
+                          id="adminNotes"
+                          placeholder="Add notes about this request (e.g., reason for approval/rejection, documentation received, etc.)"
+                          className="mt-1 min-h-[80px]"
+                          value={adminNotes}
+                          onChange={(e) => setAdminNotes(e.target.value)}
+                          data-testid="input-admin-notes"
+                        />
+                      </div>
+                      <div className="flex justify-end gap-2 pt-4 border-t">
+                        <Button 
+                          variant="outline"
+                          onClick={() => {
+                            updateLeaveStatusMutation.mutate({ 
+                              id: selectedLeaveRequest.id, 
+                              status: 'rejected',
+                              adminNotes: adminNotes || undefined
+                            });
+                            setIsReviewDialogOpen(false);
+                          }}
+                          className="text-red-600 border-red-200 hover:bg-red-50"
+                        >
+                          <X className="mr-2 h-4 w-4" /> Reject
+                        </Button>
+                        <Button 
+                          onClick={() => {
+                            updateLeaveStatusMutation.mutate({ 
+                              id: selectedLeaveRequest.id, 
+                              status: 'approved',
+                              adminNotes: adminNotes || undefined
+                            });
+                            setIsReviewDialogOpen(false);
+                          }}
+                          className="bg-green-600 hover:bg-green-700"
+                        >
+                          <Check className="mr-2 h-4 w-4" /> Approve
+                        </Button>
+                      </div>
+                    </>
                   )}
                 </div>
               );

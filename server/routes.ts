@@ -415,7 +415,7 @@ export async function registerRoutes(
   // Update leave request status
   app.patch("/api/leave-requests/:id/status", async (req, res) => {
     try {
-      const { status } = req.body;
+      const { status, adminNotes } = req.body;
       
       if (!['pending', 'approved', 'rejected'].includes(status)) {
         return res.status(400).json({ error: "Invalid status" });
@@ -423,7 +423,8 @@ export async function registerRoutes(
 
       const updatedRequest = await storage.updateLeaveRequestStatus(
         parseInt(req.params.id),
-        status
+        status,
+        adminNotes
       );
       
       if (!updatedRequest) {
