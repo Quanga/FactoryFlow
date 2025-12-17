@@ -83,13 +83,15 @@ function OrgNode({ data, x, y }: { data: OrgNodeData; x: number; y: number }) {
 }
 
 function Connector({ source, target }: { source: { x: number; y: number }; target: { x: number; y: number } }) {
-  const midY = source.y + NODE_HEIGHT + (VERTICAL_GAP - NODE_HEIGHT) / 2;
+  const sourceBottom = source.y + NODE_HEIGHT;
+  const targetTop = target.y;
+  const midY = (sourceBottom + targetTop) / 2;
   
   const path = `
-    M ${source.x} ${source.y + NODE_HEIGHT}
+    M ${source.x} ${sourceBottom}
     L ${source.x} ${midY}
     L ${target.x} ${midY}
-    L ${target.x} ${target.y}
+    L ${target.x} ${targetTop}
   `;
   
   return (
