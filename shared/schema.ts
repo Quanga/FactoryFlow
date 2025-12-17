@@ -255,3 +255,32 @@ export const insertContractHistorySchema = createInsertSchema(contractHistory).o
 });
 export type InsertContractHistory = z.infer<typeof insertContractHistorySchema>;
 export type ContractHistory = typeof contractHistory.$inferSelect;
+
+// Grievances Table
+export const grievances = pgTable("grievances", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  targetType: text("target_type").notNull(), // 'company' or 'employee'
+  targetEmployeeId: text("target_employee_id").references(() => users.id),
+  category: text("category").notNull(), // 'harassment', 'discrimination', 'safety', 'policy', 'other'
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  status: text("status").notNull().default("submitted"), // 'draft', 'submitted', 'in_review', 'resolved', 'rejected', 'closed'
+  priority: text("priority").default("normal"), // 'low', 'normal', 'high', 'urgent'
+  attachments: text("attachments").array(), // Array of document URLs/base64
+  adminNotes: text("admin_notes"),
+  resolution: text("resolution"),
+  assignedTo: text("assigned_to").references(() => users.id),
+  submittedAt: timestamp("submitted_at").defaultNow().notNull(),
+  resolvedAt: timestamp("resolved_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertGrievanceSchema = createInsertSchema(grievances).omit({
+  id: true,
+  submittedAt: true,
+  resolvedAt: true,
+  createdAt: true,
+});
+export type InsertGrievance = z.infer<typeof insertGrievanceSchema>;
+export type Grievance = typeof grievances.$inferSelect;
