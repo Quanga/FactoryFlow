@@ -59,6 +59,11 @@ export default function AdminDashboard() {
     queryFn: () => settingsApi.get('early_departure_message'),
   });
 
+  const { data: timezoneSetting } = useQuery({
+    queryKey: ['settings', 'timezone'],
+    queryFn: () => settingsApi.get('timezone'),
+  });
+
   const { data: departments = [] } = useQuery({
     queryKey: ['departments'],
     queryFn: departmentApi.getAll,
@@ -192,6 +197,7 @@ export default function AdminDashboard() {
   const [clockOutCutoff, setClockOutCutoff] = useState('17:00');
   const [lateArrivalMessage, setLateArrivalMessage] = useState('{name} (ID: {id}) clocked in late at {time}. Expected by {cutoff}.');
   const [earlyDepartureMessage, setEarlyDepartureMessage] = useState('{name} (ID: {id}) left early at {time}. Expected after {cutoff}.');
+  const [timezone, setTimezone] = useState('Africa/Johannesburg');
 
   useEffect(() => {
     if (emailSetting) {
@@ -222,6 +228,12 @@ export default function AdminDashboard() {
       setEarlyDepartureMessage(earlyDepartureMessageSetting.value);
     }
   }, [earlyDepartureMessageSetting]);
+
+  useEffect(() => {
+    if (timezoneSetting) {
+      setTimezone(timezoneSetting.value);
+    }
+  }, [timezoneSetting]);
 
   // Check if admin needs to set up their photo
   useEffect(() => {
@@ -790,6 +802,7 @@ export default function AdminDashboard() {
     await updateSettingMutation.mutateAsync({ key: 'clock_out_cutoff', value: clockOutCutoff });
     await updateSettingMutation.mutateAsync({ key: 'late_arrival_message', value: lateArrivalMessage });
     await updateSettingMutation.mutateAsync({ key: 'early_departure_message', value: earlyDepartureMessage });
+    await updateSettingMutation.mutateAsync({ key: 'timezone', value: timezone });
   };
 
   const handleSaveDept = () => {
@@ -2654,6 +2667,47 @@ export default function AdminDashboard() {
                 <h1 className="text-3xl font-heading font-bold text-slate-900">Settings</h1>
                 <p className="text-muted-foreground">Configure system notifications and attendance rules</p>
               </div>
+            <Card>
+              <CardHeader>
+                <CardTitle>Regional Settings</CardTitle>
+                <CardDescription>Configure timezone and regional preferences</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6 max-w-xl">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Time Zone</Label>
+                    <Select value={timezone} onValueChange={setTimezone}>
+                      <SelectTrigger className="w-full" data-testid="select-timezone">
+                        <SelectValue placeholder="Select timezone" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Africa/Johannesburg">Africa/Johannesburg (SAST, UTC+2)</SelectItem>
+                        <SelectItem value="Africa/Cairo">Africa/Cairo (EET, UTC+2)</SelectItem>
+                        <SelectItem value="Africa/Lagos">Africa/Lagos (WAT, UTC+1)</SelectItem>
+                        <SelectItem value="Africa/Nairobi">Africa/Nairobi (EAT, UTC+3)</SelectItem>
+                        <SelectItem value="Africa/Casablanca">Africa/Casablanca (WET, UTC+0/+1)</SelectItem>
+                        <SelectItem value="Europe/London">Europe/London (GMT/BST, UTC+0/+1)</SelectItem>
+                        <SelectItem value="Europe/Paris">Europe/Paris (CET/CEST, UTC+1/+2)</SelectItem>
+                        <SelectItem value="Europe/Berlin">Europe/Berlin (CET/CEST, UTC+1/+2)</SelectItem>
+                        <SelectItem value="Asia/Dubai">Asia/Dubai (GST, UTC+4)</SelectItem>
+                        <SelectItem value="Asia/Singapore">Asia/Singapore (SGT, UTC+8)</SelectItem>
+                        <SelectItem value="Asia/Tokyo">Asia/Tokyo (JST, UTC+9)</SelectItem>
+                        <SelectItem value="Australia/Sydney">Australia/Sydney (AEST/AEDT, UTC+10/+11)</SelectItem>
+                        <SelectItem value="America/New_York">America/New York (EST/EDT, UTC-5/-4)</SelectItem>
+                        <SelectItem value="America/Chicago">America/Chicago (CST/CDT, UTC-6/-5)</SelectItem>
+                        <SelectItem value="America/Denver">America/Denver (MST/MDT, UTC-7/-6)</SelectItem>
+                        <SelectItem value="America/Los_Angeles">America/Los Angeles (PST/PDT, UTC-8/-7)</SelectItem>
+                        <SelectItem value="Pacific/Auckland">Pacific/Auckland (NZST/NZDT, UTC+12/+13)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      All times in the application will be displayed in this timezone.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle>Notification Settings</CardTitle>
