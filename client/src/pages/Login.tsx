@@ -4,11 +4,11 @@ import Webcam from 'react-webcam';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { User, ScanFace, ArrowRight, ShieldCheck, Mail, Lock, Camera, Loader2, CheckCircle2 } from 'lucide-react';
+import { User, ScanFace, ArrowRight, ShieldCheck, Mail, Lock, Camera, Loader2, CheckCircle2, AlertCircle, Sun, Move, Users, ZoomIn, ZoomOut } from 'lucide-react';
 import { Label } from "@/components/ui/label";
 import { useAuth } from '@/lib/auth-context';
 import { authApi, faceApi, type FaceDescriptorUser } from '@/lib/api';
-import { loadFaceModels, extractFaceDescriptor, compareFaceDescriptors, isFaceMatch, jsonToDescriptor } from '@/lib/face-recognition';
+import { loadFaceModels, detectFaceWithFeedback, compareFaceDescriptors, isFaceMatch, jsonToDescriptor, type FaceDetectionStatus } from '@/lib/face-recognition';
 import factoryBg from '@assets/generated_images/modern_clean_industrial_factory_interior_background.png';
 import aeceLogo from '@assets/AECE_Logo_1765516911038.png';
 
@@ -30,6 +30,8 @@ export default function Login() {
   const [detecting, setDetecting] = useState(false);
   const [recognizedUser, setRecognizedUser] = useState<string | null>(null);
   const [faceStatus, setFaceStatus] = useState<'loading' | 'scanning' | 'recognized' | 'not_found'>('loading');
+  const [faceMessage, setFaceMessage] = useState<string>('');
+  const [detectionStatus, setDetectionStatus] = useState<FaceDetectionStatus | null>(null);
 
   const [adminFaceMode, setAdminFaceMode] = useState(false);
 
@@ -68,59 +70,70 @@ export default function Login() {
     setDetecting(true);
     
     try {
-      const descriptor = await extractFaceDescriptor(video);
+      const result = await detectFaceWithFeedback(video);
+      setDetectionStatus(result.status);
+      setFaceMessage(result.message);
       
-      if (descriptor) {
-        let bestMatch: { user: FaceDescriptorUser; distance: number } | null = null;
-        
-        for (const user of faceUsers) {
-          const storedDescriptor = jsonToDescriptor(user.faceDescriptor);
-          if (storedDescriptor) {
-            const distance = compareFaceDescriptors(descriptor, storedDescriptor);
-            if (!bestMatch || distance < bestMatch.distance) {
-              bestMatch = { user, distance };
-            }
+      if (result.status !== 'face_detected' || !result.descriptor) {
+        setDetecting(false);
+        return;
+      }
+      
+      let bestMatch: { user: FaceDescriptorUser; distance: number } | null = null;
+      
+      for (const user of faceUsers) {
+        const storedDescriptor = jsonToDescriptor(user.faceDescriptor);
+        if (storedDescriptor) {
+          const distance = compareFaceDescriptors(result.descriptor, storedDescriptor);
+          if (!bestMatch || distance < bestMatch.distance) {
+            bestMatch = { user, distance };
           }
         }
+      }
+      
+      if (bestMatch && isFaceMatch(bestMatch.distance)) {
+        setFaceStatus('recognized');
+        setFaceMessage(`Welcome, ${bestMatch.user.firstName}!`);
+        setRecognizedUser(`${bestMatch.user.firstName} ${bestMatch.user.surname}`);
+        setModelsReady(false);
         
-        if (bestMatch && isFaceMatch(bestMatch.distance)) {
-          setFaceStatus('recognized');
-          setRecognizedUser(`${bestMatch.user.firstName} ${bestMatch.user.surname}`);
-          setModelsReady(false);
-          
-          if (bestMatch.user.role === 'manager') {
-            setTimeout(async () => {
-              try {
-                const user = await authApi.loginByFace(bestMatch.user.id);
-                setUser(user);
-                setLocation('/admin/dashboard');
-              } catch (err) {
-                setError('Face login failed');
-                setFaceStatus('scanning');
-                setRecognizedUser(null);
-                setModelsReady(true);
-              }
-            }, 1000);
-            return;
-          }
-          
+        if (bestMatch.user.role === 'manager') {
           setTimeout(async () => {
             try {
-              const user = await authApi.loginWorker(bestMatch.user.id);
+              const user = await authApi.loginByFace(bestMatch.user.id);
               setUser(user);
-              setLocation('/dashboard');
+              setLocation('/admin/dashboard');
             } catch (err) {
-              setError('Login failed');
+              setError('Face login failed');
               setFaceStatus('scanning');
+              setFaceMessage('Look at the camera to login');
               setRecognizedUser(null);
               setModelsReady(true);
             }
           }, 1000);
           return;
         }
+        
+        setTimeout(async () => {
+          try {
+            const user = await authApi.loginWorker(bestMatch.user.id);
+            setUser(user);
+            setLocation('/dashboard');
+          } catch (err) {
+            setError('Login failed');
+            setFaceStatus('scanning');
+            setFaceMessage('Look at the camera to login');
+            setRecognizedUser(null);
+            setModelsReady(true);
+          }
+        }, 1000);
+        return;
+      } else if (bestMatch) {
+        setFaceMessage('Face not recognized - try adjusting position');
       }
     } catch (err) {
       console.error('Face detection error:', err);
+      setFaceMessage('Detection error - please try again');
     } finally {
       setDetecting(false);
     }
@@ -208,13 +221,15 @@ export default function Login() {
                     <div className="absolute inset-0 flex items-center justify-center">
                       <div className={`w-48 h-48 rounded-full border-4 ${
                         faceStatus === 'recognized' ? 'border-green-500' : 
+                        faceStatus === 'scanning' && detectionStatus === 'face_detected' ? 'border-green-500 animate-pulse' :
+                        faceStatus === 'scanning' && detectionStatus && detectionStatus !== 'face_detected' ? 'border-amber-500' :
                         faceStatus === 'scanning' ? 'border-primary animate-pulse' : 
                         'border-white/50'
                       } transition-colors`} />
                     </div>
                     
                     <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
-                      <div className="flex items-center justify-center gap-2 text-white">
+                      <div className="flex items-center justify-center gap-2 text-white" data-testid="face-feedback">
                         {faceStatus === 'loading' && (
                           <>
                             <Loader2 className="h-5 w-5 animate-spin" />
@@ -223,14 +238,23 @@ export default function Login() {
                         )}
                         {faceStatus === 'scanning' && (
                           <>
-                            <ScanFace className="h-5 w-5 animate-pulse" />
-                            <span>Look at the camera to login</span>
+                            {detectionStatus === 'no_face' && <AlertCircle className="h-5 w-5 text-amber-400" />}
+                            {detectionStatus === 'poor_lighting' && <Sun className="h-5 w-5 text-amber-400" />}
+                            {detectionStatus === 'face_too_small' && <ZoomIn className="h-5 w-5 text-amber-400" />}
+                            {detectionStatus === 'face_too_large' && <ZoomOut className="h-5 w-5 text-amber-400" />}
+                            {detectionStatus === 'face_not_centered' && <Move className="h-5 w-5 text-amber-400" />}
+                            {detectionStatus === 'multiple_faces' && <Users className="h-5 w-5 text-amber-400" />}
+                            {detectionStatus === 'face_detected' && <ScanFace className="h-5 w-5 animate-pulse text-green-400" />}
+                            {!detectionStatus && <ScanFace className="h-5 w-5 animate-pulse" />}
+                            <span className={detectionStatus && detectionStatus !== 'face_detected' ? 'text-amber-300' : ''}>
+                              {faceMessage || 'Look at the camera to login'}
+                            </span>
                           </>
                         )}
                         {faceStatus === 'recognized' && (
                           <>
                             <CheckCircle2 className="h-5 w-5 text-green-400" />
-                            <span>Welcome, {recognizedUser}!</span>
+                            <span>{faceMessage || `Welcome, ${recognizedUser}!`}</span>
                           </>
                         )}
                       </div>
@@ -306,13 +330,15 @@ export default function Login() {
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className={`w-48 h-48 rounded-full border-4 ${
                     faceStatus === 'recognized' ? 'border-green-500' : 
+                    faceStatus === 'scanning' && detectionStatus === 'face_detected' ? 'border-green-500 animate-pulse' :
+                    faceStatus === 'scanning' && detectionStatus && detectionStatus !== 'face_detected' ? 'border-amber-500' :
                     faceStatus === 'scanning' ? 'border-amber-500 animate-pulse' : 
                     'border-white/50'
                   } transition-colors`} />
                 </div>
                 
                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
-                  <div className="flex items-center justify-center gap-2 text-white">
+                  <div className="flex items-center justify-center gap-2 text-white" data-testid="admin-face-feedback">
                     {faceStatus === 'loading' && (
                       <>
                         <Loader2 className="h-5 w-5 animate-spin" />
@@ -321,14 +347,23 @@ export default function Login() {
                     )}
                     {faceStatus === 'scanning' && (
                       <>
-                        <ScanFace className="h-5 w-5 animate-pulse" />
-                        <span>Look at the camera</span>
+                        {detectionStatus === 'no_face' && <AlertCircle className="h-5 w-5 text-amber-400" />}
+                        {detectionStatus === 'poor_lighting' && <Sun className="h-5 w-5 text-amber-400" />}
+                        {detectionStatus === 'face_too_small' && <ZoomIn className="h-5 w-5 text-amber-400" />}
+                        {detectionStatus === 'face_too_large' && <ZoomOut className="h-5 w-5 text-amber-400" />}
+                        {detectionStatus === 'face_not_centered' && <Move className="h-5 w-5 text-amber-400" />}
+                        {detectionStatus === 'multiple_faces' && <Users className="h-5 w-5 text-amber-400" />}
+                        {detectionStatus === 'face_detected' && <ScanFace className="h-5 w-5 animate-pulse text-green-400" />}
+                        {!detectionStatus && <ScanFace className="h-5 w-5 animate-pulse" />}
+                        <span className={detectionStatus && detectionStatus !== 'face_detected' ? 'text-amber-300' : ''}>
+                          {faceMessage || 'Look at the camera'}
+                        </span>
                       </>
                     )}
                     {faceStatus === 'recognized' && (
                       <>
                         <CheckCircle2 className="h-5 w-5 text-green-400" />
-                        <span>Welcome, {recognizedUser}!</span>
+                        <span>{faceMessage || `Welcome, ${recognizedUser}!`}</span>
                       </>
                     )}
                   </div>

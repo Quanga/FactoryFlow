@@ -126,3 +126,123 @@ export function jsonToDescriptor(json: string): number[] | null {
     return null;
   }
 }
+
+export type FaceDetectionStatus = 
+  | 'no_face'
+  | 'face_detected'
+  | 'poor_lighting'
+  | 'face_too_small'
+  | 'face_too_large'
+  | 'face_not_centered'
+  | 'multiple_faces'
+  | 'matched'
+  | 'not_matched';
+
+export interface FaceDetectionResult {
+  status: FaceDetectionStatus;
+  message: string;
+  descriptor: Float32Array | null;
+  confidence?: number;
+}
+
+export async function detectFaceWithFeedback(
+  input: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement
+): Promise<FaceDetectionResult> {
+  if (!modelsLoaded) {
+    await loadFaceModels();
+  }
+
+  try {
+    const detections = await faceapi
+      .detectAllFaces(input)
+      .withFaceLandmarks()
+      .withFaceDescriptors();
+
+    if (detections.length === 0) {
+      return {
+        status: 'no_face',
+        message: 'No face detected - position your face in the frame',
+        descriptor: null
+      };
+    }
+
+    if (detections.length > 1) {
+      return {
+        status: 'multiple_faces',
+        message: 'Multiple faces detected - only one person at a time',
+        descriptor: null
+      };
+    }
+
+    const detection = detections[0];
+    const box = detection.detection.box;
+    
+    const inputWidth = 'videoWidth' in input ? input.videoWidth : input.width;
+    const inputHeight = 'videoHeight' in input ? input.videoHeight : input.height;
+    
+    const faceWidth = box.width;
+    const faceHeight = box.height;
+    const faceCenterX = box.x + faceWidth / 2;
+    const faceCenterY = box.y + faceHeight / 2;
+    
+    const minFaceSize = Math.min(inputWidth, inputHeight) * 0.15;
+    const maxFaceSize = Math.min(inputWidth, inputHeight) * 0.85;
+    
+    if (faceWidth < minFaceSize || faceHeight < minFaceSize) {
+      return {
+        status: 'face_too_small',
+        message: 'Move closer to the camera',
+        descriptor: null
+      };
+    }
+    
+    if (faceWidth > maxFaceSize || faceHeight > maxFaceSize) {
+      return {
+        status: 'face_too_large',
+        message: 'Move back from the camera',
+        descriptor: null
+      };
+    }
+    
+    const centerThreshold = 0.25;
+    const normalizedCenterX = faceCenterX / inputWidth;
+    const normalizedCenterY = faceCenterY / inputHeight;
+    
+    if (
+      normalizedCenterX < (0.5 - centerThreshold) ||
+      normalizedCenterX > (0.5 + centerThreshold) ||
+      normalizedCenterY < (0.5 - centerThreshold) ||
+      normalizedCenterY > (0.5 + centerThreshold)
+    ) {
+      return {
+        status: 'face_not_centered',
+        message: 'Center your face in the frame',
+        descriptor: null
+      };
+    }
+    
+    const score = detection.detection.score;
+    if (score < 0.5) {
+      return {
+        status: 'poor_lighting',
+        message: 'Poor lighting - try moving to a brighter area',
+        descriptor: null,
+        confidence: score
+      };
+    }
+
+    return {
+      status: 'face_detected',
+      message: 'Face detected - scanning...',
+      descriptor: detection.descriptor,
+      confidence: score
+    };
+  } catch (error) {
+    console.error('Face detection error:', error);
+    return {
+      status: 'no_face',
+      message: 'Detection error - please try again',
+      descriptor: null
+    };
+  }
+}
