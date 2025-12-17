@@ -155,6 +155,8 @@ export type InsertLeaveBalance = z.infer<typeof insertLeaveBalanceSchema>;
 export type LeaveBalance = typeof leaveBalances.$inferSelect;
 
 // Leave Requests Table
+// Status workflow: pending_manager -> pending_hr -> pending_md -> approved/rejected
+// MD can approve directly (bypassing HR), cancelled by employee
 export const leaveRequests = pgTable("leave_requests", {
   id: serial("id").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -163,9 +165,33 @@ export const leaveRequests = pgTable("leave_requests", {
   endDate: text("end_date").notNull(),
   reason: text("reason").notNull(),
   comments: text("comments"), // Employee's additional comments
-  status: text("status").notNull().default("pending"), // 'pending', 'approved', 'rejected', 'needs_documentation'
-  adminNotes: text("admin_notes"), // Admin evaluation notes/comments
+  // Status: 'pending_manager', 'pending_hr', 'pending_md', 'approved', 'rejected', 'cancelled'
+  status: text("status").notNull().default("pending_manager"),
+  adminNotes: text("admin_notes"), // Legacy/general admin notes
   documents: text("documents").array(),
+  
+  // Manager approval fields
+  managerApproverId: text("manager_approver_id"),
+  managerDecision: text("manager_decision"), // 'approved', 'rejected'
+  managerNotes: text("manager_notes"),
+  managerDecisionAt: timestamp("manager_decision_at"),
+  
+  // HR approval fields
+  hrApproverId: text("hr_approver_id"),
+  hrDecision: text("hr_decision"), // 'approved', 'rejected'
+  hrNotes: text("hr_notes"),
+  hrDecisionAt: timestamp("hr_decision_at"),
+  
+  // MD approval fields
+  mdApproverId: text("md_approver_id"),
+  mdDecision: text("md_decision"), // 'approved', 'rejected'
+  mdNotes: text("md_notes"),
+  mdDecisionAt: timestamp("md_decision_at"),
+  
+  // Final approval tracking
+  finalizedById: text("finalized_by_id"), // Who made the final decision
+  finalizedAt: timestamp("finalized_at"), // When it was finalized
+  
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
