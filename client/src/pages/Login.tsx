@@ -9,7 +9,6 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from '@/lib/auth-context';
 import { authApi, faceApi, type FaceDescriptorUser } from '@/lib/api';
 import { loadFaceModels, detectFaceWithFeedback, compareFaceDescriptors, isFaceMatch, jsonToDescriptor, type FaceDetectionStatus } from '@/lib/face-recognition';
-import factoryBg from '@assets/generated_images/modern_clean_industrial_factory_interior_background.png';
 import aeceLogo from '@assets/AECE_Logo_1765516911038.png';
 
 export default function Login() {
@@ -192,9 +191,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-cover bg-center relative"
-         style={{ backgroundImage: `url(${factoryBg})` }}>
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+    <div className="min-h-screen flex items-center justify-center bg-sky-100 relative">
 
       <Card className="w-full max-w-md z-10 shadow-2xl border-0 bg-white/95 backdrop-blur-xl animate-in zoom-in-95 duration-500">
         <CardHeader className="text-center pb-2">
