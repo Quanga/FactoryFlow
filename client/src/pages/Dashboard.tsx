@@ -265,12 +265,41 @@ export default function Dashboard() {
                 <div>
                   <p className="text-sm text-muted-foreground">Attached Documents</p>
                   <div className="mt-1 space-y-1">
-                    {selectedRequest.documents.map((doc, index) => (
-                      <div key={index} className="flex items-center gap-2 p-2 bg-slate-50 rounded border">
-                        <FileText className="h-4 w-4 text-blue-500" />
-                        <span className="text-sm">{doc.startsWith('data:') ? `Document ${index + 1}` : doc}</span>
-                      </div>
-                    ))}
+                    {selectedRequest.documents.map((doc, index) => {
+                      const isPdf = doc.includes('application/pdf') || doc.includes('.pdf');
+                      const isImage = doc.includes('image/');
+                      
+                      const openDocument = () => {
+                        if (doc.startsWith('data:')) {
+                          const byteString = atob(doc.split(',')[1]);
+                          const mimeType = doc.split(',')[0].split(':')[1].split(';')[0];
+                          const ab = new ArrayBuffer(byteString.length);
+                          const ia = new Uint8Array(ab);
+                          for (let i = 0; i < byteString.length; i++) {
+                            ia[i] = byteString.charCodeAt(i);
+                          }
+                          const blob = new Blob([ab], { type: mimeType });
+                          const url = URL.createObjectURL(blob);
+                          window.open(url, '_blank');
+                        } else {
+                          window.open(doc, '_blank');
+                        }
+                      };
+                      
+                      return (
+                        <button 
+                          key={index} 
+                          onClick={openDocument}
+                          className="flex items-center gap-2 p-2 bg-slate-50 rounded border w-full text-left hover:bg-slate-100 transition-colors"
+                        >
+                          <FileText className="h-4 w-4 text-blue-500" />
+                          <span className="text-sm text-blue-600 hover:underline">
+                            {isPdf ? `PDF Document ${index + 1}` : isImage ? `Image ${index + 1}` : `Document ${index + 1}`}
+                            <span className="text-xs text-muted-foreground ml-2">(Click to view)</span>
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}

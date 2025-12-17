@@ -3779,29 +3779,41 @@ export default function AdminDashboard() {
                     <div>
                       <Label className="text-muted-foreground text-sm">Supporting Documents</Label>
                       <div className="mt-2 space-y-2">
-                        {selectedLeaveRequest.documents.map((doc, index) => (
-                          <div key={index} className="flex items-center gap-2 p-2 bg-slate-50 rounded-lg border">
-                            <FileText className="h-4 w-4 text-blue-500" />
-                            {doc.startsWith('data:') ? (
-                              <a 
-                                href={doc} 
-                                download={`document-${index + 1}`}
-                                className="text-blue-600 hover:underline"
-                              >
-                                Document {index + 1} (Click to download)
-                              </a>
-                            ) : (
-                              <a 
-                                href={doc} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="text-blue-600 hover:underline"
-                              >
-                                {doc}
-                              </a>
-                            )}
-                          </div>
-                        ))}
+                        {selectedLeaveRequest.documents.map((doc, index) => {
+                          const isPdf = doc.includes('application/pdf') || doc.includes('.pdf');
+                          const isImage = doc.includes('image/');
+                          
+                          const openDocument = () => {
+                            if (doc.startsWith('data:')) {
+                              const byteString = atob(doc.split(',')[1]);
+                              const mimeType = doc.split(',')[0].split(':')[1].split(';')[0];
+                              const ab = new ArrayBuffer(byteString.length);
+                              const ia = new Uint8Array(ab);
+                              for (let i = 0; i < byteString.length; i++) {
+                                ia[i] = byteString.charCodeAt(i);
+                              }
+                              const blob = new Blob([ab], { type: mimeType });
+                              const url = URL.createObjectURL(blob);
+                              window.open(url, '_blank');
+                            } else {
+                              window.open(doc, '_blank');
+                            }
+                          };
+                          
+                          return (
+                            <button 
+                              key={index} 
+                              onClick={openDocument}
+                              className="flex items-center gap-2 p-2 bg-slate-50 rounded-lg border w-full text-left hover:bg-slate-100 transition-colors"
+                            >
+                              <FileText className="h-4 w-4 text-blue-500" />
+                              <span className="text-blue-600 hover:underline">
+                                {isPdf ? `PDF Document ${index + 1}` : isImage ? `Image ${index + 1}` : `Document ${index + 1}`}
+                                <span className="text-xs text-muted-foreground ml-2">(Click to view)</span>
+                              </span>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
