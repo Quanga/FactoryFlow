@@ -53,6 +53,9 @@ export default function Dashboard() {
       case 'approved': return 'bg-green-100 text-green-700';
       case 'rejected': return 'bg-red-100 text-red-700';
       case 'cancelled': return 'bg-gray-100 text-gray-700';
+      case 'pending_manager': return 'bg-orange-100 text-orange-700';
+      case 'pending_hr': return 'bg-blue-100 text-blue-700';
+      case 'pending_md': return 'bg-purple-100 text-purple-700';
       default: return 'bg-yellow-100 text-yellow-700';
     }
   };
@@ -64,6 +67,23 @@ export default function Dashboard() {
       case 'cancelled': return <XCircle className="h-5 w-5" />;
       default: return <Clock className="h-5 w-5" />;
     }
+  };
+
+  const formatStatusLabel = (status: string) => {
+    switch (status) {
+      case 'pending_manager': return 'Awaiting Manager';
+      case 'pending_hr': return 'Awaiting HR';
+      case 'pending_md': return 'Awaiting Final Approval';
+      case 'approved': return 'Approved';
+      case 'rejected': return 'Rejected';
+      case 'cancelled': return 'Cancelled';
+      case 'pending': return 'Pending';
+      default: return status;
+    }
+  };
+
+  const isPending = (status: string) => {
+    return ['pending', 'pending_manager', 'pending_hr', 'pending_md'].includes(status);
   };
 
   return (
@@ -142,7 +162,7 @@ export default function Dashboard() {
                       <div className="flex items-center gap-3">
                         <div className="text-right">
                           <Badge className={getStatusColor(req.status)}>
-                            {req.status}
+                            {formatStatusLabel(req.status)}
                           </Badge>
                         </div>
                         <div className="flex gap-1">
@@ -158,7 +178,7 @@ export default function Dashboard() {
                           >
                             <Eye className="h-4 w-4 text-blue-500" />
                           </Button>
-                          {req.status === 'pending' && (
+                          {isPending(req.status) && (
                             <Button 
                               variant="ghost" 
                               size="icon"
@@ -216,11 +236,41 @@ export default function Dashboard() {
                   <p className="text-sm text-muted-foreground">Leave Type</p>
                   <p className="font-medium capitalize">{selectedRequest.leaveType.replace('_', ' ')}</p>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Status</p>
-                  <Badge className={getStatusColor(selectedRequest.status)}>
-                    {selectedRequest.status}
-                  </Badge>
+                <div className="col-span-2">
+                  <p className="text-sm text-muted-foreground mb-2">Approval Progress</p>
+                  <div className="flex items-center gap-2">
+                    <div className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${
+                      selectedRequest.status === 'pending_manager' 
+                        ? 'bg-orange-100 text-orange-700 font-medium' 
+                        : ['pending_hr', 'pending_md', 'approved'].includes(selectedRequest.status)
+                          ? 'bg-green-100 text-green-700'
+                          : selectedRequest.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'
+                    }`}>
+                      1. Manager
+                    </div>
+                    <span className="text-muted-foreground">→</span>
+                    <div className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${
+                      selectedRequest.status === 'pending_hr' 
+                        ? 'bg-blue-100 text-blue-700 font-medium' 
+                        : ['pending_md', 'approved'].includes(selectedRequest.status)
+                          ? 'bg-green-100 text-green-700'
+                          : selectedRequest.status === 'rejected' && ['pending_hr', 'pending_md'].includes(selectedRequest.status)
+                            ? 'bg-red-100 text-red-700' 
+                            : 'bg-gray-100 text-gray-500'
+                    }`}>
+                      2. HR
+                    </div>
+                    <span className="text-muted-foreground">→</span>
+                    <div className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${
+                      selectedRequest.status === 'pending_md' 
+                        ? 'bg-purple-100 text-purple-700 font-medium' 
+                        : selectedRequest.status === 'approved'
+                          ? 'bg-green-100 text-green-700'
+                          : selectedRequest.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'
+                    }`}>
+                      3. MD
+                    </div>
+                  </div>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Start Date</p>
@@ -304,7 +354,7 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {selectedRequest.status === 'pending' && (
+              {isPending(selectedRequest.status) && (
                 <div className="pt-4 border-t">
                   <Button 
                     variant="destructive"

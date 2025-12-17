@@ -188,6 +188,52 @@ export const leaveRequestApi = {
     }
     return res.json();
   },
+
+  async getByStatus(status: string | string[]): Promise<LeaveRequest[]> {
+    const statusStr = Array.isArray(status) ? status.join(',') : status;
+    const res = await fetch(`${API_BASE}/leave-requests/by-status/${statusStr}`);
+    if (!res.ok) throw new Error("Failed to fetch leave requests by status");
+    return res.json();
+  },
+
+  async managerDecision(id: number, approverId: string, decision: 'approved' | 'rejected', notes?: string): Promise<LeaveRequest> {
+    const res = await fetch(`${API_BASE}/leave-requests/${id}/manager-decision`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ approverId, decision, notes }),
+    });
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to process manager decision");
+    }
+    return res.json();
+  },
+
+  async hrDecision(id: number, approverId: string, decision: 'approved' | 'rejected', notes?: string): Promise<LeaveRequest> {
+    const res = await fetch(`${API_BASE}/leave-requests/${id}/hr-decision`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ approverId, decision, notes }),
+    });
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to process HR decision");
+    }
+    return res.json();
+  },
+
+  async mdDecision(id: number, approverId: string, decision: 'approved' | 'rejected', notes?: string, bypassHR?: boolean): Promise<LeaveRequest> {
+    const res = await fetch(`${API_BASE}/leave-requests/${id}/md-decision`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ approverId, decision, notes, bypassHR }),
+    });
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to process MD decision");
+    }
+    return res.json();
+  },
 };
 
 // Attendance API

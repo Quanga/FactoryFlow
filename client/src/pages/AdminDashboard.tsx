@@ -321,6 +321,64 @@ export default function AdminDashboard() {
     },
   });
 
+  const managerDecisionMutation = useMutation({
+    mutationFn: ({ id, decision, notes }: { id: number; decision: 'approved' | 'rejected'; notes?: string }) => 
+      leaveRequestApi.managerDecision(id, user?.id || '', decision, notes),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['leave-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['leave-balances'] });
+      setAdminNotes('');
+      setIsReviewDialogOpen(false);
+      toast({ 
+        title: variables.decision === 'approved' ? "Request Approved" : "Request Rejected", 
+        description: variables.decision === 'approved' 
+          ? "Leave request has been approved and forwarded to HR for review." 
+          : "Leave request has been rejected and the employee will be notified."
+      });
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Error", description: error.message || "Failed to process decision" });
+    },
+  });
+
+  const hrDecisionMutation = useMutation({
+    mutationFn: ({ id, decision, notes }: { id: number; decision: 'approved' | 'rejected'; notes?: string }) => 
+      leaveRequestApi.hrDecision(id, user?.id || '', decision, notes),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['leave-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['leave-balances'] });
+      setAdminNotes('');
+      setIsReviewDialogOpen(false);
+      toast({ 
+        title: variables.decision === 'approved' ? "Request Approved" : "Request Rejected", 
+        description: variables.decision === 'approved' 
+          ? "Leave request has been approved and forwarded to MD for final approval." 
+          : "Leave request has been rejected and the employee will be notified."
+      });
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Error", description: error.message || "Failed to process decision" });
+    },
+  });
+
+  const mdDecisionMutation = useMutation({
+    mutationFn: ({ id, decision, notes, bypassHR }: { id: number; decision: 'approved' | 'rejected'; notes?: string; bypassHR?: boolean }) => 
+      leaveRequestApi.mdDecision(id, user?.id || '', decision, notes, bypassHR),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['leave-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['leave-balances'] });
+      setAdminNotes('');
+      setIsReviewDialogOpen(false);
+      toast({ 
+        title: variables.decision === 'approved' ? "Leave Approved" : "Leave Rejected", 
+        description: `Final decision recorded. The employee has been notified.`
+      });
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Error", description: error.message || "Failed to process decision" });
+    },
+  });
+
   const createLeaveBalanceMutation = useMutation({
     mutationFn: (balance: { userId: string; leaveType: string; total: number }) => leaveBalanceApi.create(balance),
     onSuccess: () => {
@@ -386,6 +444,51 @@ export default function AdminDashboard() {
       const days = Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
       return `${days} day${days !== 1 ? 's' : ''}`;
     }
+  };
+
+  // Helper function to format leave request status for display
+  const formatLeaveStatus = (status: string): { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; color?: string } => {
+    switch (status) {
+      case 'pending_manager':
+        return { label: 'Pending Manager', variant: 'secondary' };
+      case 'pending_hr':
+        return { label: 'Pending HR', variant: 'secondary' };
+      case 'pending_md':
+        return { label: 'Pending MD', variant: 'secondary' };
+      case 'approved':
+        return { label: 'Approved', variant: 'default' };
+      case 'rejected':
+        return { label: 'Rejected', variant: 'destructive' };
+      case 'cancelled':
+        return { label: 'Cancelled', variant: 'outline' };
+      case 'pending':
+        return { label: 'Pending', variant: 'secondary' };
+      default:
+        return { label: status, variant: 'secondary' };
+    }
+  };
+
+  // Check if current user can take action on a leave request based on its status
+  const canTakeAction = (request: LeaveRequest): { canAct: boolean; role: 'manager' | 'hr' | 'md' | null; stage: string } => {
+    // For simplicity, all admins can act on all stages for now
+    // In a real system, you'd check user group/role to determine which actions they can take
+    const status = request.status;
+    if (status === 'pending_manager') {
+      return { canAct: true, role: 'manager', stage: 'Manager Review' };
+    } else if (status === 'pending_hr') {
+      return { canAct: true, role: 'hr', stage: 'HR Review' };
+    } else if (status === 'pending_md') {
+      return { canAct: true, role: 'md', stage: 'MD Approval' };
+    }
+    return { canAct: false, role: null, stage: '' };
+  };
+
+  // Count pending requests at each stage
+  const pendingCounts = {
+    manager: leaveRequests.filter((r: LeaveRequest) => r.status === 'pending_manager').length,
+    hr: leaveRequests.filter((r: LeaveRequest) => r.status === 'pending_hr').length,
+    md: leaveRequests.filter((r: LeaveRequest) => r.status === 'pending_md').length,
+    total: leaveRequests.filter((r: LeaveRequest) => ['pending_manager', 'pending_hr', 'pending_md', 'pending'].includes(r.status)).length,
   };
 
   const createDeptMutation = useMutation({
@@ -1236,8 +1339,15 @@ export default function AdminDashboard() {
                         <FileText className="h-6 w-6 text-amber-600" />
                       </div>
                       <div>
-                        <p className="text-2xl font-bold">{leaveRequests.filter((r: LeaveRequest) => r.status === 'pending').length}</p>
+                        <p className="text-2xl font-bold">{pendingCounts.total}</p>
                         <p className="text-sm text-muted-foreground">Pending Leave</p>
+                        {pendingCounts.total > 0 && (
+                          <div className="flex gap-1 mt-1 text-xs text-muted-foreground">
+                            {pendingCounts.manager > 0 && <span className="bg-orange-100 px-1 rounded">M:{pendingCounts.manager}</span>}
+                            {pendingCounts.hr > 0 && <span className="bg-blue-100 px-1 rounded">HR:{pendingCounts.hr}</span>}
+                            {pendingCounts.md > 0 && <span className="bg-purple-100 px-1 rounded">MD:{pendingCounts.md}</span>}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </CardContent>
@@ -1287,15 +1397,17 @@ export default function AdminDashboard() {
                     <FileText className="h-5 w-5 text-amber-500" />
                     Pending Leave Requests
                   </CardTitle>
-                  <CardDescription>Leave requests awaiting your approval</CardDescription>
+                  <CardDescription>Leave requests awaiting approval at different stages</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {leaveRequests.filter((r: LeaveRequest) => r.status === 'pending').length === 0 ? (
+                  {pendingCounts.total === 0 ? (
                     <p className="text-muted-foreground text-center py-4">No pending leave requests</p>
                   ) : (
                     <div className="space-y-2">
-                      {leaveRequests.filter((r: LeaveRequest) => r.status === 'pending').slice(0, 5).map((request: LeaveRequest) => {
+                      {leaveRequests.filter((r: LeaveRequest) => ['pending_manager', 'pending_hr', 'pending_md', 'pending'].includes(r.status)).slice(0, 5).map((request: LeaveRequest) => {
                         const employee = users.find(u => u.id === request.userId);
+                        const actionInfo = canTakeAction(request);
+                        const statusInfo = formatLeaveStatus(request.status);
                         return (
                           <div key={request.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border">
                             <div className="flex items-center gap-3">
@@ -1307,6 +1419,7 @@ export default function AdminDashboard() {
                                 <p className="text-xs text-muted-foreground">
                                   {request.leaveType} • {format(new Date(request.startDate), 'MMM d')} - {format(new Date(request.endDate), 'MMM d')}
                                 </p>
+                                <Badge variant={statusInfo.variant} className="text-xs mt-1">{statusInfo.label}</Badge>
                               </div>
                             </div>
                             <div className="flex gap-2">
@@ -1321,27 +1434,49 @@ export default function AdminDashboard() {
                               >
                                 Review
                               </Button>
-                              <Button 
-                                size="sm"
-                                className="bg-green-600 hover:bg-green-700"
-                                onClick={() => updateLeaveStatusMutation.mutate({ id: request.id, status: 'approved' })}
-                              >
-                                <Check className="h-4 w-4" />
-                              </Button>
-                              <Button 
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => updateLeaveStatusMutation.mutate({ id: request.id, status: 'rejected' })}
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
+                              {actionInfo.canAct && (
+                                <>
+                                  <Button 
+                                    size="sm"
+                                    className="bg-green-600 hover:bg-green-700"
+                                    onClick={() => {
+                                      if (actionInfo.role === 'manager') {
+                                        managerDecisionMutation.mutate({ id: request.id, decision: 'approved' });
+                                      } else if (actionInfo.role === 'hr') {
+                                        hrDecisionMutation.mutate({ id: request.id, decision: 'approved' });
+                                      } else if (actionInfo.role === 'md') {
+                                        mdDecisionMutation.mutate({ id: request.id, decision: 'approved' });
+                                      }
+                                    }}
+                                    title={`Approve as ${actionInfo.stage}`}
+                                  >
+                                    <Check className="h-4 w-4" />
+                                  </Button>
+                                  <Button 
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() => {
+                                      if (actionInfo.role === 'manager') {
+                                        managerDecisionMutation.mutate({ id: request.id, decision: 'rejected' });
+                                      } else if (actionInfo.role === 'hr') {
+                                        hrDecisionMutation.mutate({ id: request.id, decision: 'rejected' });
+                                      } else if (actionInfo.role === 'md') {
+                                        mdDecisionMutation.mutate({ id: request.id, decision: 'rejected' });
+                                      }
+                                    }}
+                                    title="Reject"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </>
+                              )}
                             </div>
                           </div>
                         );
                       })}
-                      {leaveRequests.filter((r: LeaveRequest) => r.status === 'pending').length > 5 && (
+                      {pendingCounts.total > 5 && (
                         <Button variant="link" className="w-full" onClick={() => setActiveSection('leave-requests')}>
-                          View all {leaveRequests.filter((r: LeaveRequest) => r.status === 'pending').length} pending requests
+                          View all {pendingCounts.total} pending requests
                         </Button>
                       )}
                     </div>
@@ -1727,6 +1862,8 @@ export default function AdminDashboard() {
                     <TableBody>
                       {leaveRequests.map((request: LeaveRequest) => {
                         const employee = users.find(u => u.id === request.userId);
+                        const statusInfo = formatLeaveStatus(request.status);
+                        const actionInfo = canTakeAction(request);
                         return (
                           <TableRow key={request.id} data-testid={`row-leave-request-${request.id}`}>
                             <TableCell className="font-medium">
@@ -1737,11 +1874,8 @@ export default function AdminDashboard() {
                               {format(new Date(request.startDate), 'MMM d')} - {format(new Date(request.endDate), 'MMM d, yyyy')}
                             </TableCell>
                             <TableCell>
-                              <Badge variant={
-                                request.status === 'approved' ? 'default' :
-                                request.status === 'rejected' ? 'destructive' : 'secondary'
-                              }>
-                                {request.status}
+                              <Badge variant={statusInfo.variant}>
+                                {statusInfo.label}
                               </Badge>
                             </TableCell>
                             <TableCell className="text-right">
@@ -1758,21 +1892,37 @@ export default function AdminDashboard() {
                               >
                                 <FileText className="h-4 w-4 text-blue-500" />
                               </Button>
-                              {request.status === 'pending' && (
+                              {actionInfo.canAct && (
                                 <>
                                   <Button 
                                     variant="ghost" 
                                     size="icon"
-                                    onClick={() => updateLeaveStatusMutation.mutate({ id: request.id, status: 'approved' })}
+                                    onClick={() => {
+                                      if (actionInfo.role === 'manager') {
+                                        managerDecisionMutation.mutate({ id: request.id, decision: 'approved' });
+                                      } else if (actionInfo.role === 'hr') {
+                                        hrDecisionMutation.mutate({ id: request.id, decision: 'approved' });
+                                      } else if (actionInfo.role === 'md') {
+                                        mdDecisionMutation.mutate({ id: request.id, decision: 'approved' });
+                                      }
+                                    }}
                                     data-testid={`button-approve-${request.id}`}
-                                    title="Approve"
+                                    title={`Approve (${actionInfo.stage})`}
                                   >
                                     <Check className="h-4 w-4 text-green-500" />
                                   </Button>
                                   <Button 
                                     variant="ghost" 
                                     size="icon"
-                                    onClick={() => updateLeaveStatusMutation.mutate({ id: request.id, status: 'rejected' })}
+                                    onClick={() => {
+                                      if (actionInfo.role === 'manager') {
+                                        managerDecisionMutation.mutate({ id: request.id, decision: 'rejected' });
+                                      } else if (actionInfo.role === 'hr') {
+                                        hrDecisionMutation.mutate({ id: request.id, decision: 'rejected' });
+                                      } else if (actionInfo.role === 'md') {
+                                        mdDecisionMutation.mutate({ id: request.id, decision: 'rejected' });
+                                      }
+                                    }}
                                     data-testid={`button-reject-${request.id}`}
                                     title="Reject"
                                   >
@@ -3737,11 +3887,8 @@ export default function AdminDashboard() {
                     </div>
                     <div>
                       <Label className="text-muted-foreground text-sm">Status</Label>
-                      <Badge variant={
-                        selectedLeaveRequest.status === 'approved' ? 'default' :
-                        selectedLeaveRequest.status === 'rejected' ? 'destructive' : 'secondary'
-                      }>
-                        {selectedLeaveRequest.status}
+                      <Badge variant={formatLeaveStatus(selectedLeaveRequest.status).variant}>
+                        {formatLeaveStatus(selectedLeaveRequest.status).label}
                       </Badge>
                     </div>
                     <div>
@@ -3818,50 +3965,106 @@ export default function AdminDashboard() {
                     </div>
                   )}
 
-                  {selectedLeaveRequest.status === 'pending' && (
-                    <>
-                      <div>
-                        <Label htmlFor="adminNotes" className="text-muted-foreground text-sm">Admin Notes / Evaluation Comments (Optional)</Label>
-                        <Textarea
-                          id="adminNotes"
-                          placeholder="Add notes about this request (e.g., reason for approval/rejection, documentation received, etc.)"
-                          className="mt-1 min-h-[80px]"
-                          value={adminNotes}
-                          onChange={(e) => setAdminNotes(e.target.value)}
-                          data-testid="input-admin-notes"
-                        />
-                      </div>
-                      <div className="flex justify-end gap-2 pt-4 border-t">
-                        <Button 
-                          variant="outline"
-                          onClick={() => {
-                            updateLeaveStatusMutation.mutate({ 
-                              id: selectedLeaveRequest.id, 
-                              status: 'rejected',
-                              adminNotes: adminNotes || undefined
-                            });
-                            setIsReviewDialogOpen(false);
-                          }}
-                          className="text-red-600 border-red-200 hover:bg-red-50"
-                        >
-                          <X className="mr-2 h-4 w-4" /> Reject
-                        </Button>
-                        <Button 
-                          onClick={() => {
-                            updateLeaveStatusMutation.mutate({ 
-                              id: selectedLeaveRequest.id, 
-                              status: 'approved',
-                              adminNotes: adminNotes || undefined
-                            });
-                            setIsReviewDialogOpen(false);
-                          }}
-                          className="bg-green-600 hover:bg-green-700"
-                        >
-                          <Check className="mr-2 h-4 w-4" /> Approve
-                        </Button>
-                      </div>
-                    </>
-                  )}
+                  {(() => {
+                    const actionInfo = canTakeAction(selectedLeaveRequest);
+                    if (!actionInfo.canAct) return null;
+                    
+                    return (
+                      <>
+                        <div className="bg-blue-50 p-3 rounded-lg border border-blue-200 mb-4">
+                          <p className="text-sm text-blue-800">
+                            <strong>Current Stage:</strong> {actionInfo.stage}
+                          </p>
+                          {actionInfo.role === 'hr' && (
+                            <p className="text-xs text-blue-600 mt-1">
+                              Note: MD can bypass this stage if needed
+                            </p>
+                          )}
+                        </div>
+                        <div>
+                          <Label htmlFor="adminNotes" className="text-muted-foreground text-sm">Review Notes (Optional)</Label>
+                          <Textarea
+                            id="adminNotes"
+                            placeholder="Add notes about this request (e.g., reason for approval/rejection, documentation received, etc.)"
+                            className="mt-1 min-h-[80px]"
+                            value={adminNotes}
+                            onChange={(e) => setAdminNotes(e.target.value)}
+                            data-testid="input-admin-notes"
+                          />
+                        </div>
+                        <div className="flex justify-end gap-2 pt-4 border-t">
+                          <Button 
+                            variant="outline"
+                            onClick={() => {
+                              if (actionInfo.role === 'manager') {
+                                managerDecisionMutation.mutate({ 
+                                  id: selectedLeaveRequest.id, 
+                                  decision: 'rejected',
+                                  notes: adminNotes || undefined
+                                });
+                              } else if (actionInfo.role === 'hr') {
+                                hrDecisionMutation.mutate({ 
+                                  id: selectedLeaveRequest.id, 
+                                  decision: 'rejected',
+                                  notes: adminNotes || undefined
+                                });
+                              } else if (actionInfo.role === 'md') {
+                                mdDecisionMutation.mutate({ 
+                                  id: selectedLeaveRequest.id, 
+                                  decision: 'rejected',
+                                  notes: adminNotes || undefined
+                                });
+                              }
+                            }}
+                            className="text-red-600 border-red-200 hover:bg-red-50"
+                          >
+                            <X className="mr-2 h-4 w-4" /> Reject
+                          </Button>
+                          <Button 
+                            onClick={() => {
+                              if (actionInfo.role === 'manager') {
+                                managerDecisionMutation.mutate({ 
+                                  id: selectedLeaveRequest.id, 
+                                  decision: 'approved',
+                                  notes: adminNotes || undefined
+                                });
+                              } else if (actionInfo.role === 'hr') {
+                                hrDecisionMutation.mutate({ 
+                                  id: selectedLeaveRequest.id, 
+                                  decision: 'approved',
+                                  notes: adminNotes || undefined
+                                });
+                              } else if (actionInfo.role === 'md') {
+                                mdDecisionMutation.mutate({ 
+                                  id: selectedLeaveRequest.id, 
+                                  decision: 'approved',
+                                  notes: adminNotes || undefined
+                                });
+                              }
+                            }}
+                            className="bg-green-600 hover:bg-green-700"
+                          >
+                            <Check className="mr-2 h-4 w-4" /> {actionInfo.role === 'md' ? 'Approve (Final)' : 'Approve & Forward'}
+                          </Button>
+                          {actionInfo.role === 'md' && selectedLeaveRequest.status === 'pending_hr' && (
+                            <Button 
+                              onClick={() => {
+                                mdDecisionMutation.mutate({ 
+                                  id: selectedLeaveRequest.id, 
+                                  decision: 'approved',
+                                  notes: adminNotes || undefined,
+                                  bypassHR: true
+                                });
+                              }}
+                              className="bg-purple-600 hover:bg-purple-700"
+                            >
+                              <Check className="mr-2 h-4 w-4" /> Bypass HR & Approve
+                            </Button>
+                          )}
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               );
             })()}

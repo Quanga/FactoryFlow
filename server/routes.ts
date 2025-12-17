@@ -470,6 +470,160 @@ export async function registerRoutes(
     }
   });
 
+  // Get leave requests by status (for approval workflows)
+  app.get("/api/leave-requests/by-status/:status", async (req, res) => {
+    try {
+      const status = req.params.status;
+      const validStatuses = ['pending_manager', 'pending_hr', 'pending_md', 'approved', 'rejected', 'cancelled'];
+      
+      // Support comma-separated multiple statuses
+      const statuses = status.split(',');
+      const invalidStatuses = statuses.filter(s => !validStatuses.includes(s));
+      
+      if (invalidStatuses.length > 0) {
+        return res.status(400).json({ error: `Invalid status values: ${invalidStatuses.join(', ')}` });
+      }
+      
+      const requests = await storage.getLeaveRequestsByStatus(statuses);
+      return res.json(requests);
+    } catch (error) {
+      console.error("Get leave requests by status error:", error);
+      return res.status(500).json({ error: "Failed to fetch leave requests" });
+    }
+  });
+
+  // Manager approval decision
+  app.post("/api/leave-requests/:id/manager-decision", async (req, res) => {
+    try {
+      const { approverId, decision, notes } = req.body;
+      
+      if (!approverId) {
+        return res.status(400).json({ error: "Approver ID is required" });
+      }
+      
+      if (!['approved', 'rejected'].includes(decision)) {
+        return res.status(400).json({ error: "Decision must be 'approved' or 'rejected'" });
+      }
+      
+      const requestId = parseInt(req.params.id);
+      const request = await storage.getLeaveRequest(requestId);
+      
+      if (!request) {
+        return res.status(404).json({ error: "Leave request not found" });
+      }
+      
+      if (request.status !== 'pending_manager') {
+        return res.status(400).json({ error: "Leave request is not awaiting manager approval" });
+      }
+      
+      const updatedRequest = await storage.updateManagerDecision(requestId, approverId, decision, notes);
+      
+      // TODO: Send email notification based on decision
+      
+      return res.json(updatedRequest);
+    } catch (error) {
+      console.error("Manager decision error:", error);
+      return res.status(500).json({ error: "Failed to process manager decision" });
+    }
+  });
+
+  // HR approval decision
+  app.post("/api/leave-requests/:id/hr-decision", async (req, res) => {
+    try {
+      const { approverId, decision, notes } = req.body;
+      
+      if (!approverId) {
+        return res.status(400).json({ error: "Approver ID is required" });
+      }
+      
+      if (!['approved', 'rejected'].includes(decision)) {
+        return res.status(400).json({ error: "Decision must be 'approved' or 'rejected'" });
+      }
+      
+      const requestId = parseInt(req.params.id);
+      const request = await storage.getLeaveRequest(requestId);
+      
+      if (!request) {
+        return res.status(404).json({ error: "Leave request not found" });
+      }
+      
+      if (request.status !== 'pending_hr') {
+        return res.status(400).json({ error: "Leave request is not awaiting HR approval" });
+      }
+      
+      const updatedRequest = await storage.updateHRDecision(requestId, approverId, decision, notes);
+      
+      // TODO: Send email notification based on decision
+      
+      return res.json(updatedRequest);
+    } catch (error) {
+      console.error("HR decision error:", error);
+      return res.status(500).json({ error: "Failed to process HR decision" });
+    }
+  });
+
+  // MD approval decision (can bypass HR)
+  app.post("/api/leave-requests/:id/md-decision", async (req, res) => {
+    try {
+      const { approverId, decision, notes, bypassHR } = req.body;
+      
+      if (!approverId) {
+        return res.status(400).json({ error: "Approver ID is required" });
+      }
+      
+      if (!['approved', 'rejected'].includes(decision)) {
+        return res.status(400).json({ error: "Decision must be 'approved' or 'rejected'" });
+      }
+      
+      const requestId = parseInt(req.params.id);
+      const request = await storage.getLeaveRequest(requestId);
+      
+      if (!request) {
+        return res.status(404).json({ error: "Leave request not found" });
+      }
+      
+      // MD can approve/reject from pending_hr or pending_md status
+      if (!['pending_hr', 'pending_md'].includes(request.status)) {
+        return res.status(400).json({ error: "Leave request is not awaiting HR or MD approval" });
+      }
+      
+      // If bypassing HR (request is still at pending_hr), mark bypassHR flag
+      const isBypassingHR = request.status === 'pending_hr' && bypassHR;
+      
+      const updatedRequest = await storage.updateMDDecision(requestId, approverId, decision, notes, isBypassingHR);
+      
+      // Send final email notification to employee
+      if (updatedRequest) {
+        try {
+          const user = await storage.getUser(updatedRequest.userId);
+          const senderEmail = "noreply@aece.co.za";
+          
+          if (user && user.email) {
+            await sendLeaveStatusNotification(
+              user.email,
+              senderEmail,
+              {
+                employeeName: `${user.firstName} ${user.surname}`,
+                employeeEmail: user.email,
+                leaveType: updatedRequest.leaveType,
+                startDate: updatedRequest.startDate,
+                endDate: updatedRequest.endDate,
+                status: decision as 'approved' | 'rejected',
+              }
+            );
+          }
+        } catch (emailError) {
+          console.error('Failed to send leave status notification:', emailError);
+        }
+      }
+      
+      return res.json(updatedRequest);
+    } catch (error) {
+      console.error("MD decision error:", error);
+      return res.status(500).json({ error: "Failed to process MD decision" });
+    }
+  });
+
   // Cancel leave request (by employee)
   app.delete("/api/leave-requests/:id", async (req, res) => {
     try {
@@ -480,8 +634,9 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Leave request not found" });
       }
       
-      // Only allow cancellation of pending requests
-      if (request.status !== 'pending') {
+      // Only allow cancellation of requests still in pending stages
+      const cancellableStatuses = ['pending', 'pending_manager', 'pending_hr', 'pending_md'];
+      if (!cancellableStatuses.includes(request.status)) {
         return res.status(400).json({ error: "Only pending requests can be cancelled" });
       }
       
