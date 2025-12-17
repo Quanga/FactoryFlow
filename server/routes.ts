@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
-import { insertUserSchema, insertLeaveRequestSchema, insertAttendanceRecordSchema, insertDepartmentSchema, insertUserGroupSchema, insertEmployeeTypeSchema, insertLeaveRuleSchema, insertLeaveRulePhaseSchema } from "@shared/schema";
+import { insertUserSchema, insertLeaveRequestSchema, insertAttendanceRecordSchema, insertDepartmentSchema, insertUserGroupSchema, insertEmployeeTypeSchema, insertLeaveRuleSchema, insertLeaveRulePhaseSchema, insertGrievanceSchema } from "@shared/schema";
 import { sendLeaveRequestNotification, sendLateAttendanceNotification, sendAdminWelcomeEmail, sendLeaveStatusNotification, sendPasswordResetEmail, sendAdminCredentialsEmail } from "./email";
 import crypto from "crypto";
 
@@ -1280,6 +1280,86 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Resend credentials error:", error);
       return res.status(500).json({ error: "Failed to resend credentials" });
+    }
+  });
+
+  // ========== GRIEVANCE ROUTES ==========
+  
+  // Get all grievances (admin) or user's grievances
+  app.get("/api/grievances", async (req, res) => {
+    try {
+      const userId = req.query.userId as string | undefined;
+      const grievances = await storage.getGrievances(userId);
+      return res.json(grievances);
+    } catch (error) {
+      console.error("Get grievances error:", error);
+      return res.status(500).json({ error: "Failed to get grievances" });
+    }
+  });
+
+  // Get single grievance
+  app.get("/api/grievances/:id", async (req, res) => {
+    try {
+      const grievance = await storage.getGrievance(parseInt(req.params.id));
+      if (!grievance) {
+        return res.status(404).json({ error: "Grievance not found" });
+      }
+      return res.json(grievance);
+    } catch (error) {
+      console.error("Get grievance error:", error);
+      return res.status(500).json({ error: "Failed to get grievance" });
+    }
+  });
+
+  // Create grievance
+  app.post("/api/grievances", async (req, res) => {
+    try {
+      const validatedData = insertGrievanceSchema.parse(req.body);
+      const grievance = await storage.createGrievance(validatedData);
+      return res.status(201).json(grievance);
+    } catch (error) {
+      console.error("Create grievance error:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid grievance data", details: error.errors });
+      }
+      return res.status(500).json({ error: "Failed to create grievance" });
+    }
+  });
+
+  // Update grievance
+  app.patch("/api/grievances/:id", async (req, res) => {
+    try {
+      const grievance = await storage.updateGrievance(parseInt(req.params.id), req.body);
+      if (!grievance) {
+        return res.status(404).json({ error: "Grievance not found" });
+      }
+      return res.json(grievance);
+    } catch (error) {
+      console.error("Update grievance error:", error);
+      return res.status(500).json({ error: "Failed to update grievance" });
+    }
+  });
+
+  // Update grievance status (admin action)
+  app.patch("/api/grievances/:id/status", async (req, res) => {
+    try {
+      const { status, adminNotes, resolution } = req.body;
+      if (!status) {
+        return res.status(400).json({ error: "Status is required" });
+      }
+      const grievance = await storage.updateGrievanceStatus(
+        parseInt(req.params.id),
+        status,
+        adminNotes,
+        resolution
+      );
+      if (!grievance) {
+        return res.status(404).json({ error: "Grievance not found" });
+      }
+      return res.json(grievance);
+    } catch (error) {
+      console.error("Update grievance status error:", error);
+      return res.status(500).json({ error: "Failed to update grievance status" });
     }
   });
 
