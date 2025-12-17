@@ -126,6 +126,7 @@ export const users = pgTable("users", {
   startDate: text("start_date"), // Employment start date for leave calculations
   contractEndDate: text("contract_end_date"), // End date for contractors/temps (null for permanent)
   terminationDate: text("termination_date"), // Date when employee was terminated (null if active)
+  managerId: text("manager_id"), // ID of the employee's direct manager
   photoUrl: text("photo_url"),
   faceDescriptor: text("face_descriptor"), // JSON array of 128 face embedding values
   createdAt: timestamp("created_at").defaultNow().notNull(),

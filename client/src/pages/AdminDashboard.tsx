@@ -585,6 +585,7 @@ export default function AdminDashboard() {
       emergencyNumber: currentUser.emergencyNumber || null,
       startDate: currentUser.startDate || null,
       userGroupId: currentUser.userGroupId || null,
+      managerId: currentUser.managerId || null,
     };
 
     if (isEditing) {
@@ -1511,6 +1512,17 @@ export default function AdminDashboard() {
                                       <div>
                                         <p className="text-xs text-muted-foreground">Employee Type</p>
                                         <p className="font-medium">{employeeTypes.find(t => t.id === emp.employeeTypeId)?.name || '-'}</p>
+                                      </div>
+                                    )}
+                                    {emp.managerId && (
+                                      <div>
+                                        <p className="text-xs text-muted-foreground">Manager</p>
+                                        <p className="font-medium">
+                                          {(() => {
+                                            const manager = users.find(u => u.id === emp.managerId);
+                                            return manager ? `${manager.firstName} ${manager.surname}` : '-';
+                                          })()}
+                                        </p>
                                       </div>
                                     )}
                                     {(() => {
@@ -3402,6 +3414,32 @@ export default function AdminDashboard() {
                   {departments.length === 0 && (
                     <p className="text-xs text-muted-foreground mt-1">No departments available. Create one in the Departments tab first.</p>
                   )}
+                </div>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="manager" className="text-right">Manager</Label>
+                <div className="col-span-3">
+                  <Select 
+                    value={currentUser.managerId || 'none'} 
+                    onValueChange={(value) => setCurrentUser({...currentUser, managerId: value === 'none' ? undefined : value})}
+                  >
+                    <SelectTrigger data-testid="select-manager">
+                      <SelectValue placeholder="Select a manager (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No Manager</SelectItem>
+                      {users
+                        .filter(u => u.id !== currentUser.id && (u.userGroupId || u.role === 'manager'))
+                        .map((mgr) => (
+                          <SelectItem key={mgr.id} value={mgr.id} data-testid={`option-manager-${mgr.id}`}>
+                            {mgr.firstName} {mgr.surname} {mgr.department ? `(${mgr.department})` : ''}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Select the direct manager for this employee. Only admin users are shown.
+                  </p>
                 </div>
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
