@@ -177,6 +177,17 @@ export const leaveRequestApi = {
     if (!res.ok) throw new Error("Failed to update leave request");
     return res.json();
   },
+
+  async cancel(id: number): Promise<{ message: string }> {
+    const res = await fetch(`${API_BASE}/leave-requests/${id}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to cancel leave request");
+    }
+    return res.json();
+  },
 };
 
 // Attendance API

@@ -470,6 +470,31 @@ export async function registerRoutes(
     }
   });
 
+  // Cancel leave request (by employee)
+  app.delete("/api/leave-requests/:id", async (req, res) => {
+    try {
+      const requestId = parseInt(req.params.id);
+      const request = await storage.getLeaveRequest(requestId);
+      
+      if (!request) {
+        return res.status(404).json({ error: "Leave request not found" });
+      }
+      
+      // Only allow cancellation of pending requests
+      if (request.status !== 'pending') {
+        return res.status(400).json({ error: "Only pending requests can be cancelled" });
+      }
+      
+      // Update status to cancelled
+      const updatedRequest = await storage.updateLeaveRequestStatus(requestId, 'cancelled');
+      
+      return res.json({ message: "Leave request cancelled successfully", request: updatedRequest });
+    } catch (error) {
+      console.error("Cancel leave request error:", error);
+      return res.status(500).json({ error: "Failed to cancel leave request" });
+    }
+  });
+
   // ========== ATTENDANCE ROUTES ==========
   
   // Get all attendance records (admin) - must be before :userId route
