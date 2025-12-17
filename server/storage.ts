@@ -26,6 +26,8 @@ import type {
   InsertLeaveRulePhase,
   ContractHistory,
   InsertContractHistory,
+  Grievance,
+  InsertGrievance,
 } from "@shared/schema";
 
 const pool = new Pool({
@@ -112,6 +114,13 @@ export interface IStorage {
   // Contract History operations
   getContractHistory(userId: string): Promise<ContractHistory[]>;
   createContractHistory(history: InsertContractHistory): Promise<ContractHistory>;
+
+  // Grievance operations
+  getGrievances(userId?: string): Promise<Grievance[]>;
+  getGrievance(id: number): Promise<Grievance | undefined>;
+  createGrievance(grievance: InsertGrievance): Promise<Grievance>;
+  updateGrievance(id: number, grievance: Partial<InsertGrievance>): Promise<Grievance | undefined>;
+  updateGrievanceStatus(id: number, status: string, adminNotes?: string, resolution?: string): Promise<Grievance | undefined>;
 }
 
 export class DrizzleStorage implements IStorage {
@@ -649,6 +658,61 @@ export class DrizzleStorage implements IStorage {
       .values(history)
       .returning();
     return newHistory;
+  }
+
+  // Grievance operations
+  async getGrievances(userId?: string): Promise<Grievance[]> {
+    if (userId) {
+      return db
+        .select()
+        .from(schema.grievances)
+        .where(eq(schema.grievances.userId, userId))
+        .orderBy(desc(schema.grievances.createdAt));
+    }
+    return db
+      .select()
+      .from(schema.grievances)
+      .orderBy(desc(schema.grievances.createdAt));
+  }
+
+  async getGrievance(id: number): Promise<Grievance | undefined> {
+    const [grievance] = await db
+      .select()
+      .from(schema.grievances)
+      .where(eq(schema.grievances.id, id));
+    return grievance;
+  }
+
+  async createGrievance(grievance: InsertGrievance): Promise<Grievance> {
+    const [newGrievance] = await db
+      .insert(schema.grievances)
+      .values(grievance)
+      .returning();
+    return newGrievance;
+  }
+
+  async updateGrievance(id: number, grievance: Partial<InsertGrievance>): Promise<Grievance | undefined> {
+    const [updated] = await db
+      .update(schema.grievances)
+      .set(grievance)
+      .where(eq(schema.grievances.id, id))
+      .returning();
+    return updated;
+  }
+
+  async updateGrievanceStatus(id: number, status: string, adminNotes?: string, resolution?: string): Promise<Grievance | undefined> {
+    const updateData: Partial<Grievance> = { status };
+    if (adminNotes !== undefined) updateData.adminNotes = adminNotes;
+    if (resolution !== undefined) updateData.resolution = resolution;
+    if (status === 'resolved' || status === 'rejected' || status === 'closed') {
+      updateData.resolvedAt = new Date();
+    }
+    const [updated] = await db
+      .update(schema.grievances)
+      .set(updateData)
+      .where(eq(schema.grievances.id, id))
+      .returning();
+    return updated;
   }
 }
 
