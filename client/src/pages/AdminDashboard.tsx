@@ -1650,7 +1650,7 @@ export default function AdminDashboard() {
                             </TableCell>
                             <TableCell>{emp.department}</TableCell>
                             <TableCell>
-                              <span className="text-sm" title={emp.startDate ? `Started: ${format(new Date(emp.startDate), 'MMM d, yyyy')}` : 'Start date not set'}>
+                              <span className="text-sm" title={emp.startDate ? `Started: ${format(new Date(emp.startDate), 'dd/MM/yyyy')}` : 'Start date not set'}>
                                 {getEmploymentDuration(emp.startDate)}
                               </span>
                             </TableCell>
@@ -1700,7 +1700,7 @@ export default function AdminDashboard() {
                                   <div className="flex gap-8 p-3 bg-white rounded-lg border mb-4">
                                     <div>
                                       <p className="text-xs text-muted-foreground">Start Date</p>
-                                      <p className="font-medium">{emp.startDate ? format(new Date(emp.startDate), 'MMM d, yyyy') : 'Not set'}</p>
+                                      <p className="font-medium">{emp.startDate ? format(new Date(emp.startDate), 'dd/MM/yyyy') : 'Not set'}</p>
                                     </div>
                                     <div>
                                       <p className="text-xs text-muted-foreground">Employment Duration</p>
@@ -1732,7 +1732,7 @@ export default function AdminDashboard() {
                                             <div>
                                               <p className="text-xs text-muted-foreground">Contract End Date</p>
                                               <p className={`font-medium ${isExpired ? 'text-red-600' : ''}`}>
-                                                {emp.contractEndDate ? format(new Date(emp.contractEndDate), 'MMM d, yyyy') : 'Not set'}
+                                                {emp.contractEndDate ? format(new Date(emp.contractEndDate), 'dd/MM/yyyy') : 'Not set'}
                                                 {isExpired && <span className="ml-2 text-red-600 text-xs">(Expired)</span>}
                                               </p>
                                             </div>
