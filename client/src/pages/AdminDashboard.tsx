@@ -4139,12 +4139,64 @@ export default function AdminDashboard() {
                     </div>
                   )}
 
-                  {selectedLeaveRequest.adminNotes && selectedLeaveRequest.status !== 'pending' && (
-                    <div>
-                      <Label className="text-muted-foreground text-sm">Admin Notes</Label>
-                      <div className="mt-1 p-3 bg-amber-50 rounded-lg border border-amber-200">
-                        <p className="text-amber-800">{selectedLeaveRequest.adminNotes}</p>
-                      </div>
+                  {/* Approval History Section */}
+                  {(selectedLeaveRequest.managerNotes || selectedLeaveRequest.hrNotes || selectedLeaveRequest.mdNotes) && (
+                    <div className="space-y-3">
+                      <Label className="text-muted-foreground text-sm">Approval History</Label>
+                      
+                      {selectedLeaveRequest.managerNotes && (
+                        <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Badge variant="outline" className="text-xs bg-purple-100 text-purple-700 border-purple-300">Manager Review</Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {selectedLeaveRequest.managerDecision === 'approved' ? '✓ Approved' : '✗ Rejected'}
+                              {selectedLeaveRequest.managerDecisionAt && ` on ${format(new Date(selectedLeaveRequest.managerDecisionAt), 'MMM d, yyyy')}`}
+                            </span>
+                          </div>
+                          <p className="text-sm text-purple-800">{selectedLeaveRequest.managerNotes}</p>
+                          {selectedLeaveRequest.managerApproverId && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              By: {users.find(u => u.id === selectedLeaveRequest.managerApproverId)?.firstName} {users.find(u => u.id === selectedLeaveRequest.managerApproverId)?.surname}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {selectedLeaveRequest.hrNotes && (
+                        <div className="p-3 bg-cyan-50 rounded-lg border border-cyan-200">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Badge variant="outline" className="text-xs bg-cyan-100 text-cyan-700 border-cyan-300">HR Review</Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {selectedLeaveRequest.hrDecision === 'approved' ? '✓ Approved' : '✗ Rejected'}
+                              {selectedLeaveRequest.hrDecisionAt && ` on ${format(new Date(selectedLeaveRequest.hrDecisionAt), 'MMM d, yyyy')}`}
+                            </span>
+                          </div>
+                          <p className="text-sm text-cyan-800">{selectedLeaveRequest.hrNotes}</p>
+                          {selectedLeaveRequest.hrApproverId && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              By: {users.find(u => u.id === selectedLeaveRequest.hrApproverId)?.firstName} {users.find(u => u.id === selectedLeaveRequest.hrApproverId)?.surname}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {selectedLeaveRequest.mdNotes && (
+                        <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Badge variant="outline" className="text-xs bg-amber-100 text-amber-700 border-amber-300">MD Review</Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {selectedLeaveRequest.mdDecision === 'approved' ? '✓ Approved' : '✗ Rejected'}
+                              {selectedLeaveRequest.mdDecisionAt && ` on ${format(new Date(selectedLeaveRequest.mdDecisionAt), 'MMM d, yyyy')}`}
+                            </span>
+                          </div>
+                          <p className="text-sm text-amber-800">{selectedLeaveRequest.mdNotes}</p>
+                          {selectedLeaveRequest.mdApproverId && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              By: {users.find(u => u.id === selectedLeaveRequest.mdApproverId)?.firstName} {users.find(u => u.id === selectedLeaveRequest.mdApproverId)?.surname}
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -4208,37 +4260,58 @@ export default function AdminDashboard() {
                           )}
                         </div>
                         <div>
-                          <Label htmlFor="adminNotes" className="text-muted-foreground text-sm">Review Notes (Optional)</Label>
+                          <Label htmlFor="adminNotes" className="text-sm">
+                            Review Comments <span className="text-red-500">*</span>
+                          </Label>
+                          <p className="text-xs text-muted-foreground mb-1">
+                            {actionInfo.role === 'manager' 
+                              ? 'Assess workload impact and provide comments for HR/MD review' 
+                              : actionInfo.role === 'hr'
+                              ? 'Review manager comments and add HR assessment for MD'
+                              : 'Review all previous comments and provide final decision notes'}
+                          </p>
                           <Textarea
                             id="adminNotes"
-                            placeholder="Add notes about this request (e.g., reason for approval/rejection, documentation received, etc.)"
-                            className="mt-1 min-h-[80px]"
+                            placeholder={actionInfo.role === 'manager' 
+                              ? "Assess workload impact: Can this leave be accommodated? Any concerns for the team?"
+                              : actionInfo.role === 'hr'
+                              ? "HR assessment: Leave balance verification, policy compliance, any concerns?"
+                              : "Final review: Overall assessment considering all previous comments"}
+                            className={`mt-1 min-h-[80px] ${!adminNotes.trim() ? 'border-red-300' : ''}`}
                             value={adminNotes}
                             onChange={(e) => setAdminNotes(e.target.value)}
                             data-testid="input-admin-notes"
                           />
+                          {!adminNotes.trim() && (
+                            <p className="text-xs text-red-500 mt-1">Comments are required before making a decision</p>
+                          )}
                         </div>
                         <div className="flex justify-end gap-2 pt-4 border-t">
                           <Button 
                             variant="outline"
+                            disabled={!adminNotes.trim()}
                             onClick={() => {
+                              if (!adminNotes.trim()) {
+                                toast({ variant: "destructive", title: "Comments Required", description: "Please add comments before rejecting" });
+                                return;
+                              }
                               if (actionInfo.role === 'manager') {
                                 managerDecisionMutation.mutate({ 
                                   id: selectedLeaveRequest.id, 
                                   decision: 'rejected',
-                                  notes: adminNotes || undefined
+                                  notes: adminNotes
                                 });
                               } else if (actionInfo.role === 'hr') {
                                 hrDecisionMutation.mutate({ 
                                   id: selectedLeaveRequest.id, 
                                   decision: 'rejected',
-                                  notes: adminNotes || undefined
+                                  notes: adminNotes
                                 });
                               } else if (actionInfo.role === 'md') {
                                 mdDecisionMutation.mutate({ 
                                   id: selectedLeaveRequest.id, 
                                   decision: 'rejected',
-                                  notes: adminNotes || undefined
+                                  notes: adminNotes
                                 });
                               }
                             }}
@@ -4247,24 +4320,29 @@ export default function AdminDashboard() {
                             <X className="mr-2 h-4 w-4" /> Reject
                           </Button>
                           <Button 
+                            disabled={!adminNotes.trim()}
                             onClick={() => {
+                              if (!adminNotes.trim()) {
+                                toast({ variant: "destructive", title: "Comments Required", description: "Please add comments before approving" });
+                                return;
+                              }
                               if (actionInfo.role === 'manager') {
                                 managerDecisionMutation.mutate({ 
                                   id: selectedLeaveRequest.id, 
                                   decision: 'approved',
-                                  notes: adminNotes || undefined
+                                  notes: adminNotes
                                 });
                               } else if (actionInfo.role === 'hr') {
                                 hrDecisionMutation.mutate({ 
                                   id: selectedLeaveRequest.id, 
                                   decision: 'approved',
-                                  notes: adminNotes || undefined
+                                  notes: adminNotes
                                 });
                               } else if (actionInfo.role === 'md') {
                                 mdDecisionMutation.mutate({ 
                                   id: selectedLeaveRequest.id, 
                                   decision: 'approved',
-                                  notes: adminNotes || undefined
+                                  notes: adminNotes
                                 });
                               }
                             }}
@@ -4274,11 +4352,16 @@ export default function AdminDashboard() {
                           </Button>
                           {actionInfo.role === 'md' && selectedLeaveRequest.status === 'pending_hr' && (
                             <Button 
+                              disabled={!adminNotes.trim()}
                               onClick={() => {
+                                if (!adminNotes.trim()) {
+                                  toast({ variant: "destructive", title: "Comments Required", description: "Please add comments before approving" });
+                                  return;
+                                }
                                 mdDecisionMutation.mutate({ 
                                   id: selectedLeaveRequest.id, 
                                   decision: 'approved',
-                                  notes: adminNotes || undefined,
+                                  notes: adminNotes,
                                   bypassHR: true
                                 });
                               }}
