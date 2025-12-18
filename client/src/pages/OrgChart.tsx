@@ -196,58 +196,229 @@ export default function OrgChart() {
   const [isExporting, setIsExporting] = useState(false);
   const { toast } = useToast();
 
+  const buildExportSvg = () => {
+    if (!treeData) return null;
+    
+    const svgNs = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(svgNs, 'svg');
+    svg.setAttribute('width', String(dimensions.width));
+    svg.setAttribute('height', String(dimensions.height));
+    svg.setAttribute('viewBox', `0 0 ${dimensions.width} ${dimensions.height}`);
+    svg.setAttribute('xmlns', svgNs);
+    
+    // Add white background
+    const bg = document.createElementNS(svgNs, 'rect');
+    bg.setAttribute('width', '100%');
+    bg.setAttribute('height', '100%');
+    bg.setAttribute('fill', '#ffffff');
+    svg.appendChild(bg);
+    
+    // Create main group with offset
+    const mainGroup = document.createElementNS(svgNs, 'g');
+    mainGroup.setAttribute('transform', `translate(${dimensions.offsetX}, 60)`);
+    svg.appendChild(mainGroup);
+    
+    // Draw connecting lines first
+    const links = treeData.links();
+    links.forEach(link => {
+      const sourceX = link.source.x;
+      const sourceY = link.source.y + link.source.data.data.nodeHeight;
+      const targetX = link.target.x;
+      const targetY = link.target.y;
+      const midY = (sourceY + targetY) / 2;
+      
+      const path = document.createElementNS(svgNs, 'path');
+      path.setAttribute('d', `M${sourceX},${sourceY} L${sourceX},${midY} L${targetX},${midY} L${targetX},${targetY}`);
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke', '#94a3b8');
+      path.setAttribute('stroke-width', '2');
+      mainGroup.appendChild(path);
+    });
+    
+    // Draw nodes
+    const nodes = treeData.descendants();
+    nodes.forEach(node => {
+      const d = node.data.data;
+      const x = node.x - NODE_WIDTH / 2;
+      const y = node.y;
+      const deptColor = getDepartmentColor(d.department);
+      
+      const nodeGroup = document.createElementNS(svgNs, 'g');
+      nodeGroup.setAttribute('transform', `translate(${x}, ${y})`);
+      
+      if (d.kind === 'manager') {
+        // Manager node background
+        const rect = document.createElementNS(svgNs, 'rect');
+        rect.setAttribute('width', String(NODE_WIDTH));
+        rect.setAttribute('height', String(MANAGER_NODE_HEIGHT));
+        rect.setAttribute('rx', '8');
+        rect.setAttribute('fill', d.isRoot ? '#fef3c7' : '#eff6ff');
+        rect.setAttribute('stroke', d.isRoot ? '#f59e0b' : '#3b82f6');
+        rect.setAttribute('stroke-width', '2');
+        nodeGroup.appendChild(rect);
+        
+        // Department header bar
+        const deptBar = document.createElementNS(svgNs, 'rect');
+        deptBar.setAttribute('width', String(NODE_WIDTH));
+        deptBar.setAttribute('height', '16');
+        deptBar.setAttribute('rx', '8');
+        deptBar.setAttribute('fill', deptColor);
+        nodeGroup.appendChild(deptBar);
+        
+        // Cover bottom corners of dept bar
+        const coverRect = document.createElementNS(svgNs, 'rect');
+        coverRect.setAttribute('y', '8');
+        coverRect.setAttribute('width', String(NODE_WIDTH));
+        coverRect.setAttribute('height', '8');
+        coverRect.setAttribute('fill', deptColor);
+        nodeGroup.appendChild(coverRect);
+        
+        // Department text
+        const deptText = document.createElementNS(svgNs, 'text');
+        deptText.setAttribute('x', String(NODE_WIDTH / 2));
+        deptText.setAttribute('y', '11');
+        deptText.setAttribute('text-anchor', 'middle');
+        deptText.setAttribute('fill', '#ffffff');
+        deptText.setAttribute('font-size', '9');
+        deptText.setAttribute('font-family', 'Arial, sans-serif');
+        deptText.textContent = d.department || 'No Department';
+        nodeGroup.appendChild(deptText);
+        
+        // Name text
+        const nameText = document.createElementNS(svgNs, 'text');
+        nameText.setAttribute('x', String(NODE_WIDTH / 2));
+        nameText.setAttribute('y', '35');
+        nameText.setAttribute('text-anchor', 'middle');
+        nameText.setAttribute('fill', '#1e293b');
+        nameText.setAttribute('font-size', '11');
+        nameText.setAttribute('font-weight', 'bold');
+        nameText.setAttribute('font-family', 'Arial, sans-serif');
+        nameText.textContent = d.name.length > 22 ? d.name.substring(0, 20) + '...' : d.name;
+        nodeGroup.appendChild(nameText);
+        
+        // ID text
+        const idText = document.createElementNS(svgNs, 'text');
+        idText.setAttribute('x', String(NODE_WIDTH / 2));
+        idText.setAttribute('y', '48');
+        idText.setAttribute('text-anchor', 'middle');
+        idText.setAttribute('fill', '#64748b');
+        idText.setAttribute('font-size', '9');
+        idText.setAttribute('font-family', 'Arial, sans-serif');
+        idText.textContent = d.id;
+        nodeGroup.appendChild(idText);
+        
+        // Manager badge
+        const badgeRect = document.createElementNS(svgNs, 'rect');
+        badgeRect.setAttribute('x', String((NODE_WIDTH - 50) / 2));
+        badgeRect.setAttribute('y', '55');
+        badgeRect.setAttribute('width', '50');
+        badgeRect.setAttribute('height', '16');
+        badgeRect.setAttribute('rx', '4');
+        badgeRect.setAttribute('fill', '#3b82f6');
+        nodeGroup.appendChild(badgeRect);
+        
+        const badgeText = document.createElementNS(svgNs, 'text');
+        badgeText.setAttribute('x', String(NODE_WIDTH / 2));
+        badgeText.setAttribute('y', '66');
+        badgeText.setAttribute('text-anchor', 'middle');
+        badgeText.setAttribute('fill', '#ffffff');
+        badgeText.setAttribute('font-size', '9');
+        badgeText.setAttribute('font-family', 'Arial, sans-serif');
+        badgeText.textContent = 'Manager';
+        nodeGroup.appendChild(badgeText);
+        
+      } else if (d.kind === 'department-group') {
+        const workers = d.workers || [];
+        const totalHeight = DEPT_HEADER_HEIGHT + workers.length * WORKER_ROW_HEIGHT + 4;
+        
+        // Background
+        const rect = document.createElementNS(svgNs, 'rect');
+        rect.setAttribute('width', String(NODE_WIDTH));
+        rect.setAttribute('height', String(totalHeight));
+        rect.setAttribute('rx', '8');
+        rect.setAttribute('fill', '#ffffff');
+        rect.setAttribute('stroke', deptColor);
+        rect.setAttribute('stroke-width', '2');
+        nodeGroup.appendChild(rect);
+        
+        // Department header
+        const headerRect = document.createElementNS(svgNs, 'rect');
+        headerRect.setAttribute('width', String(NODE_WIDTH));
+        headerRect.setAttribute('height', String(DEPT_HEADER_HEIGHT));
+        headerRect.setAttribute('rx', '8');
+        headerRect.setAttribute('fill', deptColor);
+        nodeGroup.appendChild(headerRect);
+        
+        // Cover bottom corners
+        const coverRect = document.createElementNS(svgNs, 'rect');
+        coverRect.setAttribute('y', '12');
+        coverRect.setAttribute('width', String(NODE_WIDTH));
+        coverRect.setAttribute('height', '16');
+        coverRect.setAttribute('fill', deptColor);
+        nodeGroup.appendChild(coverRect);
+        
+        // Department name
+        const deptText = document.createElementNS(svgNs, 'text');
+        deptText.setAttribute('x', '8');
+        deptText.setAttribute('y', '18');
+        deptText.setAttribute('fill', '#ffffff');
+        deptText.setAttribute('font-size', '10');
+        deptText.setAttribute('font-weight', 'bold');
+        deptText.setAttribute('font-family', 'Arial, sans-serif');
+        deptText.textContent = `${d.department || 'Unassigned'} (${workers.length})`;
+        nodeGroup.appendChild(deptText);
+        
+        // Worker names
+        workers.forEach((worker, idx) => {
+          const workerY = DEPT_HEADER_HEIGHT + idx * WORKER_ROW_HEIGHT + 22;
+          
+          // Worker circle
+          const circle = document.createElementNS(svgNs, 'circle');
+          circle.setAttribute('cx', '16');
+          circle.setAttribute('cy', String(workerY - 4));
+          circle.setAttribute('r', '10');
+          circle.setAttribute('fill', deptColor);
+          circle.setAttribute('opacity', '0.2');
+          nodeGroup.appendChild(circle);
+          
+          // Worker name
+          const workerText = document.createElementNS(svgNs, 'text');
+          workerText.setAttribute('x', '32');
+          workerText.setAttribute('y', String(workerY));
+          workerText.setAttribute('fill', '#334155');
+          workerText.setAttribute('font-size', '10');
+          workerText.setAttribute('font-family', 'Arial, sans-serif');
+          workerText.textContent = worker.name.length > 18 ? worker.name.substring(0, 16) + '...' : worker.name;
+          nodeGroup.appendChild(workerText);
+        });
+      }
+      
+      mainGroup.appendChild(nodeGroup);
+    });
+    
+    return svg;
+  };
+  
   const handleExportPDF = async () => {
-    if (!svgRef.current) {
+    if (!treeData) {
       toast({ title: "Error", description: "Unable to export chart", variant: "destructive" });
       return;
     }
     
     setIsExporting(true);
     try {
-      // Temporarily reset zoom for export
-      const currentZoom = zoom;
-      setZoom(1);
+      // Build pure SVG for export
+      const exportSvg = buildExportSvg();
+      if (!exportSvg) throw new Error('Failed to build export SVG');
       
-      // Wait for zoom to apply
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      const svgElement = svgRef.current;
       const svgWidth = dimensions.width;
       const svgHeight = dimensions.height;
       
-      // Clone the SVG to avoid modifying the original
-      const clonedSvg = svgElement.cloneNode(true) as SVGSVGElement;
-      
-      // Set explicit dimensions and background
-      clonedSvg.setAttribute('width', String(svgWidth));
-      clonedSvg.setAttribute('height', String(svgHeight));
-      clonedSvg.style.backgroundColor = '#ffffff';
-      
-      // Remove foreignObject elements (they cause issues) and replace with simple shapes
-      const foreignObjects = clonedSvg.querySelectorAll('foreignObject');
-      foreignObjects.forEach(fo => {
-        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-        const x = fo.getAttribute('x') || '0';
-        const y = fo.getAttribute('y') || '0';
-        const width = fo.getAttribute('width') || '180';
-        const height = fo.getAttribute('height') || '80';
-        
-        rect.setAttribute('x', x);
-        rect.setAttribute('y', y);
-        rect.setAttribute('width', width);
-        rect.setAttribute('height', height);
-        rect.setAttribute('fill', '#f8fafc');
-        rect.setAttribute('stroke', '#e2e8f0');
-        rect.setAttribute('rx', '8');
-        
-        fo.parentNode?.replaceChild(rect, fo);
-      });
-      
       // Serialize SVG to string
       const serializer = new XMLSerializer();
-      let svgString = serializer.serializeToString(clonedSvg);
+      let svgString = serializer.serializeToString(exportSvg);
       
-      // Add XML declaration and ensure proper encoding
+      // Add XML declaration
       svgString = '<?xml version="1.0" encoding="UTF-8"?>' + svgString;
       
       // Create blob and URL
@@ -318,8 +489,6 @@ export default function OrgChart() {
       
       toast({ title: "Success", description: "Organization chart exported to PDF" });
       
-      // Restore zoom
-      setZoom(currentZoom);
     } catch (error) {
       console.error('PDF export failed:', error);
       toast({ title: "Error", description: "Failed to export PDF. Please try again.", variant: "destructive" });
