@@ -11,6 +11,12 @@ import { userApi, departmentApi } from '@/lib/api';
 import type { User, Department } from '@shared/schema';
 import * as d3 from 'd3-hierarchy';
 
+interface WorkerData {
+  id: string;
+  name: string;
+  photoUrl: string | null;
+}
+
 interface OrgNodeData {
   id: string;
   name: string;
@@ -18,11 +24,16 @@ interface OrgNodeData {
   department: string | null;
   photoUrl: string | null;
   isRoot?: boolean;
+  kind: 'manager' | 'department-group';
+  workers?: WorkerData[];
+  nodeHeight: number;
 }
 
 const NODE_WIDTH = 180;
-const NODE_HEIGHT = 80;
-const VERTICAL_GAP = 60;
+const MANAGER_NODE_HEIGHT = 80;
+const WORKER_ROW_HEIGHT = 36;
+const DEPT_HEADER_HEIGHT = 24;
+const VERTICAL_GAP = 40;
 const HORIZONTAL_GAP = 20;
 
 const DEPARTMENT_COLORS: Record<string, string> = {
@@ -44,19 +55,16 @@ function getDepartmentColor(department: string | null): string {
   return DEPARTMENT_COLORS[department] || '#6b7280';
 }
 
-function OrgNode({ data, x, y }: { data: OrgNodeData; x: number; y: number }) {
-  const isManager = data.role === 'manager';
+function ManagerNode({ data, x, y }: { data: OrgNodeData; x: number; y: number }) {
   const isRoot = data.isRoot;
   const deptColor = getDepartmentColor(data.department);
   
   return (
     <g transform={`translate(${x - NODE_WIDTH / 2}, ${y})`}>
-      <foreignObject width={NODE_WIDTH} height={NODE_HEIGHT}>
+      <foreignObject width={NODE_WIDTH} height={MANAGER_NODE_HEIGHT}>
         <div 
           className={`h-full p-2 rounded-lg border-2 shadow-md ${
-            isRoot ? 'border-amber-500 bg-amber-50' :
-            isManager ? 'border-primary bg-primary/5' : 
-            'border-slate-200 bg-white'
+            isRoot ? 'border-amber-500 bg-amber-50' : 'border-primary bg-primary/5'
           }`}
           style={{ 
             borderLeftWidth: '4px',
@@ -72,25 +80,16 @@ function OrgNode({ data, x, y }: { data: OrgNodeData; x: number; y: number }) {
               />
             ) : (
               <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
-                isRoot ? 'bg-amber-500 text-white' :
-                isManager ? 'bg-primary text-white' : 
-                'bg-slate-200'
+                isRoot ? 'bg-amber-500 text-white' : 'bg-primary text-white'
               }`}>
-                {isRoot ? <Crown className="h-5 w-5" /> :
-                 isManager ? <Crown className="h-4 w-4" /> : 
-                 <UserIcon className="h-4 w-4" />}
+                <Crown className={isRoot ? "h-5 w-5" : "h-4 w-4"} />
               </div>
             )}
             <div className="flex-1 min-w-0 overflow-hidden">
               <p className="font-medium text-xs truncate leading-tight">{data.name}</p>
               <p className="text-[10px] text-muted-foreground truncate">{data.id}</p>
               <div className="flex items-center gap-1 mt-1">
-                <Badge 
-                  variant={isManager ? 'default' : 'secondary'} 
-                  className="text-[9px] px-1 py-0 h-4"
-                >
-                  {isManager ? 'Manager' : 'Worker'}
-                </Badge>
+                <Badge variant="default" className="text-[9px] px-1 py-0 h-4">Manager</Badge>
                 {data.department && (
                   <Badge 
                     variant="outline" 
@@ -109,8 +108,68 @@ function OrgNode({ data, x, y }: { data: OrgNodeData; x: number; y: number }) {
   );
 }
 
-function Connector({ source, target }: { source: { x: number; y: number }; target: { x: number; y: number } }) {
-  const sourceBottom = source.y + NODE_HEIGHT;
+function DepartmentGroupNode({ data, x, y }: { data: OrgNodeData; x: number; y: number }) {
+  const deptColor = getDepartmentColor(data.department);
+  const workers = data.workers || [];
+  
+  return (
+    <g transform={`translate(${x - NODE_WIDTH / 2}, ${y})`}>
+      <foreignObject width={NODE_WIDTH} height={data.nodeHeight}>
+        <div 
+          className="h-full rounded-lg border-2 shadow-sm overflow-hidden"
+          style={{ borderColor: deptColor }}
+        >
+          {/* Department header */}
+          <div 
+            className="px-2 py-1 text-white text-[10px] font-semibold flex items-center gap-1"
+            style={{ backgroundColor: deptColor }}
+          >
+            <Building2 className="h-3 w-3" />
+            <span className="truncate">{data.department || 'Unassigned'}</span>
+            <span className="ml-auto opacity-75">({workers.length})</span>
+          </div>
+          
+          {/* Workers list */}
+          <div className="bg-white">
+            {workers.map((worker, idx) => (
+              <div 
+                key={worker.id}
+                className={`flex items-center gap-2 px-2 py-1 ${idx > 0 ? 'border-t border-slate-100' : ''}`}
+                style={{ height: WORKER_ROW_HEIGHT }}
+              >
+                {worker.photoUrl ? (
+                  <img 
+                    src={worker.photoUrl} 
+                    alt={worker.name} 
+                    className="w-6 h-6 rounded-full object-cover shrink-0" 
+                  />
+                ) : (
+                  <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center shrink-0">
+                    <UserIcon className="h-3 w-3 text-slate-500" />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] font-medium truncate">{worker.name}</p>
+                  <p className="text-[9px] text-muted-foreground truncate">{worker.id}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </foreignObject>
+    </g>
+  );
+}
+
+function OrgNode({ data, x, y }: { data: OrgNodeData; x: number; y: number }) {
+  if (data.kind === 'department-group') {
+    return <DepartmentGroupNode data={data} x={x} y={y} />;
+  }
+  return <ManagerNode data={data} x={x} y={y} />;
+}
+
+function Connector({ source, target, sourceHeight }: { source: { x: number; y: number }; target: { x: number; y: number }; sourceHeight: number }) {
+  const sourceBottom = source.y + sourceHeight;
   const targetTop = target.y;
   const midY = (sourceBottom + targetTop) / 2;
   
@@ -158,13 +217,12 @@ export default function OrgChart() {
 
   const activeUsers = useMemo(() => users.filter(u => !u.terminationDate), [users]);
 
-  const { hierarchy, treeData, dimensions } = useMemo(() => {
+  const { treeData, dimensions } = useMemo(() => {
     if (activeUsers.length === 0) {
-      return { hierarchy: null, treeData: null, dimensions: { width: 800, height: 400 } };
+      return { treeData: null, dimensions: { width: 800, height: 400, offsetX: 0 } };
     }
 
     const userMap = new Map(activeUsers.map(u => [u.id, u]));
-    
     const roots = activeUsers.filter(u => !u.managerId || !userMap.has(u.managerId));
     
     interface TreeNode {
@@ -179,28 +237,48 @@ export default function OrgChart() {
       const user = userMap.get(userId);
       if (!user) return null;
       
-      // Get direct reports and separate into managers and workers
       const directReports = activeUsers.filter(u => u.managerId === userId);
       const managerReports = directReports.filter(u => u.role === 'manager');
       const workerReports = directReports.filter(u => u.role === 'worker');
       
-      // Sort each group by department for visual grouping
-      const sortByDept = (a: User, b: User) => (a.department || '').localeCompare(b.department || '');
-      managerReports.sort(sortByDept);
-      workerReports.sort(sortByDept);
-      
-      // Build subtrees for managers first (they appear on the left)
+      // Build subtrees for manager direct reports
       const managerChildren = managerReports
+        .sort((a, b) => (a.department || '').localeCompare(b.department || ''))
         .map(u => buildSubtree(u.id, new Set(visited)))
         .filter((n): n is TreeNode => n !== null);
       
-      // Build subtrees for workers (they appear on the right)
-      const workerChildren = workerReports
-        .map(u => buildSubtree(u.id, new Set(visited)))
-        .filter((n): n is TreeNode => n !== null);
+      // Group workers by department into department-group nodes
+      const workersByDept = new Map<string, User[]>();
+      workerReports.forEach(w => {
+        const dept = w.department || 'Unassigned';
+        if (!workersByDept.has(dept)) workersByDept.set(dept, []);
+        workersByDept.get(dept)!.push(w);
+      });
       
-      // Combine: managers first, then workers
-      const children = [...managerChildren, ...workerChildren];
+      const deptGroupChildren: TreeNode[] = Array.from(workersByDept.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([dept, workers]) => {
+          const nodeHeight = DEPT_HEADER_HEIGHT + workers.length * WORKER_ROW_HEIGHT;
+          return {
+            data: {
+              id: `dept-${userId}-${dept}`,
+              name: dept,
+              role: 'worker',
+              department: dept,
+              photoUrl: null,
+              kind: 'department-group' as const,
+              workers: workers.map(w => ({
+                id: w.id,
+                name: `${w.firstName} ${w.surname}`,
+                photoUrl: w.photoUrl,
+              })),
+              nodeHeight,
+            },
+            children: [],
+          };
+        });
+      
+      const children = [...managerChildren, ...deptGroupChildren];
       
       return {
         data: {
@@ -209,6 +287,8 @@ export default function OrgChart() {
           role: user.role,
           department: user.department,
           photoUrl: user.photoUrl,
+          kind: 'manager' as const,
+          nodeHeight: MANAGER_NODE_HEIGHT,
         },
         children,
       };
@@ -217,14 +297,13 @@ export default function OrgChart() {
     let rootNode: TreeNode;
     
     if (roots.length === 0) {
-      return { hierarchy: null, treeData: null, dimensions: { width: 800, height: 400 } };
+      return { treeData: null, dimensions: { width: 800, height: 400, offsetX: 0 } };
     } else if (roots.length === 1) {
       const tree = buildSubtree(roots[0].id);
-      if (!tree) return { hierarchy: null, treeData: null, dimensions: { width: 800, height: 400 } };
+      if (!tree) return { treeData: null, dimensions: { width: 800, height: 400, offsetX: 0 } };
       tree.data.isRoot = true;
       rootNode = tree;
     } else {
-      // Sort roots: managers first, then workers, then by department
       const managerRoots = roots.filter(r => r.role === 'manager').sort((a, b) => (a.department || '').localeCompare(b.department || ''));
       const workerRoots = roots.filter(r => r.role === 'worker').sort((a, b) => (a.department || '').localeCompare(b.department || ''));
       const sortedRoots = [...managerRoots, ...workerRoots];
@@ -234,9 +313,11 @@ export default function OrgChart() {
           id: 'company',
           name: 'AEC Electronics',
           role: 'manager',
-          department: null,
+          department: 'Managing Director',
           photoUrl: null,
           isRoot: true,
+          kind: 'manager',
+          nodeHeight: MANAGER_NODE_HEIGHT,
         },
         children: sortedRoots
           .map(r => buildSubtree(r.id))
@@ -245,16 +326,23 @@ export default function OrgChart() {
     }
 
     const h = d3.hierarchy(rootNode);
-    
-    const nodeCount = h.descendants().length;
     const maxDepth = h.height;
     const leaves = h.leaves().length;
     
-    const estimatedWidth = Math.max(800, leaves * (NODE_WIDTH + HORIZONTAL_GAP));
-    const estimatedHeight = Math.max(400, (maxDepth + 1) * (NODE_HEIGHT + VERTICAL_GAP) + 100);
+    // Calculate max node height at each level for proper spacing
+    const maxHeightPerLevel: number[] = [];
+    h.each(node => {
+      const level = node.depth;
+      const height = node.data.data.nodeHeight;
+      if (!maxHeightPerLevel[level] || height > maxHeightPerLevel[level]) {
+        maxHeightPerLevel[level] = height;
+      }
+    });
+    
+    const avgNodeHeight = Math.max(...maxHeightPerLevel, MANAGER_NODE_HEIGHT);
     
     const treeLayout = d3.tree<TreeNode>()
-      .nodeSize([NODE_WIDTH + HORIZONTAL_GAP, NODE_HEIGHT + VERTICAL_GAP])
+      .nodeSize([NODE_WIDTH + HORIZONTAL_GAP, avgNodeHeight + VERTICAL_GAP])
       .separation((a, b) => a.parent === b.parent ? 1 : 1.2);
     
     const tree = treeLayout(h);
@@ -263,13 +351,22 @@ export default function OrgChart() {
     const minX = Math.min(...nodes.map(n => n.x));
     const maxX = Math.max(...nodes.map(n => n.x));
     
+    // Calculate total height based on actual node heights
+    let totalHeight = 100;
+    const levelYPositions: number[] = [40];
+    for (let i = 0; i < maxHeightPerLevel.length; i++) {
+      const prevY = levelYPositions[i] || 40;
+      const prevHeight = maxHeightPerLevel[i] || MANAGER_NODE_HEIGHT;
+      levelYPositions[i + 1] = prevY + prevHeight + VERTICAL_GAP;
+      totalHeight = levelYPositions[i + 1] + (maxHeightPerLevel[i + 1] || 0);
+    }
+    
     const padding = 50;
     const width = maxX - minX + NODE_WIDTH + padding * 2;
-    const height = estimatedHeight;
+    const height = Math.max(400, totalHeight + 100);
     const offsetX = -minX + NODE_WIDTH / 2 + padding;
     
     return {
-      hierarchy: h,
       treeData: tree,
       dimensions: { width, height, offsetX },
     };
@@ -278,7 +375,6 @@ export default function OrgChart() {
   const totalManagers = activeUsers.filter(u => u.role === 'manager').length;
   const totalWorkers = activeUsers.filter(u => u.role === 'worker').length;
 
-  // Get unique departments for the legend
   const uniqueDepartments = useMemo(() => {
     const depts = new Set<string>();
     activeUsers.forEach(u => {
@@ -312,7 +408,7 @@ export default function OrgChart() {
                   <Users className="h-5 w-5 text-primary" />
                   Organization Chart
                 </h1>
-                <p className="text-sm text-muted-foreground">Company hierarchy with department color coding</p>
+                <p className="text-sm text-muted-foreground">Managers with department-grouped teams</p>
               </div>
             </div>
             <div className="flex items-center gap-4">
@@ -352,9 +448,8 @@ export default function OrgChart() {
                 AEC Electronics - Workforce Structure
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                Scroll horizontally and vertically to view the full organization. Colors indicate departments.
+                Managers shown individually; workers grouped by department
               </p>
-              {/* Department Color Legend */}
               <div className="flex flex-wrap gap-2 mt-2">
                 {uniqueDepartments.map(dept => (
                   <div key={dept} className="flex items-center gap-1">
@@ -371,7 +466,7 @@ export default function OrgChart() {
               <div 
                 ref={containerRef}
                 className="overflow-auto border-t"
-                style={{ maxHeight: 'calc(100vh - 260px)' }}
+                style={{ maxHeight: 'calc(100vh - 280px)' }}
               >
                 <svg 
                   width={dimensions.width} 
@@ -384,10 +479,11 @@ export default function OrgChart() {
                         key={i}
                         source={{ x: link.source.x, y: link.source.y }}
                         target={{ x: link.target.x, y: link.target.y }}
+                        sourceHeight={link.source.data.data.nodeHeight}
                       />
                     ))}
                     
-                    {treeData.descendants().map((node, i) => (
+                    {treeData.descendants().map((node) => (
                       <OrgNode
                         key={node.data.data.id}
                         data={node.data.data}
