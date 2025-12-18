@@ -5,11 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Users, Building2, User as UserIcon, Crown, Briefcase, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Users, Building2, User as UserIcon, Crown, Briefcase, ZoomIn, ZoomOut, RotateCcw, Download, Loader2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { userApi, departmentApi } from '@/lib/api';
 import type { User, Department } from '@shared/schema';
 import * as d3 from 'd3-hierarchy';
+import { jsPDF } from 'jspdf';
+import { toPng } from 'html-to-image';
 
 interface WorkerData {
   id: string;
@@ -195,7 +197,74 @@ export default function OrgChart() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
   const containerRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
   const [zoom, setZoom] = useState(1);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportPDF = async () => {
+    if (!svgRef.current) return;
+    
+    setIsExporting(true);
+    try {
+      // Temporarily reset zoom for export
+      const currentZoom = zoom;
+      setZoom(1);
+      
+      // Wait for zoom to apply
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Convert SVG to PNG using html-to-image
+      const svgElement = svgRef.current;
+      const imgData = await toPng(svgElement, {
+        backgroundColor: '#ffffff',
+        quality: 1,
+        pixelRatio: 2,
+      });
+      
+      // Create PDF (landscape orientation for org chart)
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'px',
+        format: 'a4',
+      });
+      
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      
+      // Calculate scaling to fit the chart
+      const svgWidth = svgElement.clientWidth || dimensions.width;
+      const svgHeight = svgElement.clientHeight || dimensions.height;
+      const scale = Math.min((pageWidth - 40) / svgWidth, (pageHeight - 60) / svgHeight);
+      const scaledWidth = svgWidth * scale;
+      const scaledHeight = svgHeight * scale;
+      
+      // Center the image
+      const x = (pageWidth - scaledWidth) / 2;
+      const y = 40;
+      
+      // Add title
+      pdf.setFontSize(16);
+      pdf.text('AEC Electronics - Organization Chart', pageWidth / 2, 25, { align: 'center' });
+      
+      // Add the image
+      pdf.addImage(imgData, 'PNG', x, y, scaledWidth, scaledHeight);
+      
+      // Add footer with date
+      pdf.setFontSize(10);
+      const today = new Date().toLocaleDateString('en-GB');
+      pdf.text(`Generated: ${today}`, pageWidth / 2, pageHeight - 15, { align: 'center' });
+      
+      // Download PDF
+      pdf.save('AECE-Organization-Chart.pdf');
+      
+      // Restore zoom
+      setZoom(currentZoom);
+    } catch (error) {
+      console.error('PDF export failed:', error);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   useEffect(() => {
     if (!user || user.role !== 'manager') {
@@ -468,6 +537,21 @@ export default function OrgChart() {
                   >
                     <RotateCcw className="h-4 w-4" />
                   </Button>
+                  <div className="h-6 w-px bg-slate-200 mx-1" />
+                  <Button 
+                    variant="default" 
+                    size="sm" 
+                    onClick={handleExportPDF}
+                    disabled={isExporting}
+                    data-testid="button-export-pdf"
+                  >
+                    {isExporting ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Download className="h-4 w-4 mr-2" />
+                    )}
+                    Export PDF
+                  </Button>
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 mt-2">
@@ -489,10 +573,11 @@ export default function OrgChart() {
                 style={{ maxHeight: 'calc(100vh - 300px)' }}
               >
                 <svg 
+                  ref={svgRef}
                   width={dimensions.width * zoom} 
                   height={dimensions.height * zoom}
                   className="min-w-full"
-                  style={{ minHeight: '400px' }}
+                  style={{ minHeight: '400px', backgroundColor: '#ffffff' }}
                 >
                   <g transform={`scale(${zoom}) translate(${dimensions.offsetX || 0}, 40)`}>
                     {treeData.links().map((link, i) => (
