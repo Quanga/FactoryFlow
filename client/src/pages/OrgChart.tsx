@@ -11,7 +11,6 @@ import { userApi, departmentApi } from '@/lib/api';
 import type { User, Department } from '@shared/schema';
 import * as d3 from 'd3-hierarchy';
 import { jsPDF } from 'jspdf';
-import { toCanvas } from 'html-to-image';
 import { useToast } from '@/hooks/use-toast';
 
 interface WorkerData {
@@ -198,7 +197,7 @@ export default function OrgChart() {
   const { toast } = useToast();
 
   const handleExportPDF = async () => {
-    if (!containerRef.current) {
+    if (!svgRef.current) {
       toast({ title: "Error", description: "Unable to export chart", variant: "destructive" });
       return;
     }
@@ -212,23 +211,74 @@ export default function OrgChart() {
       // Wait for zoom to apply
       await new Promise(resolve => setTimeout(resolve, 300));
       
-      // Get the container element
-      const container = containerRef.current;
+      const svgElement = svgRef.current;
+      const svgWidth = dimensions.width;
+      const svgHeight = dimensions.height;
       
-      // Convert container to canvas using html-to-image with image handling
-      const canvas = await toCanvas(container, {
-        backgroundColor: '#ffffff',
-        pixelRatio: 2,
-        skipFonts: true,
-        cacheBust: true,
-        filter: (node: HTMLElement) => {
-          // Skip profile images to avoid CORS issues
-          if (node.tagName === 'IMG') {
-            return false;
-          }
-          return true;
-        },
+      // Clone the SVG to avoid modifying the original
+      const clonedSvg = svgElement.cloneNode(true) as SVGSVGElement;
+      
+      // Set explicit dimensions and background
+      clonedSvg.setAttribute('width', String(svgWidth));
+      clonedSvg.setAttribute('height', String(svgHeight));
+      clonedSvg.style.backgroundColor = '#ffffff';
+      
+      // Remove foreignObject elements (they cause issues) and replace with simple shapes
+      const foreignObjects = clonedSvg.querySelectorAll('foreignObject');
+      foreignObjects.forEach(fo => {
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        const x = fo.getAttribute('x') || '0';
+        const y = fo.getAttribute('y') || '0';
+        const width = fo.getAttribute('width') || '180';
+        const height = fo.getAttribute('height') || '80';
+        
+        rect.setAttribute('x', x);
+        rect.setAttribute('y', y);
+        rect.setAttribute('width', width);
+        rect.setAttribute('height', height);
+        rect.setAttribute('fill', '#f8fafc');
+        rect.setAttribute('stroke', '#e2e8f0');
+        rect.setAttribute('rx', '8');
+        
+        fo.parentNode?.replaceChild(rect, fo);
       });
+      
+      // Serialize SVG to string
+      const serializer = new XMLSerializer();
+      let svgString = serializer.serializeToString(clonedSvg);
+      
+      // Add XML declaration and ensure proper encoding
+      svgString = '<?xml version="1.0" encoding="UTF-8"?>' + svgString;
+      
+      // Create blob and URL
+      const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      
+      // Create image and load SVG
+      const img = new Image();
+      
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error('Failed to load SVG'));
+        img.src = url;
+      });
+      
+      // Create canvas and draw
+      const canvas = document.createElement('canvas');
+      const scale = 2; // Higher quality
+      canvas.width = svgWidth * scale;
+      canvas.height = svgHeight * scale;
+      
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Could not get canvas context');
+      
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.scale(scale, scale);
+      ctx.drawImage(img, 0, 0, svgWidth, svgHeight);
+      
+      // Clean up blob URL
+      URL.revokeObjectURL(url);
       
       const imgData = canvas.toDataURL('image/png');
       
@@ -243,11 +293,9 @@ export default function OrgChart() {
       const pageHeight = pdf.internal.pageSize.getHeight();
       
       // Calculate scaling to fit the chart
-      const containerWidth = container.scrollWidth || dimensions.width;
-      const containerHeight = container.scrollHeight || dimensions.height;
-      const scale = Math.min((pageWidth - 40) / containerWidth, (pageHeight - 60) / containerHeight);
-      const scaledWidth = containerWidth * scale;
-      const scaledHeight = containerHeight * scale;
+      const pdfScale = Math.min((pageWidth - 40) / svgWidth, (pageHeight - 60) / svgHeight);
+      const scaledWidth = svgWidth * pdfScale;
+      const scaledHeight = svgHeight * pdfScale;
       
       // Center the image
       const x = (pageWidth - scaledWidth) / 2;
