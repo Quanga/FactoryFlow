@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Users, Building2, User as UserIcon, Crown, Briefcase } from 'lucide-react';
+import { ArrowLeft, Users, Building2, User as UserIcon, Crown, Briefcase, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { userApi, departmentApi } from '@/lib/api';
 import type { User, Department } from '@shared/schema';
@@ -32,8 +32,8 @@ interface OrgNodeData {
 const NODE_WIDTH = 180;
 const MANAGER_NODE_HEIGHT = 80;
 const WORKER_ROW_HEIGHT = 36;
-const DEPT_HEADER_HEIGHT = 24;
-const VERTICAL_GAP = 40;
+const DEPT_HEADER_HEIGHT = 28;
+const VERTICAL_GAP = 50;
 const HORIZONTAL_GAP = 20;
 
 const DEPARTMENT_COLORS: Record<string, string> = {
@@ -47,6 +47,7 @@ const DEPARTMENT_COLORS: Record<string, string> = {
   'Sales': '#ca8a04',
   'IT': '#0d9488',
   'Operations': '#dc2626',
+  'Repairs': '#f97316',
   'Managing Director': '#f59e0b',
 };
 
@@ -119,17 +120,15 @@ function DepartmentGroupNode({ data, x, y }: { data: OrgNodeData; x: number; y: 
           className="h-full rounded-lg border-2 shadow-sm overflow-hidden"
           style={{ borderColor: deptColor }}
         >
-          {/* Department header */}
           <div 
-            className="px-2 py-1 text-white text-[10px] font-semibold flex items-center gap-1"
+            className="px-2 py-1.5 text-white text-[10px] font-semibold flex items-center gap-1"
             style={{ backgroundColor: deptColor }}
           >
-            <Building2 className="h-3 w-3" />
+            <Building2 className="h-3 w-3 shrink-0" />
             <span className="truncate">{data.department || 'Unassigned'}</span>
-            <span className="ml-auto opacity-75">({workers.length})</span>
+            <span className="ml-auto opacity-75 shrink-0">({workers.length})</span>
           </div>
           
-          {/* Workers list */}
           <div className="bg-white">
             {workers.map((worker, idx) => (
               <div 
@@ -196,6 +195,7 @@ export default function OrgChart() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
   const containerRef = useRef<HTMLDivElement>(null);
+  const [zoom, setZoom] = useState(1);
 
   useEffect(() => {
     if (!user || user.role !== 'manager') {
@@ -241,13 +241,11 @@ export default function OrgChart() {
       const managerReports = directReports.filter(u => u.role === 'manager');
       const workerReports = directReports.filter(u => u.role === 'worker');
       
-      // Build subtrees for manager direct reports
       const managerChildren = managerReports
         .sort((a, b) => (a.department || '').localeCompare(b.department || ''))
         .map(u => buildSubtree(u.id, new Set(visited)))
         .filter((n): n is TreeNode => n !== null);
       
-      // Group workers by department into department-group nodes
       const workersByDept = new Map<string, User[]>();
       workerReports.forEach(w => {
         const dept = w.department || 'Unassigned';
@@ -258,7 +256,7 @@ export default function OrgChart() {
       const deptGroupChildren: TreeNode[] = Array.from(workersByDept.entries())
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([dept, workers]) => {
-          const nodeHeight = DEPT_HEADER_HEIGHT + workers.length * WORKER_ROW_HEIGHT;
+          const nodeHeight = DEPT_HEADER_HEIGHT + workers.length * WORKER_ROW_HEIGHT + 4;
           return {
             data: {
               id: `dept-${userId}-${dept}`,
@@ -326,23 +324,17 @@ export default function OrgChart() {
     }
 
     const h = d3.hierarchy(rootNode);
-    const maxDepth = h.height;
-    const leaves = h.leaves().length;
     
-    // Calculate max node height at each level for proper spacing
-    const maxHeightPerLevel: number[] = [];
+    // Find max node height across all nodes
+    let maxNodeHeight = MANAGER_NODE_HEIGHT;
     h.each(node => {
-      const level = node.depth;
-      const height = node.data.data.nodeHeight;
-      if (!maxHeightPerLevel[level] || height > maxHeightPerLevel[level]) {
-        maxHeightPerLevel[level] = height;
+      if (node.data.data.nodeHeight > maxNodeHeight) {
+        maxNodeHeight = node.data.data.nodeHeight;
       }
     });
     
-    const avgNodeHeight = Math.max(...maxHeightPerLevel, MANAGER_NODE_HEIGHT);
-    
     const treeLayout = d3.tree<TreeNode>()
-      .nodeSize([NODE_WIDTH + HORIZONTAL_GAP, avgNodeHeight + VERTICAL_GAP])
+      .nodeSize([NODE_WIDTH + HORIZONTAL_GAP, maxNodeHeight + VERTICAL_GAP])
       .separation((a, b) => a.parent === b.parent ? 1 : 1.2);
     
     const tree = treeLayout(h);
@@ -350,20 +342,11 @@ export default function OrgChart() {
     const nodes = tree.descendants();
     const minX = Math.min(...nodes.map(n => n.x));
     const maxX = Math.max(...nodes.map(n => n.x));
+    const maxY = Math.max(...nodes.map(n => n.y + n.data.data.nodeHeight));
     
-    // Calculate total height based on actual node heights
-    let totalHeight = 100;
-    const levelYPositions: number[] = [40];
-    for (let i = 0; i < maxHeightPerLevel.length; i++) {
-      const prevY = levelYPositions[i] || 40;
-      const prevHeight = maxHeightPerLevel[i] || MANAGER_NODE_HEIGHT;
-      levelYPositions[i + 1] = prevY + prevHeight + VERTICAL_GAP;
-      totalHeight = levelYPositions[i + 1] + (maxHeightPerLevel[i + 1] || 0);
-    }
-    
-    const padding = 50;
+    const padding = 60;
     const width = maxX - minX + NODE_WIDTH + padding * 2;
-    const height = Math.max(400, totalHeight + 100);
+    const height = maxY + padding * 2;
     const offsetX = -minX + NODE_WIDTH / 2 + padding;
     
     return {
@@ -382,6 +365,10 @@ export default function OrgChart() {
     });
     return Array.from(depts).sort();
   }, [activeUsers]);
+
+  const handleZoomIn = () => setZoom(z => Math.min(z + 0.2, 2));
+  const handleZoomOut = () => setZoom(z => Math.max(z - 0.2, 0.4));
+  const handleZoomReset = () => setZoom(1);
 
   if (!user || user.role !== 'manager') {
     return null;
@@ -443,13 +430,46 @@ export default function OrgChart() {
         ) : treeData ? (
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Building2 className="h-5 w-5 text-primary" />
-                AEC Electronics - Workforce Structure
-              </CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Managers shown individually; workers grouped by department
-              </p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Building2 className="h-5 w-5 text-primary" />
+                    AEC Electronics - Workforce Structure
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Managers shown individually; workers grouped by department
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleZoomOut}
+                    disabled={zoom <= 0.4}
+                    data-testid="button-zoom-out"
+                  >
+                    <ZoomOut className="h-4 w-4" />
+                  </Button>
+                  <span className="text-sm font-medium w-12 text-center">{Math.round(zoom * 100)}%</span>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleZoomIn}
+                    disabled={zoom >= 2}
+                    data-testid="button-zoom-in"
+                  >
+                    <ZoomIn className="h-4 w-4" />
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={handleZoomReset}
+                    data-testid="button-zoom-reset"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
               <div className="flex flex-wrap gap-2 mt-2">
                 {uniqueDepartments.map(dept => (
                   <div key={dept} className="flex items-center gap-1">
@@ -466,14 +486,15 @@ export default function OrgChart() {
               <div 
                 ref={containerRef}
                 className="overflow-auto border-t"
-                style={{ maxHeight: 'calc(100vh - 280px)' }}
+                style={{ maxHeight: 'calc(100vh - 300px)' }}
               >
                 <svg 
-                  width={dimensions.width} 
-                  height={dimensions.height}
+                  width={dimensions.width * zoom} 
+                  height={dimensions.height * zoom}
                   className="min-w-full"
+                  style={{ minHeight: '400px' }}
                 >
-                  <g transform={`translate(${dimensions.offsetX || 0}, 40)`}>
+                  <g transform={`scale(${zoom}) translate(${dimensions.offsetX || 0}, 40)`}>
                     {treeData.links().map((link, i) => (
                       <Connector
                         key={i}
