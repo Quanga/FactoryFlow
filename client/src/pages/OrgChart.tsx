@@ -11,7 +11,8 @@ import { userApi, departmentApi } from '@/lib/api';
 import type { User, Department } from '@shared/schema';
 import * as d3 from 'd3-hierarchy';
 import { jsPDF } from 'jspdf';
-import { toPng } from 'html-to-image';
+import { toCanvas } from 'html-to-image';
+import { useToast } from '@/hooks/use-toast';
 
 interface WorkerData {
   id: string;
@@ -200,9 +201,13 @@ export default function OrgChart() {
   const svgRef = useRef<SVGSVGElement>(null);
   const [zoom, setZoom] = useState(1);
   const [isExporting, setIsExporting] = useState(false);
+  const { toast } = useToast();
 
   const handleExportPDF = async () => {
-    if (!svgRef.current) return;
+    if (!containerRef.current) {
+      toast({ title: "Error", description: "Unable to export chart", variant: "destructive" });
+      return;
+    }
     
     setIsExporting(true);
     try {
@@ -211,15 +216,19 @@ export default function OrgChart() {
       setZoom(1);
       
       // Wait for zoom to apply
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 200));
       
-      // Convert SVG to PNG using html-to-image
-      const svgElement = svgRef.current;
-      const imgData = await toPng(svgElement, {
+      // Get the container element
+      const container = containerRef.current;
+      
+      // Convert container to canvas using html-to-image
+      const canvas = await toCanvas(container, {
         backgroundColor: '#ffffff',
-        quality: 1,
         pixelRatio: 2,
+        skipFonts: true,
       });
+      
+      const imgData = canvas.toDataURL('image/png');
       
       // Create PDF (landscape orientation for org chart)
       const pdf = new jsPDF({
@@ -232,11 +241,11 @@ export default function OrgChart() {
       const pageHeight = pdf.internal.pageSize.getHeight();
       
       // Calculate scaling to fit the chart
-      const svgWidth = svgElement.clientWidth || dimensions.width;
-      const svgHeight = svgElement.clientHeight || dimensions.height;
-      const scale = Math.min((pageWidth - 40) / svgWidth, (pageHeight - 60) / svgHeight);
-      const scaledWidth = svgWidth * scale;
-      const scaledHeight = svgHeight * scale;
+      const containerWidth = container.scrollWidth || dimensions.width;
+      const containerHeight = container.scrollHeight || dimensions.height;
+      const scale = Math.min((pageWidth - 40) / containerWidth, (pageHeight - 60) / containerHeight);
+      const scaledWidth = containerWidth * scale;
+      const scaledHeight = containerHeight * scale;
       
       // Center the image
       const x = (pageWidth - scaledWidth) / 2;
@@ -257,10 +266,13 @@ export default function OrgChart() {
       // Download PDF
       pdf.save('AECE-Organization-Chart.pdf');
       
+      toast({ title: "Success", description: "Organization chart exported to PDF" });
+      
       // Restore zoom
       setZoom(currentZoom);
     } catch (error) {
       console.error('PDF export failed:', error);
+      toast({ title: "Error", description: "Failed to export PDF. Please try again.", variant: "destructive" });
     } finally {
       setIsExporting(false);
     }
