@@ -32,7 +32,7 @@ interface OrgNodeData {
 }
 
 const NODE_WIDTH = 180;
-const MANAGER_NODE_HEIGHT = 80;
+const MANAGER_NODE_HEIGHT = 90;
 const WORKER_ROW_HEIGHT = 36;
 const DEPT_HEADER_HEIGHT = 28;
 const VERTICAL_GAP = 50;
@@ -79,7 +79,7 @@ function ManagerNode({ data, x, y }: { data: OrgNodeData; x: number; y: number }
           </div>
           
           {/* Manager content */}
-          <div className="flex items-center gap-2 p-1.5">
+          <div className="flex items-center gap-2 p-2 pb-3">
             {data.photoUrl ? (
               <img 
                 src={data.photoUrl} 
@@ -96,7 +96,7 @@ function ManagerNode({ data, x, y }: { data: OrgNodeData; x: number; y: number }
             <div className="flex-1 min-w-0 overflow-hidden">
               <p className="font-medium text-xs truncate leading-tight">{data.name}</p>
               <p className="text-[10px] text-muted-foreground truncate">{data.id}</p>
-              <Badge variant="default" className="text-[9px] px-1 py-0 h-4 mt-0.5">Manager</Badge>
+              <Badge variant="default" className="text-[9px] px-1 py-0 h-4 mt-1">Manager</Badge>
             </div>
           </div>
         </div>
@@ -310,7 +310,7 @@ export default function OrgChart() {
         // Manager badge
         const badgeRect = document.createElementNS(svgNs, 'rect');
         badgeRect.setAttribute('x', String((NODE_WIDTH - 50) / 2));
-        badgeRect.setAttribute('y', '55');
+        badgeRect.setAttribute('y', '58');
         badgeRect.setAttribute('width', '50');
         badgeRect.setAttribute('height', '16');
         badgeRect.setAttribute('rx', '4');
@@ -319,7 +319,7 @@ export default function OrgChart() {
         
         const badgeText = document.createElementNS(svgNs, 'text');
         badgeText.setAttribute('x', String(NODE_WIDTH / 2));
-        badgeText.setAttribute('y', '66');
+        badgeText.setAttribute('y', '69');
         badgeText.setAttribute('text-anchor', 'middle');
         badgeText.setAttribute('fill', '#ffffff');
         badgeText.setAttribute('font-size', '9');
