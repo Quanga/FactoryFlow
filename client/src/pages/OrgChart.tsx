@@ -35,7 +35,7 @@ const NODE_WIDTH = 180;
 const MANAGER_NODE_HEIGHT = 90;
 const WORKER_ROW_HEIGHT = 36;
 const DEPT_HEADER_HEIGHT = 28;
-const VERTICAL_GAP = 12;
+const VERTICAL_GAP = 6;
 const HORIZONTAL_GAP = 20;
 
 const DEPARTMENT_COLORS: Record<string, string> = {
