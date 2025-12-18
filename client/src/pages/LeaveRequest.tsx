@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,12 +8,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { format } from "date-fns";
-import { CalendarIcon, Upload, X, CheckCircle2, FileText } from "lucide-react";
+import { CalendarIcon, Upload, X, CheckCircle2, FileText, UserCheck, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/lib/auth-context';
-import { leaveRequestApi } from '@/lib/api';
+import { leaveRequestApi, userApi } from '@/lib/api';
 
 export default function LeaveRequest() {
   const { toast } = useToast();
@@ -27,6 +28,13 @@ export default function LeaveRequest() {
   const [reason, setReason] = useState('');
   const [comments, setComments] = useState('');
   const [files, setFiles] = useState<File[]>([]);
+  
+  // Fetch the user's manager details
+  const { data: manager } = useQuery({
+    queryKey: ['manager', user?.managerId],
+    queryFn: () => user?.managerId ? userApi.getById(user.managerId) : null,
+    enabled: !!user?.managerId,
+  });
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -99,6 +107,23 @@ export default function LeaveRequest() {
               <CardTitle>Application Form</CardTitle>
             </CardHeader>
             <CardContent>
+              {/* Manager notification */}
+              {manager ? (
+                <Alert className="mb-6 border-blue-200 bg-blue-50">
+                  <UserCheck className="h-4 w-4 text-blue-600" />
+                  <AlertDescription className="text-blue-800">
+                    Your leave request will be reviewed by <strong>{manager.firstName} {manager.surname}</strong> (your manager). They will be notified when you submit this request.
+                  </AlertDescription>
+                </Alert>
+              ) : !user?.managerId ? (
+                <Alert className="mb-6 border-amber-200 bg-amber-50">
+                  <AlertTriangle className="h-4 w-4 text-amber-600" />
+                  <AlertDescription className="text-amber-800">
+                    No manager assigned. Your leave request will go directly to HR for review.
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+              
               <form onSubmit={handleSubmit} className="space-y-6">
                 
                 <div className="grid md:grid-cols-2 gap-6">

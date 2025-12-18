@@ -374,38 +374,45 @@ export async function registerRoutes(
       const validatedData = insertLeaveRequestSchema.parse(req.body);
       const newRequest = await storage.createLeaveRequest(validatedData);
       
-      // Send email notification to all configured recipients
+      // Send email notification to manager and admin recipients
       try {
         const adminEmailSetting = await storage.getSetting('admin_email');
         const senderEmail = "noreply@aece.co.za";
+        const user = await storage.getUser(validatedData.userId);
         
+        // Construct the app URL from the request
+        const appUrl = process.env.REPLIT_DEV_DOMAIN 
+          ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+          : process.env.REPLIT_DEPLOYMENT_URL || 'https://aece-checkpoint.replit.app';
+        
+        const emailData = {
+          employeeName: user ? `${user.firstName} ${user.surname}` : 'Unknown',
+          employeeId: validatedData.userId,
+          leaveType: validatedData.leaveType,
+          startDate: validatedData.startDate,
+          endDate: validatedData.endDate,
+          reason: validatedData.reason || 'No reason provided',
+          department: user?.department || undefined,
+          requestId: newRequest.id,
+          appUrl: appUrl,
+        };
+        
+        // Send notification to employee's direct manager
+        if (user?.managerId) {
+          const manager = await storage.getUser(user.managerId);
+          if (manager?.email) {
+            console.log(`Sending leave request notification to manager: ${manager.email}`);
+            await sendLeaveRequestNotification(manager.email, senderEmail, emailData);
+          }
+        }
+        
+        // Also send to configured admin email recipients
         if (adminEmailSetting?.value) {
-          const user = await storage.getUser(validatedData.userId);
-          
           // Support multiple email addresses (one per line)
           const emails = adminEmailSetting.value.split('\n').map((e: string) => e.trim()).filter((e: string) => e);
           
-          // Construct the app URL from the request
-          const appUrl = process.env.REPLIT_DEV_DOMAIN 
-            ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-            : process.env.REPLIT_DEPLOYMENT_URL || 'https://aece-checkpoint.replit.app';
-          
           for (const recipientEmail of emails) {
-            await sendLeaveRequestNotification(
-              recipientEmail,
-              senderEmail,
-              {
-                employeeName: user ? `${user.firstName} ${user.surname}` : 'Unknown',
-                employeeId: validatedData.userId,
-                leaveType: validatedData.leaveType,
-                startDate: validatedData.startDate,
-                endDate: validatedData.endDate,
-                reason: validatedData.reason || 'No reason provided',
-                department: user?.department || undefined,
-                requestId: newRequest.id,
-                appUrl: appUrl,
-              }
-            );
+            await sendLeaveRequestNotification(recipientEmail, senderEmail, emailData);
           }
         }
       } catch (emailError) {

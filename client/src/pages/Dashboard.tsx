@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useAuth } from '@/lib/auth-context';
-import { leaveBalanceApi, leaveRequestApi } from '@/lib/api';
+import { leaveBalanceApi, leaveRequestApi, userApi } from '@/lib/api';
 import { useToast } from "@/hooks/use-toast";
 import { Clock, Calendar, AlertCircle, CheckCircle2, FileText, Eye, X, XCircle } from 'lucide-react';
 import { format } from 'date-fns';
@@ -32,6 +32,13 @@ export default function Dashboard() {
     queryKey: ['leave-requests', user?.id],
     queryFn: () => leaveRequestApi.getAll(user!.id),
     enabled: !!user,
+  });
+  
+  // Fetch the user's manager details
+  const { data: manager } = useQuery({
+    queryKey: ['manager', user?.managerId],
+    queryFn: () => user?.managerId ? userApi.getById(user.managerId) : null,
+    enabled: !!user?.managerId,
   });
 
   const cancelMutation = useMutation({
@@ -238,15 +245,18 @@ export default function Dashboard() {
                 </div>
                 <div className="col-span-2">
                   <p className="text-sm text-muted-foreground mb-2">Approval Progress</p>
-                  <div className="flex items-center gap-2">
-                    <div className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className={`flex flex-col px-2 py-1 rounded text-xs ${
                       selectedRequest.status === 'pending_manager' 
                         ? 'bg-orange-100 text-orange-700 font-medium' 
                         : ['pending_hr', 'pending_md', 'approved'].includes(selectedRequest.status)
                           ? 'bg-green-100 text-green-700'
                           : selectedRequest.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'
                     }`}>
-                      1. Manager
+                      <span>1. Manager</span>
+                      {manager && (
+                        <span className="text-[10px] opacity-80">{manager.firstName} {manager.surname}</span>
+                      )}
                     </div>
                     <span className="text-muted-foreground">→</span>
                     <div className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${
