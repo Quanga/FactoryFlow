@@ -32,6 +32,14 @@ import type {
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000,
+});
+
+// Handle pool errors to prevent app crashes from database connection issues
+pool.on('error', (err) => {
+  console.error('Unexpected database pool error:', err.message);
 });
 
 const db = drizzle(pool, { schema });
