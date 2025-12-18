@@ -160,7 +160,8 @@ export default function AdminDashboard() {
   const [expandedLeaveBalanceEmployees, setExpandedLeaveBalanceEmployees] = useState<Set<string>>(new Set());
 
   // Navigation State
-  const [activeSection, setActiveSection] = useState<'dashboard' | 'employees' | 'leave-requests' | 'attendance' | 'departments' | 'groups' | 'employee-types' | 'leave-rules' | 'grievances' | 'settings'>('dashboard');
+  const [activeSection, setActiveSection] = useState<'dashboard' | 'employees' | 'leave-requests' | 'attendance' | 'departments' | 'employee-types' | 'leave-rules' | 'grievances' | 'settings'>('dashboard');
+  const [settingsTab, setSettingsTab] = useState<'general' | 'user-groups'>('general');
 
   // Employee Types Management State
   const [isTypeDialogOpen, setIsTypeDialogOpen] = useState(false);
@@ -1328,15 +1329,6 @@ export default function AdminDashboard() {
                 <Building2 className="h-4 w-4" /> Departments
               </button>
               <button
-                onClick={() => setActiveSection('groups')}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
-                  activeSection === 'groups' ? 'bg-primary text-white' : 'hover:bg-slate-100 text-slate-700'
-                }`}
-                data-testid="nav-groups"
-              >
-                <Shield className="h-4 w-4" /> User Groups
-              </button>
-              <button
                 onClick={() => setActiveSection('employee-types')}
                 className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
                   activeSection === 'employee-types' ? 'bg-primary text-white' : 'hover:bg-slate-100 text-slate-700'
@@ -2352,130 +2344,6 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* User Groups Section */}
-          {activeSection === 'groups' && (
-            <div className="space-y-4">
-              <div>
-                <h1 className="text-3xl font-heading font-bold text-slate-900">User Groups</h1>
-                <p className="text-muted-foreground">Manage admin user groups for access control</p>
-              </div>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle>User Groups</CardTitle>
-                  <CardDescription>Manage admin user groups for access control</CardDescription>
-                </div>
-                <div className="flex gap-2">
-                  <Button onClick={handleOpenCreateAdmin} className="btn-industrial bg-amber-500 hover:bg-amber-600 text-black" data-testid="button-add-admin">
-                    <UserCog className="mr-2 h-4 w-4" /> Add Admin User
-                  </Button>
-                  <Button onClick={handleOpenCreateGroup} className="btn-industrial bg-primary text-white" data-testid="button-add-group">
-                    <Plus className="mr-2 h-4 w-4" /> Add Group
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {userGroups.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No user groups created yet. Click "Add Group" to create your first one.
-                  </div>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Description</TableHead>
-                        <TableHead>Admins</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {userGroups.map((group) => {
-                        const adminCount = users.filter(u => u.userGroupId === group.id).length;
-                        return (
-                          <TableRow key={group.id} data-testid={`row-group-${group.id}`}>
-                            <TableCell className="font-medium">{group.name}</TableCell>
-                            <TableCell className="text-muted-foreground">{group.description || '-'}</TableCell>
-                            <TableCell>
-                              <Badge variant="secondary">{adminCount}</Badge>
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <Button variant="ghost" size="icon" onClick={() => handleOpenEditGroup(group)} data-testid={`button-edit-group-${group.id}`}>
-                                <Pencil className="h-4 w-4 text-slate-500" />
-                              </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                onClick={() => handleDeleteGroup(group.id)}
-                                disabled={adminCount > 0}
-                                title={adminCount > 0 ? "Cannot delete group with assigned admins" : "Delete group"}
-                                data-testid={`button-delete-group-${group.id}`}
-                              >
-                                <Trash2 className={`h-4 w-4 ${adminCount > 0 ? 'text-slate-300' : 'text-red-500'}`} />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Admin Users</CardTitle>
-                <CardDescription>Administrators with system access</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>User Group</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {users.filter(u => u.role === 'manager').map((admin) => {
-                      const group = userGroups.find(g => g.id === admin.userGroupId);
-                      return (
-                        <TableRow key={admin.id} data-testid={`row-admin-${admin.id}`}>
-                          <TableCell className="font-medium">{admin.firstName} {admin.surname}</TableCell>
-                          <TableCell>{admin.email}</TableCell>
-                          <TableCell>
-                            {group ? (
-                              <Badge variant="secondary">{group.name}</Badge>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right space-x-1">
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              onClick={() => handleResendCredentials(admin.id)}
-                              title="Resend credentials email"
-                              data-testid={`button-resend-credentials-${admin.id}`}
-                            >
-                              <Mail className="h-4 w-4 text-blue-500" />
-                            </Button>
-                            <Button variant="ghost" size="icon" onClick={() => handleDeleteUser(admin.id)}>
-                              <Trash2 className="h-4 w-4 text-red-500" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-            </div>
-          )}
-
           {/* Employee Types Section */}
           {activeSection === 'employee-types' && (
             <div className="space-y-4">
@@ -2761,8 +2629,40 @@ export default function AdminDashboard() {
             <div className="space-y-4">
               <div>
                 <h1 className="text-3xl font-heading font-bold text-slate-900">Settings</h1>
-                <p className="text-muted-foreground">Configure system notifications and attendance rules</p>
+                <p className="text-muted-foreground">Configure system settings and manage user groups</p>
               </div>
+              
+              {/* Settings Sub-tabs */}
+              <div className="flex gap-2 border-b pb-2">
+                <button
+                  onClick={() => setSettingsTab('general')}
+                  className={`px-4 py-2 rounded-t-lg text-sm font-medium transition-colors ${
+                    settingsTab === 'general' 
+                      ? 'bg-primary text-white' 
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                  data-testid="settings-tab-general"
+                >
+                  <Settings className="inline h-4 w-4 mr-2" />
+                  General
+                </button>
+                <button
+                  onClick={() => setSettingsTab('user-groups')}
+                  className={`px-4 py-2 rounded-t-lg text-sm font-medium transition-colors ${
+                    settingsTab === 'user-groups' 
+                      ? 'bg-primary text-white' 
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                  data-testid="settings-tab-user-groups"
+                >
+                  <Shield className="inline h-4 w-4 mr-2" />
+                  User Groups
+                </button>
+              </div>
+              
+              {/* General Settings Tab */}
+              {settingsTab === 'general' && (
+              <>
             <Card>
               <CardHeader>
                 <CardTitle>Regional Settings</CardTitle>
@@ -2928,6 +2828,128 @@ export default function AdminDashboard() {
             <Button onClick={handleSaveSettings} className="btn-industrial">
               <Save className="mr-2 h-4 w-4" /> Save Configuration
             </Button>
+              </>
+              )}
+              
+              {/* User Groups Tab */}
+              {settingsTab === 'user-groups' && (
+              <>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>User Groups</CardTitle>
+                  <CardDescription>Manage admin user groups for access control</CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={handleOpenCreateAdmin} className="btn-industrial bg-amber-500 hover:bg-amber-600 text-black" data-testid="button-add-admin">
+                    <UserCog className="mr-2 h-4 w-4" /> Add Admin User
+                  </Button>
+                  <Button onClick={handleOpenCreateGroup} className="btn-industrial bg-primary text-white" data-testid="button-add-group">
+                    <Plus className="mr-2 h-4 w-4" /> Add Group
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {userGroups.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No user groups created yet. Click "Add Group" to create your first one.
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Description</TableHead>
+                        <TableHead>Admins</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {userGroups.map((group) => {
+                        const adminCount = users.filter(u => u.userGroupId === group.id).length;
+                        return (
+                          <TableRow key={group.id} data-testid={`row-group-${group.id}`}>
+                            <TableCell className="font-medium">{group.name}</TableCell>
+                            <TableCell className="text-muted-foreground">{group.description || '-'}</TableCell>
+                            <TableCell>
+                              <Badge variant="secondary">{adminCount}</Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button variant="ghost" size="icon" onClick={() => handleOpenEditGroup(group)} data-testid={`button-edit-group-${group.id}`}>
+                                <Pencil className="h-4 w-4 text-slate-500" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                onClick={() => handleDeleteGroup(group.id)}
+                                disabled={adminCount > 0}
+                                title={adminCount > 0 ? "Cannot delete group with assigned admins" : "Delete group"}
+                                data-testid={`button-delete-group-${group.id}`}
+                              >
+                                <Trash2 className={`h-4 w-4 ${adminCount > 0 ? 'text-slate-300' : 'text-red-500'}`} />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Admin Users</CardTitle>
+                <CardDescription>Administrators with system access</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>User Group</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {users.filter(u => u.role === 'manager').map((admin) => {
+                      const group = userGroups.find(g => g.id === admin.userGroupId);
+                      return (
+                        <TableRow key={admin.id} data-testid={`row-admin-${admin.id}`}>
+                          <TableCell className="font-medium">{admin.firstName} {admin.surname}</TableCell>
+                          <TableCell>{admin.email}</TableCell>
+                          <TableCell>
+                            {group ? (
+                              <Badge variant="secondary">{group.name}</Badge>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right space-x-1">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              onClick={() => handleResendCredentials(admin.id)}
+                              title="Resend credentials email"
+                              data-testid={`button-resend-credentials-${admin.id}`}
+                            >
+                              <Mail className="h-4 w-4 text-blue-500" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => handleDeleteUser(admin.id)}>
+                              <Trash2 className="h-4 w-4 text-red-500" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+              </>
+              )}
             </div>
           )}
         </div>
