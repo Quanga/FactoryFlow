@@ -216,16 +216,24 @@ export default function OrgChart() {
       setZoom(1);
       
       // Wait for zoom to apply
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise(resolve => setTimeout(resolve, 300));
       
       // Get the container element
       const container = containerRef.current;
       
-      // Convert container to canvas using html-to-image
+      // Convert container to canvas using html-to-image with image handling
       const canvas = await toCanvas(container, {
         backgroundColor: '#ffffff',
         pixelRatio: 2,
         skipFonts: true,
+        cacheBust: true,
+        filter: (node: HTMLElement) => {
+          // Skip profile images to avoid CORS issues
+          if (node.tagName === 'IMG') {
+            return false;
+          }
+          return true;
+        },
       });
       
       const imgData = canvas.toDataURL('image/png');
