@@ -67,43 +67,37 @@ function ManagerNode({ data, x, y }: { data: OrgNodeData; x: number; y: number }
     <g transform={`translate(${x - NODE_WIDTH / 2}, ${y})`}>
       <foreignObject width={NODE_WIDTH} height={MANAGER_NODE_HEIGHT}>
         <div 
-          className={`h-full p-2 rounded-lg border-2 shadow-md ${
+          className={`h-full rounded-lg border-2 shadow-md overflow-hidden ${
             isRoot ? 'border-amber-500 bg-amber-50' : 'border-primary bg-primary/5'
           }`}
-          style={{ 
-            borderLeftWidth: '4px',
-            borderLeftColor: deptColor 
-          }}
         >
-          <div className="flex items-center gap-2 h-full">
+          {/* Department header at top */}
+          <div 
+            className="px-2 py-0.5 text-white text-[9px] font-medium truncate"
+            style={{ backgroundColor: deptColor }}
+          >
+            {data.department || 'No Department'}
+          </div>
+          
+          {/* Manager content */}
+          <div className="flex items-center gap-2 p-1.5">
             {data.photoUrl ? (
               <img 
                 src={data.photoUrl} 
                 alt={data.name} 
-                className="w-10 h-10 rounded-full object-cover shrink-0" 
+                className="w-9 h-9 rounded-full object-cover shrink-0" 
               />
             ) : (
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
                 isRoot ? 'bg-amber-500 text-white' : 'bg-primary text-white'
               }`}>
-                <Crown className={isRoot ? "h-5 w-5" : "h-4 w-4"} />
+                <Crown className={isRoot ? "h-4 w-4" : "h-3.5 w-3.5"} />
               </div>
             )}
             <div className="flex-1 min-w-0 overflow-hidden">
               <p className="font-medium text-xs truncate leading-tight">{data.name}</p>
               <p className="text-[10px] text-muted-foreground truncate">{data.id}</p>
-              <div className="flex items-center gap-1 mt-1">
-                <Badge variant="default" className="text-[9px] px-1 py-0 h-4">Manager</Badge>
-                {data.department && (
-                  <Badge 
-                    variant="outline" 
-                    className="text-[9px] px-1 py-0 h-4 truncate max-w-[60px]"
-                    style={{ borderColor: deptColor, color: deptColor }}
-                  >
-                    {data.department}
-                  </Badge>
-                )}
-              </div>
+              <Badge variant="default" className="text-[9px] px-1 py-0 h-4 mt-0.5">Manager</Badge>
             </div>
           </div>
         </div>
