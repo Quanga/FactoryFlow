@@ -460,6 +460,27 @@ export default function AdminDashboard() {
     });
   };
 
+  // Helper functions for date format conversion (dd/mm/yyyy <-> yyyy-mm-dd)
+  const formatDateForDisplay = (isoDate: string | null | undefined): string => {
+    if (!isoDate) return '';
+    const parts = isoDate.split('-');
+    if (parts.length !== 3) return isoDate;
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  };
+
+  const parseDateFromDisplay = (displayDate: string): string => {
+    if (!displayDate) return '';
+    const parts = displayDate.split('/');
+    if (parts.length !== 3) return displayDate;
+    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  };
+
+  const isValidDateFormat = (date: string): boolean => {
+    if (!date) return true;
+    const regex = /^\d{2}\/\d{2}\/\d{4}$/;
+    return regex.test(date);
+  };
+
   // Helper function to calculate employment duration
   const getEmploymentDuration = (startDateStr: string | null | undefined): string => {
     if (!startDateStr) return '-';
@@ -3872,14 +3893,22 @@ export default function AdminDashboard() {
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="startDate" className="text-right">Start Date</Label>
-                <Input 
-                  id="startDate" 
-                  type="date"
-                  value={currentUser.startDate || ''} 
-                  onChange={(e) => setCurrentUser({...currentUser, startDate: e.target.value})}
-                  className="col-span-3"
-                  data-testid="input-start-date"
-                />
+                <div className="col-span-3">
+                  <Input 
+                    id="startDate" 
+                    type="text"
+                    placeholder="dd/mm/yyyy"
+                    value={formatDateForDisplay(currentUser.startDate)} 
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (isValidDateFormat(value) || value.length <= 10) {
+                        setCurrentUser({...currentUser, startDate: parseDateFromDisplay(value)});
+                      }
+                    }}
+                    data-testid="input-start-date"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Format: dd/mm/yyyy</p>
+                </div>
               </div>
               {(() => {
                 const selectedType = employeeTypes.find(t => t.id === currentUser.employeeTypeId);
@@ -3890,13 +3919,19 @@ export default function AdminDashboard() {
                       <div className="col-span-3">
                         <Input 
                           id="contractEndDate" 
-                          type="date"
-                          value={currentUser.contractEndDate || ''} 
-                          onChange={(e) => setCurrentUser({...currentUser, contractEndDate: e.target.value})}
+                          type="text"
+                          placeholder="dd/mm/yyyy"
+                          value={formatDateForDisplay(currentUser.contractEndDate)} 
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            if (isValidDateFormat(value) || value.length <= 10) {
+                              setCurrentUser({...currentUser, contractEndDate: parseDateFromDisplay(value)});
+                            }
+                          }}
                           data-testid="input-contract-end-date"
                         />
                         <p className="text-xs text-muted-foreground mt-1">
-                          Required for contract-based personnel. Set the expected contract end date.
+                          Format: dd/mm/yyyy - Required for contract-based personnel.
                         </p>
                       </div>
                     </div>
@@ -3910,13 +3945,19 @@ export default function AdminDashboard() {
                   <div className="col-span-3">
                     <Input 
                       id="terminationDate" 
-                      type="date"
-                      value={currentUser.terminationDate || ''} 
-                      onChange={(e) => setCurrentUser({...currentUser, terminationDate: e.target.value})}
+                      type="text"
+                      placeholder="dd/mm/yyyy"
+                      value={formatDateForDisplay(currentUser.terminationDate)} 
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (isValidDateFormat(value) || value.length <= 10) {
+                          setCurrentUser({...currentUser, terminationDate: parseDateFromDisplay(value)});
+                        }
+                      }}
                       data-testid="input-termination-date"
                     />
                     <p className="text-xs text-muted-foreground mt-1">
-                      Leave blank for active personnel. Set when employee is terminated.
+                      Format: dd/mm/yyyy - Leave blank for active personnel.
                     </p>
                   </div>
                 </div>
