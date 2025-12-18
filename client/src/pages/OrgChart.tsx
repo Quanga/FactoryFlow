@@ -152,10 +152,23 @@ export default function OrgChart() {
       const user = userMap.get(userId);
       if (!user) return null;
       
-      const children = activeUsers
-        .filter(u => u.managerId === userId)
+      // Get direct reports and separate into managers and workers
+      const directReports = activeUsers.filter(u => u.managerId === userId);
+      const managerReports = directReports.filter(u => u.role === 'manager');
+      const workerReports = directReports.filter(u => u.role === 'worker');
+      
+      // Build subtrees for managers first (they appear higher in the tree)
+      const managerChildren = managerReports
         .map(u => buildSubtree(u.id, new Set(visited)))
         .filter((n): n is TreeNode => n !== null);
+      
+      // Build subtrees for workers (they appear lower in the tree)
+      const workerChildren = workerReports
+        .map(u => buildSubtree(u.id, new Set(visited)))
+        .filter((n): n is TreeNode => n !== null);
+      
+      // Combine: managers first, then workers
+      const children = [...managerChildren, ...workerChildren];
       
       return {
         data: {
@@ -179,6 +192,11 @@ export default function OrgChart() {
       tree.data.isRoot = true;
       rootNode = tree;
     } else {
+      // Sort roots: managers first, then workers
+      const managerRoots = roots.filter(r => r.role === 'manager');
+      const workerRoots = roots.filter(r => r.role === 'worker');
+      const sortedRoots = [...managerRoots, ...workerRoots];
+      
       rootNode = {
         data: {
           id: 'company',
@@ -188,7 +206,7 @@ export default function OrgChart() {
           photoUrl: null,
           isRoot: true,
         },
-        children: roots
+        children: sortedRoots
           .map(r => buildSubtree(r.id))
           .filter((n): n is TreeNode => n !== null),
       };
