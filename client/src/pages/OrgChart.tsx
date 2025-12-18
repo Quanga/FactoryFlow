@@ -215,7 +215,7 @@ export default function OrgChart() {
     
     // Create main group with offset
     const mainGroup = document.createElementNS(svgNs, 'g');
-    mainGroup.setAttribute('transform', `translate(${dimensions.offsetX}, 60)`);
+    mainGroup.setAttribute('transform', `translate(${dimensions.offsetX}, 30)`);
     svg.appendChild(mainGroup);
     
     // Draw connecting lines first
@@ -634,7 +634,7 @@ export default function OrgChart() {
     });
     
     const treeLayout = d3.tree<TreeNode>()
-      .nodeSize([NODE_WIDTH + HORIZONTAL_GAP, maxNodeHeight + VERTICAL_GAP])
+      .nodeSize([NODE_WIDTH + HORIZONTAL_GAP, (maxNodeHeight + VERTICAL_GAP) / 2])
       .separation((a, b) => a.parent === b.parent ? 1 : 1.2);
     
     const tree = treeLayout(h);
@@ -644,7 +644,7 @@ export default function OrgChart() {
     const maxX = Math.max(...nodes.map(n => n.x));
     const maxY = Math.max(...nodes.map(n => n.y + n.data.data.nodeHeight));
     
-    const padding = 60;
+    const padding = 30;
     const width = maxX - minX + NODE_WIDTH + padding * 2;
     const height = maxY + padding * 2;
     const offsetX = -minX + NODE_WIDTH / 2 + padding;
@@ -810,7 +810,7 @@ export default function OrgChart() {
                   className="min-w-full"
                   style={{ minHeight: '400px', backgroundColor: '#ffffff' }}
                 >
-                  <g transform={`scale(${zoom}) translate(${dimensions.offsetX || 0}, 40)`}>
+                  <g transform={`scale(${zoom}) translate(${dimensions.offsetX || 0}, 30)`}>
                     {treeData.links().map((link, i) => (
                       <Connector
                         key={i}
