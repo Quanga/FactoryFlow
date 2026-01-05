@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useLocation } from 'wouter';
 import { Card, CardContent } from '@/components/ui/card';
 import { Clock, FileText, LogIn, LogOut, Settings } from 'lucide-react';
-import factoryBg from '@assets/generated_images/modern_clean_industrial_factory_interior_background.png';
 import aeceLogo from '@assets/AECE_Logo_1765516911038.png';
 
 type AttendanceSubMode = 'clock-in' | 'clock-out';
@@ -23,25 +22,20 @@ export default function ModeSelect() {
   };
 
   return (
-    <div 
-      className="min-h-screen flex items-center justify-center bg-cover bg-center relative"
-      style={{ backgroundImage: `url(${factoryBg})` }}
-    >
-      <div className="absolute inset-0 bg-black/70" />
-      
-      <div className="relative z-10 w-full max-w-4xl px-4">
+    <div className="min-h-screen flex items-center justify-center bg-slate-200">
+      <div className="w-full max-w-4xl px-4">
         <div className="text-center mb-8">
           <img src={aeceLogo} alt="AECE Electronics" className="h-20 mx-auto mb-4" />
-          <h1 className="font-oswald text-4xl font-bold text-white tracking-wider mb-2">
+          <h1 className="font-oswald text-4xl font-bold text-slate-800 tracking-wider mb-2">
             AECE CHECKPOINT
           </h1>
-          <p className="text-gray-300 text-lg">Select Operating Mode</p>
+          <p className="text-slate-600 text-lg">Select Operating Mode</p>
         </div>
 
         {!showAttendanceOptions ? (
           <div className="grid md:grid-cols-2 gap-6">
             <Card 
-              className="cursor-pointer hover:scale-105 transition-transform duration-300 bg-white/95 backdrop-blur border-0 shadow-2xl"
+              className="cursor-pointer hover:scale-105 transition-transform duration-300 bg-white border border-slate-200 shadow-lg"
               onClick={() => setShowAttendanceOptions(true)}
               data-testid="card-attendance-mode"
             >
@@ -59,7 +53,7 @@ export default function ModeSelect() {
             </Card>
 
             <Card 
-              className="cursor-pointer hover:scale-105 transition-transform duration-300 bg-white/95 backdrop-blur border-0 shadow-2xl"
+              className="cursor-pointer hover:scale-105 transition-transform duration-300 bg-white border border-slate-200 shadow-lg"
               onClick={handleApplicationMode}
               data-testid="card-application-mode"
             >
@@ -80,7 +74,7 @@ export default function ModeSelect() {
           <div className="space-y-6">
             <button 
               onClick={() => setShowAttendanceOptions(false)}
-              className="text-white/80 hover:text-white flex items-center gap-2 mb-4"
+              className="text-slate-600 hover:text-slate-800 flex items-center gap-2 mb-4"
               data-testid="button-back"
             >
               ← Back to Mode Selection
@@ -132,7 +126,7 @@ export default function ModeSelect() {
               sessionStorage.setItem('appMode', 'application');
               setLocation('/login?mode=admin');
             }}
-            className="text-gray-400 hover:text-white text-sm flex items-center gap-2 mx-auto"
+            className="text-slate-500 hover:text-slate-700 text-sm flex items-center gap-2 mx-auto"
             data-testid="button-admin-settings"
           >
             <Settings className="w-4 h-4" />
