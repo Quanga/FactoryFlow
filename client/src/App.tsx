@@ -13,6 +13,7 @@ import Attendance from "@/pages/Attendance";
 import AttendanceKiosk from "@/pages/AttendanceKiosk";
 import AdminLogin from "@/pages/AdminLogin";
 import AdminDashboard from "@/pages/AdminDashboard";
+import MaintainerDashboard from "@/pages/MaintainerDashboard";
 import ResetPassword from "@/pages/ResetPassword";
 import EmployeeProfile from "@/pages/EmployeeProfile";
 import OrgChart from "@/pages/OrgChart";
@@ -26,6 +27,7 @@ function Router() {
       <Route path="/admin" component={AdminLogin} />
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/admin/dashboard" component={AdminDashboard} />
+      <Route path="/maintainer/dashboard" component={MaintainerDashboard} />
       <Route path="/admin/org-chart" component={OrgChart} />
       <Route path="/leave-request" component={LeaveRequest} />
       <Route path="/attendance" component={Attendance} />

@@ -115,6 +115,7 @@ export const users = pgTable("users", {
   homeAddress: text("home_address"),
   gender: text("gender"), // 'male', 'female', 'other'
   role: text("role").notNull().default("worker"), // 'worker' or 'manager'
+  adminRole: text("admin_role"), // 'manager' (full admin), 'maintainer' (user data only), null (no admin access)
   department: text("department"), // for workers
   userGroupId: integer("user_group_id").references(() => userGroups.id), // for admins
   employeeTypeId: integer("employee_type_id").references(() => employeeTypes.id), // employee type

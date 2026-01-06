@@ -101,7 +101,12 @@ export default function Login() {
             try {
               const user = await authApi.loginByFace(bestMatch.user.id);
               setUser(user);
-              setLocation('/admin/dashboard');
+              // Route based on adminRole
+              if (user.adminRole === 'maintainer') {
+                setLocation('/maintainer/dashboard');
+              } else {
+                setLocation('/admin/dashboard');
+              }
             } catch (err) {
               setError('Face login failed');
               setFaceStatus('scanning');
@@ -172,9 +177,14 @@ export default function Login() {
     try {
       const user = await authApi.loginAdmin(email, password);
       setUser(user);
-      setLocation('/admin/dashboard');
+      // Route based on adminRole
+      if (user.adminRole === 'maintainer') {
+        setLocation('/maintainer/dashboard');
+      } else {
+        setLocation('/admin/dashboard');
+      }
     } catch (err) {
-      setError('Invalid credentials. Try admin@factory.com / admin123');
+      setError('Invalid credentials');
     } finally {
       setLoading(false);
     }

@@ -76,7 +76,8 @@ export async function registerRoutes(
 
       const user = await storage.getUserByEmail(email);
       
-      if (!user || user.role !== 'manager') {
+      // Check for valid admin role (manager or maintainer)
+      if (!user || !user.adminRole || !['manager', 'maintainer'].includes(user.adminRole)) {
         return res.status(401).json({ error: "Invalid credentials" });
       }
 
