@@ -158,7 +158,7 @@ export default function Login() {
       setUser(user);
       setLocation('/dashboard');
     } catch (err) {
-      setError('Invalid ID Number. Please try again.');
+      setError('Invalid Employee ID or National ID. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -270,25 +270,26 @@ export default function Login() {
                       className="text-sm text-slate-500 hover:text-primary underline"
                       data-testid="button-use-id"
                     >
-                      Use Employee ID instead
+                      Use Employee ID or National ID instead
                     </button>
                   </div>
                 </>
               ) : (
                 <form onSubmit={handleIdSubmit} className="space-y-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-slate-700 uppercase tracking-wider">Employee ID</label>
+                    <label className="text-sm font-medium text-slate-700 uppercase tracking-wider">Employee ID or National ID</label>
                     <div className="relative">
                       <User className="absolute left-3 top-3.5 h-5 w-5 text-slate-400" />
                       <Input 
                         type="text" 
-                        placeholder="Enter your ID" 
+                        placeholder="Enter your Employee ID or National ID" 
                         value={id}
                         onChange={(e) => setId(e.target.value)}
                         className="pl-10 h-12 text-lg bg-slate-50 border-slate-200 focus:ring-primary focus:border-primary"
                         data-testid="input-worker-id"
                       />
                     </div>
+                    <p className="text-xs text-muted-foreground">You can use either your company employee ID or your national ID number</p>
                   </div>
                   
                   {error && <p className="text-red-500 text-sm font-medium text-center animate-pulse" data-testid="text-error">{error}</p>}

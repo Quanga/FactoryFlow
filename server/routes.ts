@@ -16,7 +16,7 @@ export async function registerRoutes(
   
   // ========== AUTH ROUTES ==========
   
-  // Worker login by ID
+  // Worker login by ID (company ID or national ID)
   app.post("/api/auth/login", async (req, res) => {
     try {
       const { id } = req.body;
@@ -25,7 +25,8 @@ export async function registerRoutes(
         return res.status(400).json({ error: "ID is required" });
       }
 
-      const user = await storage.getUser(id);
+      // Try to find user by company ID or national ID
+      const user = await storage.getUserByIdOrNationalId(id);
       
       if (!user) {
         return res.status(401).json({ error: "Invalid ID" });
@@ -174,6 +175,73 @@ export async function registerRoutes(
 
   // ========== USER MANAGEMENT ROUTES ==========
   
+  // Generate random passwords for users without passwords (admin only)
+  // Requires adminUserId in request body for basic authorization
+  app.post("/api/users/generate-passwords", async (req, res) => {
+    try {
+      // Basic authorization check - requires admin user ID
+      const { adminUserId } = req.body;
+      if (!adminUserId) {
+        return res.status(401).json({ error: "Admin user ID is required" });
+      }
+      
+      const adminUser = await storage.getUser(adminUserId);
+      if (!adminUser || adminUser.role !== 'manager') {
+        return res.status(403).json({ error: "Only administrators can perform this action" });
+      }
+      
+      const users = await storage.getAllUsers();
+      const usersWithoutPasswords = users.filter(u => !u.password);
+      
+      // Generate a cryptographically secure random password
+      const generateSecurePassword = (): string => {
+        const uppercase = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+        const lowercase = 'abcdefghjkmnpqrstuvwxyz';
+        const numbers = '23456789';
+        const allChars = uppercase + lowercase + numbers;
+        
+        // Use crypto for secure random selection
+        const secureRandomInt = (max: number): number => {
+          return crypto.randomInt(0, max);
+        };
+        
+        // Ensure at least one of each type
+        const chars: string[] = [];
+        chars.push(uppercase[secureRandomInt(uppercase.length)]);
+        chars.push(lowercase[secureRandomInt(lowercase.length)]);
+        chars.push(numbers[secureRandomInt(numbers.length)]);
+        
+        // Fill remaining 7 characters randomly
+        for (let i = 0; i < 7; i++) {
+          chars.push(allChars[secureRandomInt(allChars.length)]);
+        }
+        
+        // Cryptographically secure shuffle using Fisher-Yates
+        for (let i = chars.length - 1; i > 0; i--) {
+          const j = secureRandomInt(i + 1);
+          [chars[i], chars[j]] = [chars[j], chars[i]];
+        }
+        
+        return chars.join('');
+      };
+      
+      const results = [];
+      for (const user of usersWithoutPasswords) {
+        const randomPassword = generateSecurePassword();
+        await storage.updateUser(user.id, { password: randomPassword });
+        results.push({ id: user.id, name: `${user.firstName} ${user.surname}` });
+      }
+      
+      return res.json({ 
+        message: `Generated passwords for ${results.length} users`,
+        updatedUsers: results
+      });
+    } catch (error) {
+      console.error("Generate passwords error:", error);
+      return res.status(500).json({ error: "Failed to generate passwords" });
+    }
+  });
+
   // Get all users
   app.get("/api/users", async (req, res) => {
     try {

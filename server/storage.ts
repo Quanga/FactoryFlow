@@ -148,6 +148,21 @@ export class DrizzleStorage implements IStorage {
     return users[0];
   }
 
+  async getUserByNationalId(nationalId: string): Promise<User | undefined> {
+    const users = await db.select().from(schema.users).where(eq(schema.users.nationalId, nationalId));
+    return users[0];
+  }
+
+  async getUserByIdOrNationalId(idOrNationalId: string): Promise<User | undefined> {
+    // First try to find by company ID
+    let user = await this.getUser(idOrNationalId);
+    if (user) return user;
+    
+    // Then try by national ID
+    user = await this.getUserByNationalId(idOrNationalId);
+    return user;
+  }
+
   async getAllUsers(): Promise<User[]> {
     return db.select().from(schema.users);
   }
