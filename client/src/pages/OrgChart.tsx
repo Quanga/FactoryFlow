@@ -5,9 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Users, Building2, User as UserIcon, Crown, Briefcase, ZoomIn, ZoomOut, RotateCcw, Download, Loader2 } from 'lucide-react';
+import { ArrowLeft, Users, Building2, User as UserIcon, Crown, Briefcase, ZoomIn, ZoomOut, RotateCcw, Download, Loader2, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
-import { userApi, departmentApi } from '@/lib/api';
+import { userApi, departmentApi, attendanceApi } from '@/lib/api';
 import type { User, Department } from '@shared/schema';
 import * as d3 from 'd3-hierarchy';
 import { jsPDF } from 'jspdf';
@@ -17,6 +17,11 @@ interface WorkerData {
   id: string;
   name: string;
   photoUrl: string | null;
+}
+
+interface AttendanceProps {
+  showAttendance: boolean;
+  clockedInUserIds: Set<string>;
 }
 
 interface OrgNodeData {
@@ -58,12 +63,14 @@ function getDepartmentColor(department: string | null): string {
   return DEPARTMENT_COLORS[department] || '#6b7280';
 }
 
-function ManagerNode({ data, x, y }: { data: OrgNodeData; x: number; y: number }) {
+function ManagerNode({ data, x, y, showAttendance, clockedInUserIds }: { data: OrgNodeData; x: number; y: number } & AttendanceProps) {
   const isRoot = data.isRoot;
   const deptColor = getDepartmentColor(data.department);
+  const isClockedIn = clockedInUserIds.has(data.id);
+  const opacity = showAttendance ? (isClockedIn ? 1 : 0.3) : 1;
   
   return (
-    <g transform={`translate(${x - NODE_WIDTH / 2}, ${y})`}>
+    <g transform={`translate(${x - NODE_WIDTH / 2}, ${y})`} style={{ opacity }}>
       <foreignObject width={NODE_WIDTH} height={MANAGER_NODE_HEIGHT}>
         <div 
           className={`h-full rounded-lg border-2 shadow-md overflow-hidden ${
@@ -105,9 +112,10 @@ function ManagerNode({ data, x, y }: { data: OrgNodeData; x: number; y: number }
   );
 }
 
-function DepartmentGroupNode({ data, x, y }: { data: OrgNodeData; x: number; y: number }) {
+function DepartmentGroupNode({ data, x, y, showAttendance, clockedInUserIds }: { data: OrgNodeData; x: number; y: number } & AttendanceProps) {
   const deptColor = getDepartmentColor(data.department);
   const workers = data.workers || [];
+  const clockedInCount = showAttendance ? workers.filter(w => clockedInUserIds.has(w.id)).length : workers.length;
   
   return (
     <g transform={`translate(${x - NODE_WIDTH / 2}, ${y})`}>
@@ -122,33 +130,40 @@ function DepartmentGroupNode({ data, x, y }: { data: OrgNodeData; x: number; y: 
           >
             <Building2 className="h-3 w-3 shrink-0" />
             <span className="truncate">{data.department || 'Unassigned'}</span>
-            <span className="ml-auto opacity-75 shrink-0">({workers.length})</span>
+            <span className="ml-auto opacity-75 shrink-0">
+              {showAttendance ? `${clockedInCount}/${workers.length}` : `(${workers.length})`}
+            </span>
           </div>
           
           <div className="bg-white">
-            {workers.map((worker, idx) => (
-              <div 
-                key={worker.id}
-                className={`flex items-center gap-2 px-2 py-1 ${idx > 0 ? 'border-t border-slate-100' : ''}`}
-                style={{ height: WORKER_ROW_HEIGHT }}
-              >
-                {worker.photoUrl ? (
-                  <img 
-                    src={worker.photoUrl} 
-                    alt={worker.name} 
-                    className="w-6 h-6 rounded-full object-cover shrink-0" 
-                  />
-                ) : (
-                  <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center shrink-0">
-                    <UserIcon className="h-3 w-3 text-slate-500" />
+            {workers.map((worker, idx) => {
+              const isClockedIn = clockedInUserIds.has(worker.id);
+              const workerOpacity = showAttendance ? (isClockedIn ? 1 : 0.3) : 1;
+              
+              return (
+                <div 
+                  key={worker.id}
+                  className={`flex items-center gap-2 px-2 py-1 ${idx > 0 ? 'border-t border-slate-100' : ''}`}
+                  style={{ height: WORKER_ROW_HEIGHT, opacity: workerOpacity }}
+                >
+                  {worker.photoUrl ? (
+                    <img 
+                      src={worker.photoUrl} 
+                      alt={worker.name} 
+                      className="w-6 h-6 rounded-full object-cover shrink-0" 
+                    />
+                  ) : (
+                    <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center shrink-0">
+                      <UserIcon className="h-3 w-3 text-slate-500" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] font-medium truncate">{worker.name}</p>
+                    <p className="text-[9px] text-muted-foreground truncate">{worker.id}</p>
                   </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="text-[11px] font-medium truncate">{worker.name}</p>
-                  <p className="text-[9px] text-muted-foreground truncate">{worker.id}</p>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </foreignObject>
@@ -156,11 +171,11 @@ function DepartmentGroupNode({ data, x, y }: { data: OrgNodeData; x: number; y: 
   );
 }
 
-function OrgNode({ data, x, y }: { data: OrgNodeData; x: number; y: number }) {
+function OrgNode({ data, x, y, showAttendance, clockedInUserIds }: { data: OrgNodeData; x: number; y: number } & AttendanceProps) {
   if (data.kind === 'department-group') {
-    return <DepartmentGroupNode data={data} x={x} y={y} />;
+    return <DepartmentGroupNode data={data} x={x} y={y} showAttendance={showAttendance} clockedInUserIds={clockedInUserIds} />;
   }
-  return <ManagerNode data={data} x={x} y={y} />;
+  return <ManagerNode data={data} x={x} y={y} showAttendance={showAttendance} clockedInUserIds={clockedInUserIds} />;
 }
 
 function Connector({ source, target, sourceHeight }: { source: { x: number; y: number }; target: { x: number; y: number }; sourceHeight: number }) {
@@ -194,7 +209,42 @@ export default function OrgChart() {
   const svgRef = useRef<SVGSVGElement>(null);
   const [zoom, setZoom] = useState(1);
   const [isExporting, setIsExporting] = useState(false);
+  const [showAttendance, setShowAttendance] = useState(false);
   const { toast } = useToast();
+
+  const today = new Date().toISOString().split('T')[0];
+  const { data: todayAttendance = [] } = useQuery({
+    queryKey: ['attendance', 'today', today],
+    queryFn: () => attendanceApi.getAll(today, today),
+    enabled: showAttendance,
+  });
+
+  const clockedInUserIds = useMemo(() => {
+    if (!showAttendance || todayAttendance.length === 0) return new Set<string>();
+    
+    const now = new Date();
+    const userLastAction = new Map<string, { type: string; timestamp: Date }>();
+    
+    const sortedRecords = [...todayAttendance].sort((a, b) => 
+      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
+    
+    sortedRecords.forEach(record => {
+      const recordTime = new Date(record.timestamp);
+      if (recordTime <= now) {
+        userLastAction.set(record.userId, { type: record.type, timestamp: recordTime });
+      }
+    });
+    
+    const clockedIn = new Set<string>();
+    userLastAction.forEach((action, userId) => {
+      if (action.type === 'in') {
+        clockedIn.add(userId);
+      }
+    });
+    
+    return clockedIn;
+  }, [showAttendance, todayAttendance]);
 
   const buildExportSvg = () => {
     if (!treeData) return null;
@@ -770,6 +820,20 @@ export default function OrgChart() {
                   </Button>
                   <div className="h-6 w-px bg-slate-200 mx-1" />
                   <Button 
+                    variant={showAttendance ? "default" : "outline"} 
+                    size="sm" 
+                    onClick={() => setShowAttendance(!showAttendance)}
+                    className={showAttendance ? "bg-green-600 hover:bg-green-700" : ""}
+                    data-testid="button-show-attendance"
+                  >
+                    {showAttendance ? (
+                      <EyeOff className="h-4 w-4 mr-2" />
+                    ) : (
+                      <Eye className="h-4 w-4 mr-2" />
+                    )}
+                    {showAttendance ? "Hide Attendance" : "Show Attendance"}
+                  </Button>
+                  <Button 
                     variant="default" 
                     size="sm" 
                     onClick={handleExportPDF}
@@ -826,6 +890,8 @@ export default function OrgChart() {
                         data={node.data.data}
                         x={node.x}
                         y={node.y}
+                        showAttendance={showAttendance}
+                        clockedInUserIds={clockedInUserIds}
                       />
                     ))}
                   </g>
