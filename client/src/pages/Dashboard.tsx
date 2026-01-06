@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useAuth } from '@/lib/auth-context';
-import { leaveBalanceApi, leaveRequestApi, userApi } from '@/lib/api';
+import { leaveBalanceApi, leaveRequestApi, userApi, attendanceApi } from '@/lib/api';
 import { useToast } from "@/hooks/use-toast";
-import { Clock, Calendar, AlertCircle, CheckCircle2, FileText, Eye, X, XCircle } from 'lucide-react';
+import { Clock, Calendar, AlertCircle, CheckCircle2, FileText, Eye, X, XCircle, LogIn, LogOut } from 'lucide-react';
 import { format } from 'date-fns';
 import type { LeaveRequest } from '@shared/schema';
 
@@ -39,6 +39,14 @@ export default function Dashboard() {
     queryKey: ['manager', user?.managerId],
     queryFn: () => user?.managerId ? userApi.getById(user.managerId) : null,
     enabled: !!user?.managerId,
+  });
+
+  // Fetch clock-in status
+  const { data: clockStatus } = useQuery({
+    queryKey: ['clock-status', user?.id],
+    queryFn: () => attendanceApi.getStatus(user!.id),
+    enabled: !!user,
+    refetchInterval: 60000, // Refresh every minute
   });
 
   const cancelMutation = useMutation({
@@ -100,6 +108,42 @@ export default function Dashboard() {
           <h1 className="text-3xl font-heading font-bold text-foreground">Welcome back, {user?.nickname || user?.firstName}</h1>
           <p className="text-muted-foreground mt-1">Here's an overview of your leave and attendance.</p>
         </div>
+
+        {/* Clock-in Status Banner */}
+        {clockStatus && (
+          <Card className={`border-2 ${clockStatus.isClockedIn ? 'border-green-500 bg-green-50' : 'border-slate-300 bg-slate-50'}`} data-testid="card-clock-status">
+            <CardContent className="py-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className={`p-3 rounded-full ${clockStatus.isClockedIn ? 'bg-green-500' : 'bg-slate-400'}`}>
+                    {clockStatus.isClockedIn ? (
+                      <LogIn className="h-6 w-6 text-white" />
+                    ) : (
+                      <LogOut className="h-6 w-6 text-white" />
+                    )}
+                  </div>
+                  <div>
+                    <p className={`text-lg font-semibold ${clockStatus.isClockedIn ? 'text-green-700' : 'text-slate-700'}`} data-testid="text-clock-status">
+                      {clockStatus.isClockedIn ? 'Currently Clocked In' : 'Not Clocked In'}
+                    </p>
+                    {clockStatus.lastRecord && (
+                      <p className="text-sm text-muted-foreground" data-testid="text-last-clock">
+                        Last {clockStatus.lastRecord.type === 'in' ? 'clock-in' : 'clock-out'}: {format(new Date(clockStatus.lastRecord.timestamp), "dd/MM/yyyy 'at' HH:mm")}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <a 
+                  href="/attendance" 
+                  className="text-sm text-primary hover:underline"
+                  data-testid="link-go-to-attendance"
+                >
+                  Go to Attendance
+                </a>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Balance Cards */}
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">

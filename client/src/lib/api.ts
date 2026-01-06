@@ -292,6 +292,23 @@ export const attendanceApi = {
     }
     return res.json();
   },
+
+  async getStatus(userId: string): Promise<{ isClockedIn: boolean; lastRecord: AttendanceRecord | null }> {
+    const res = await fetch(`${API_BASE}/attendance/status/${userId}`);
+    if (!res.ok) throw new Error("Failed to fetch clock-in status");
+    return res.json();
+  },
+
+  async triggerAutoReset(): Promise<{ message: string; processed: number; results: any[] }> {
+    const res = await fetch(`${API_BASE}/attendance/auto-reset`, {
+      method: "POST",
+    });
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to trigger auto-reset");
+    }
+    return res.json();
+  },
 };
 
 // Password Reset API

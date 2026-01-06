@@ -842,6 +842,73 @@ export async function registerRoutes(
     }
   });
 
+  // Get clock-in status for a user
+  app.get("/api/attendance/status/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const status = await storage.getUserClockInStatus(userId);
+      return res.json(status);
+    } catch (error) {
+      console.error("Get clock-in status error:", error);
+      return res.status(500).json({ error: "Failed to fetch clock-in status" });
+    }
+  });
+
+  // Auto-reset users who forgot to clock out (admin trigger)
+  app.post("/api/attendance/auto-reset", async (req, res) => {
+    try {
+      const today = new Date();
+      const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0);
+      
+      const usersNotClockedOut = await storage.getUsersNotClockedOut(startOfToday);
+      
+      if (usersNotClockedOut.length === 0) {
+        return res.json({ message: "No users needed auto clock-out", processed: 0 });
+      }
+
+      const senderSetting = await storage.getSetting('sender_email');
+      const senderEmail = senderSetting?.value || 'noreply@aece.co.za';
+
+      const results = [];
+      for (const { user, lastClockIn } of usersNotClockedOut) {
+        try {
+          const clockInDate = new Date(lastClockIn.timestamp);
+          const autoClockOutTime = new Date(clockInDate);
+          autoClockOutTime.setHours(23, 59, 0, 0);
+          
+          await storage.createSystemAutoClockOut(user.id, autoClockOutTime);
+          
+          if (user.email) {
+            const { sendMissedClockOutNotification } = await import('./email');
+            await sendMissedClockOutNotification(user.email, senderEmail, {
+              employeeName: `${user.firstName} ${user.surname}`,
+              firstName: user.firstName,
+              employeeId: user.id,
+              department: user.department || undefined,
+              clockInTime: clockInDate.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' }),
+              clockInDate: clockInDate.toLocaleDateString('en-ZA', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+              autoClockOutTime: autoClockOutTime.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' }),
+            });
+          }
+          
+          results.push({ userId: user.id, name: `${user.firstName} ${user.surname}`, success: true });
+        } catch (err) {
+          console.error(`Failed to auto clock-out user ${user.id}:`, err);
+          results.push({ userId: user.id, name: `${user.firstName} ${user.surname}`, success: false, error: String(err) });
+        }
+      }
+
+      return res.json({ 
+        message: `Processed ${results.length} users`, 
+        processed: results.filter(r => r.success).length,
+        results 
+      });
+    } catch (error) {
+      console.error("Auto-reset error:", error);
+      return res.status(500).json({ error: "Failed to process auto clock-out" });
+    }
+  });
+
   // ========== SETTINGS ROUTES ==========
   
   // Get setting by key

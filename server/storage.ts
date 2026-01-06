@@ -75,8 +75,12 @@ export interface IStorage {
   getAttendanceRecords(userId: string, limit?: number, startDate?: Date, endDate?: Date): Promise<AttendanceRecord[]>;
   getAllAttendanceRecords(startDate?: Date, endDate?: Date): Promise<AttendanceRecord[]>;
   getTodayLatestAttendance(userId: string): Promise<AttendanceRecord | undefined>;
+  getLatestAttendance(userId: string): Promise<AttendanceRecord | undefined>;
+  getUserClockInStatus(userId: string): Promise<{ isClockedIn: boolean; lastRecord: AttendanceRecord | null }>;
+  getUsersNotClockedOut(beforeDate: Date): Promise<{ user: User; lastClockIn: AttendanceRecord }[]>;
   createAttendanceRecord(record: InsertAttendanceRecord): Promise<AttendanceRecord>;
   createBulkAttendanceRecords(records: { userId: string; type: string; timestamp: Date; method?: string; context?: string }[]): Promise<AttendanceRecord[]>;
+  createSystemAutoClockOut(userId: string, timestamp: Date): Promise<AttendanceRecord>;
   
   // Settings operations
   getSetting(key: string): Promise<Setting | undefined>;
@@ -435,6 +439,69 @@ export class DrizzleStorage implements IStorage {
     }));
     const newRecords = await db.insert(schema.attendanceRecords).values(insertRecords).returning();
     return newRecords;
+  }
+
+  async getLatestAttendance(userId: string): Promise<AttendanceRecord | undefined> {
+    const records = await db
+      .select()
+      .from(schema.attendanceRecords)
+      .where(eq(schema.attendanceRecords.userId, userId))
+      .orderBy(desc(schema.attendanceRecords.timestamp))
+      .limit(1);
+    return records[0];
+  }
+
+  async getUserClockInStatus(userId: string): Promise<{ isClockedIn: boolean; lastRecord: AttendanceRecord | null }> {
+    const lastRecord = await this.getLatestAttendance(userId);
+    if (!lastRecord) {
+      return { isClockedIn: false, lastRecord: null };
+    }
+    return { isClockedIn: lastRecord.type === 'in', lastRecord };
+  }
+
+  async getUsersNotClockedOut(beforeDate: Date): Promise<{ user: User; lastClockIn: AttendanceRecord }[]> {
+    const allUsers = await this.getAllUsers();
+    const results: { user: User; lastClockIn: AttendanceRecord }[] = [];
+
+    for (const user of allUsers) {
+      if (user.role !== 'worker') continue;
+      
+      const lastRecord = await this.getLatestAttendance(user.id);
+      if (!lastRecord) continue;
+      
+      // Only consider users whose last action was a clock-in before the cutoff date
+      if (lastRecord.type === 'in' && new Date(lastRecord.timestamp) < beforeDate) {
+        // Verify no clock-out exists after this clock-in (to avoid duplicates)
+        const records = await db
+          .select()
+          .from(schema.attendanceRecords)
+          .where(
+            and(
+              eq(schema.attendanceRecords.userId, user.id),
+              eq(schema.attendanceRecords.type, 'out'),
+              gte(schema.attendanceRecords.timestamp, new Date(lastRecord.timestamp))
+            )
+          )
+          .limit(1);
+        
+        // Only add if no clock-out exists after the last clock-in
+        if (records.length === 0) {
+          results.push({ user, lastClockIn: lastRecord });
+        }
+      }
+    }
+    return results;
+  }
+
+  async createSystemAutoClockOut(userId: string, timestamp: Date): Promise<AttendanceRecord> {
+    const [newRecord] = await db.insert(schema.attendanceRecords).values({
+      userId,
+      type: 'out',
+      timestamp,
+      method: 'system_auto',
+      context: 'missed_clockout',
+    }).returning();
+    return newRecord;
   }
 
   // Settings operations
