@@ -3979,20 +3979,18 @@ export default function AdminDashboard() {
                   data-testid="input-email"
                 />
               </div>
-              {currentUser.userGroupId && (
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="password" className="text-right">Password {!currentUser.password && !isEditing ? '*' : ''}</Label>
-                  <Input 
-                    id="password" 
-                    type="password"
-                    value={currentUser.password || ''} 
-                    onChange={(e) => setCurrentUser({...currentUser, password: e.target.value})}
-                    className="col-span-3"
-                    placeholder={isEditing ? "Leave blank to keep current password" : "Required for admin login"}
-                    data-testid="input-password"
-                  />
-                </div>
-              )}
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="password" className="text-right">Password {currentUser.userGroupId && !currentUser.password && !isEditing ? '*' : ''}</Label>
+                <Input 
+                  id="password" 
+                  type="password"
+                  value={currentUser.password || ''} 
+                  onChange={(e) => setCurrentUser({...currentUser, password: e.target.value})}
+                  className="col-span-3"
+                  placeholder={isEditing ? "Leave blank to keep current password" : (currentUser.userGroupId ? "Required for admin login" : "Optional")}
+                  data-testid="input-password"
+                />
+              </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="mobile" className="text-right">Mobile</Label>
                 <Input 
