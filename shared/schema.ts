@@ -222,6 +222,11 @@ export const insertAttendanceRecordSchema = createInsertSchema(attendanceRecords
 export type InsertAttendanceRecord = z.infer<typeof insertAttendanceRecordSchema>;
 export type AttendanceRecord = typeof attendanceRecords.$inferSelect;
 
+export const manualAttendanceRecordSchema = createInsertSchema(attendanceRecords).omit({
+  id: true,
+});
+export type ManualAttendanceRecord = z.infer<typeof manualAttendanceRecordSchema>;
+
 // Settings Table
 export const settings = pgTable("settings", {
   id: serial("id").primaryKey(),

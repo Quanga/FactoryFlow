@@ -279,6 +279,19 @@ export const attendanceApi = {
     }
     return res.json();
   },
+
+  async createBulk(records: { userId: string; type: string; timestamp: string }[]): Promise<AttendanceRecord[]> {
+    const res = await fetch(`${API_BASE}/attendance/bulk`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ records }),
+    });
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to create attendance records");
+    }
+    return res.json();
+  },
 };
 
 // Password Reset API

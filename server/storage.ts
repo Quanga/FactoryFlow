@@ -76,6 +76,7 @@ export interface IStorage {
   getAllAttendanceRecords(startDate?: Date, endDate?: Date): Promise<AttendanceRecord[]>;
   getTodayLatestAttendance(userId: string): Promise<AttendanceRecord | undefined>;
   createAttendanceRecord(record: InsertAttendanceRecord): Promise<AttendanceRecord>;
+  createBulkAttendanceRecords(records: { userId: string; type: string; timestamp: Date; method?: string; context?: string }[]): Promise<AttendanceRecord[]>;
   
   // Settings operations
   getSetting(key: string): Promise<Setting | undefined>;
@@ -421,6 +422,19 @@ export class DrizzleStorage implements IStorage {
   async createAttendanceRecord(record: InsertAttendanceRecord): Promise<AttendanceRecord> {
     const [newRecord] = await db.insert(schema.attendanceRecords).values(record).returning();
     return newRecord;
+  }
+
+  async createBulkAttendanceRecords(records: { userId: string; type: string; timestamp: Date; method?: string; context?: string }[]): Promise<AttendanceRecord[]> {
+    if (records.length === 0) return [];
+    const insertRecords = records.map(r => ({
+      userId: r.userId,
+      type: r.type,
+      timestamp: r.timestamp,
+      method: r.method || 'manual',
+      context: r.context || 'manual',
+    }));
+    const newRecords = await db.insert(schema.attendanceRecords).values(insertRecords).returning();
+    return newRecords;
   }
 
   // Settings operations

@@ -162,6 +162,15 @@ export default function AdminDashboard() {
   // Navigation State
   const [activeSection, setActiveSection] = useState<'dashboard' | 'employees' | 'leave-requests' | 'attendance' | 'departments' | 'employee-types' | 'leave-rules' | 'grievances' | 'settings'>('dashboard');
   const [settingsTab, setSettingsTab] = useState<'general' | 'user-groups'>('general');
+  const [attendanceTab, setAttendanceTab] = useState<'records' | 'manual-entry'>('records');
+  const [manualAttendanceDate, setManualAttendanceDate] = useState<string>(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  });
+  const [manualAttendanceEntries, setManualAttendanceEntries] = useState<Record<string, { clockIn: string; clockOut: string }>>({});
 
   // Employee Types Management State
   const [isTypeDialogOpen, setIsTypeDialogOpen] = useState(false);
@@ -436,6 +445,50 @@ export default function AdminDashboard() {
       toast({ title: "Leave Balance Updated", description: "Leave allocation has been updated." });
     },
   });
+
+  const bulkAttendanceMutation = useMutation({
+    mutationFn: (records: { userId: string; type: string; timestamp: string }[]) => attendanceApi.createBulk(records),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['attendance'] });
+      setManualAttendanceEntries({});
+      toast({ title: "Attendance Saved", description: `${data.length} attendance records have been saved.` });
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Error", description: error.message || "Failed to save attendance records" });
+    },
+  });
+
+  const handleSaveManualAttendance = () => {
+    const records: { userId: string; type: string; timestamp: string }[] = [];
+    
+    Object.entries(manualAttendanceEntries).forEach(([userId, entry]) => {
+      if (entry.clockIn) {
+        const clockInTimestamp = `${manualAttendanceDate}T${entry.clockIn}:00`;
+        records.push({ userId, type: 'in', timestamp: clockInTimestamp });
+      }
+      if (entry.clockOut) {
+        const clockOutTimestamp = `${manualAttendanceDate}T${entry.clockOut}:00`;
+        records.push({ userId, type: 'out', timestamp: clockOutTimestamp });
+      }
+    });
+
+    if (records.length === 0) {
+      toast({ variant: "destructive", title: "No Data", description: "Please enter at least one clock-in or clock-out time." });
+      return;
+    }
+
+    bulkAttendanceMutation.mutate(records);
+  };
+
+  const updateManualEntry = (userId: string, field: 'clockIn' | 'clockOut', value: string) => {
+    setManualAttendanceEntries(prev => ({
+      ...prev,
+      [userId]: {
+        ...prev[userId],
+        [field]: value,
+      },
+    }));
+  };
 
   const toggleEmployeeExpanded = (userId: string) => {
     setExpandedEmployees(prev => {
@@ -2193,8 +2246,39 @@ export default function AdminDashboard() {
             <div className="space-y-4">
               <div>
                 <h1 className="text-3xl font-heading font-bold text-slate-900">Attendance</h1>
-                <p className="text-muted-foreground">View employee clock-in/clock-out history</p>
+                <p className="text-muted-foreground">View and manage employee attendance records</p>
               </div>
+              
+              {/* Attendance Sub-tabs */}
+              <div className="flex gap-2 border-b pb-2">
+                <button
+                  onClick={() => setAttendanceTab('records')}
+                  className={`px-4 py-2 rounded-t-lg text-sm font-medium transition-colors ${
+                    attendanceTab === 'records' 
+                      ? 'bg-primary text-white' 
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                  data-testid="attendance-tab-records"
+                >
+                  <FileText className="inline h-4 w-4 mr-2" />
+                  Records
+                </button>
+                <button
+                  onClick={() => setAttendanceTab('manual-entry')}
+                  className={`px-4 py-2 rounded-t-lg text-sm font-medium transition-colors ${
+                    attendanceTab === 'manual-entry' 
+                      ? 'bg-primary text-white' 
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                  data-testid="attendance-tab-manual"
+                >
+                  <Plus className="inline h-4 w-4 mr-2" />
+                  Manual Entry
+                </button>
+              </div>
+              
+              {/* Records Tab */}
+              {attendanceTab === 'records' && (
             <Card>
               <CardHeader>
                 <div className="flex flex-row items-center justify-between w-full">
@@ -2261,7 +2345,7 @@ export default function AdminDashboard() {
                               </Badge>
                             </TableCell>
                             <TableCell>
-                              {format(new Date(record.timestamp), "MMM d, yyyy 'at' h:mm a")}
+                              {format(new Date(record.timestamp), "dd/MM/yyyy 'at' HH:mm")}
                             </TableCell>
                             <TableCell className="capitalize">{record.context || '-'}</TableCell>
                             <TableCell className="capitalize">{record.method || '-'}</TableCell>
@@ -2273,6 +2357,88 @@ export default function AdminDashboard() {
                 )}
               </CardContent>
             </Card>
+              )}
+              
+              {/* Manual Entry Tab */}
+              {attendanceTab === 'manual-entry' && (
+            <Card>
+              <CardHeader>
+                <div className="flex flex-row items-center justify-between w-full">
+                  <div>
+                    <CardTitle>Manual Attendance Entry</CardTitle>
+                    <CardDescription>Enter clock-in/clock-out times for multiple employees at once</CardDescription>
+                  </div>
+                  <div className="flex gap-2 items-center">
+                    <Label className="text-sm">Date:</Label>
+                    <Input
+                      type="date"
+                      value={manualAttendanceDate}
+                      onChange={(e) => setManualAttendanceDate(e.target.value)}
+                      className="w-40"
+                      data-testid="input-manual-date"
+                    />
+                    <Button
+                      onClick={handleSaveManualAttendance}
+                      disabled={bulkAttendanceMutation.isPending || Object.keys(manualAttendanceEntries).length === 0}
+                      className="btn-industrial"
+                      data-testid="button-save-manual-attendance"
+                    >
+                      {bulkAttendanceMutation.isPending ? (
+                        <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</>
+                      ) : (
+                        <><Save className="mr-2 h-4 w-4" /> Save Attendance</>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="border rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-slate-50">
+                        <TableHead className="w-[80px]">ID</TableHead>
+                        <TableHead>Employee Name</TableHead>
+                        <TableHead>Department</TableHead>
+                        <TableHead className="w-[150px]">Clock In</TableHead>
+                        <TableHead className="w-[150px]">Clock Out</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {users.filter(u => u.role === 'worker').map((employee) => (
+                        <TableRow key={employee.id} data-testid={`row-manual-${employee.id}`}>
+                          <TableCell className="font-mono text-sm">{employee.id}</TableCell>
+                          <TableCell className="font-medium">{employee.firstName} {employee.surname}</TableCell>
+                          <TableCell className="text-muted-foreground">{employee.department || '-'}</TableCell>
+                          <TableCell>
+                            <Input
+                              type="time"
+                              value={manualAttendanceEntries[employee.id]?.clockIn || ''}
+                              onChange={(e) => updateManualEntry(employee.id, 'clockIn', e.target.value)}
+                              className="w-full"
+                              data-testid={`input-clockin-${employee.id}`}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              type="time"
+                              value={manualAttendanceEntries[employee.id]?.clockOut || ''}
+                              onChange={(e) => updateManualEntry(employee.id, 'clockOut', e.target.value)}
+                              className="w-full"
+                              data-testid={`input-clockout-${employee.id}`}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                <p className="text-xs text-muted-foreground mt-4">
+                  Enter clock-in and/or clock-out times for each employee. Leave fields empty if no entry is needed. All times will be recorded for the selected date.
+                </p>
+              </CardContent>
+            </Card>
+              )}
             </div>
           )}
 

@@ -788,6 +788,60 @@ export async function registerRoutes(
     }
   });
 
+  // Create bulk attendance records (manual entry)
+  app.post("/api/attendance/bulk", async (req, res) => {
+    try {
+      const { records } = req.body;
+      
+      if (!records || !Array.isArray(records) || records.length === 0) {
+        return res.status(400).json({ error: "Records array is required" });
+      }
+
+      // Validate and transform records
+      const validRecords: { userId: string; type: string; timestamp: Date; method: string; context: string }[] = [];
+      const errors: string[] = [];
+
+      for (const r of records) {
+        if (!r.userId || typeof r.userId !== 'string') {
+          errors.push(`Invalid userId: ${r.userId}`);
+          continue;
+        }
+        if (!r.type || (r.type !== 'in' && r.type !== 'out')) {
+          errors.push(`Invalid type for ${r.userId}: ${r.type}`);
+          continue;
+        }
+        if (!r.timestamp) {
+          errors.push(`Missing timestamp for ${r.userId}`);
+          continue;
+        }
+        
+        const timestamp = new Date(r.timestamp);
+        if (isNaN(timestamp.getTime())) {
+          errors.push(`Invalid timestamp for ${r.userId}: ${r.timestamp}`);
+          continue;
+        }
+
+        validRecords.push({
+          userId: r.userId,
+          type: r.type,
+          timestamp,
+          method: 'manual',
+          context: 'manual',
+        });
+      }
+
+      if (validRecords.length === 0) {
+        return res.status(400).json({ error: errors.length > 0 ? errors.join('; ') : "No valid records provided" });
+      }
+
+      const newRecords = await storage.createBulkAttendanceRecords(validRecords);
+      return res.status(201).json(newRecords);
+    } catch (error) {
+      console.error("Create bulk attendance error:", error);
+      return res.status(400).json({ error: "Failed to create attendance records" });
+    }
+  });
+
   // ========== SETTINGS ROUTES ==========
   
   // Get setting by key
