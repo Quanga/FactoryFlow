@@ -56,10 +56,29 @@ export const faceApi = {
   },
 };
 
+// Helper to get current user ID from localStorage for access control
+const getCurrentUserId = (): string | null => {
+  try {
+    const stored = localStorage.getItem('aece_user');
+    if (stored) {
+      const user = JSON.parse(stored);
+      return user?.id || null;
+    }
+  } catch {
+    // Ignore parsing errors
+  }
+  return null;
+};
+
 // User API
 export const userApi = {
   async getAll(): Promise<User[]> {
-    const res = await fetch(`${API_BASE}/users`);
+    const headers: Record<string, string> = {};
+    const userId = getCurrentUserId();
+    if (userId) {
+      headers['X-User-Id'] = userId;
+    }
+    const res = await fetch(`${API_BASE}/users`, { headers });
     if (!res.ok) throw new Error("Failed to fetch users");
     return res.json();
   },

@@ -83,7 +83,7 @@ const useInstallPrompt = () => {
 };
 
 type SubMode = 'clock-in' | 'clock-out';
-type KioskStatus = 'ready' | 'scanning' | 'recognized' | 'recording' | 'success' | 'error' | 'id-input';
+type KioskStatus = 'ready' | 'scanning' | 'confirm-identity' | 'recording' | 'success' | 'error' | 'id-input';
 
 interface RecognizedWorker {
   id: string;
@@ -117,10 +117,10 @@ export default function AttendanceKiosk() {
   useEffect(() => {
     const init = async () => {
       await loadFaceModels();
-      const res = await fetch('/api/users/face-descriptors');
+      const res = await fetch('/api/users/face-descriptors?includeAdmins=true');
       const users = await res.json();
       const usersWithDescriptors = users
-        .filter((u: any) => u.faceDescriptor && u.role === 'worker')
+        .filter((u: any) => u.faceDescriptor)
         .map((u: any) => ({
           user: u,
           descriptor: new Float32Array(JSON.parse(u.faceDescriptor))
@@ -194,13 +194,9 @@ export default function AttendanceKiosk() {
           setRecognizedWorker({
             id: bestMatch.user.id,
             name: `${bestMatch.user.firstName} ${bestMatch.user.surname}`,
-            department: bestMatch.user.department
+            department: bestMatch.user.department || ''
           });
-          setStatus('recognized');
-          
-          setTimeout(() => {
-            recordAttendance(bestMatch!.user.id, 'face');
-          }, 1500);
+          setStatus('confirm-identity');
         }
       }
     } catch (err) {
@@ -224,11 +220,7 @@ export default function AttendanceKiosk() {
     try {
       const user = await userApi.getById(workerId.trim());
       if (!user) {
-        setError('Worker not found');
-        return;
-      }
-      if (user.role !== 'worker') {
-        setError('Invalid worker ID');
+        setError('Employee not found');
         return;
       }
       
@@ -239,8 +231,19 @@ export default function AttendanceKiosk() {
       });
       recordAttendance(user.id, 'id');
     } catch (err: any) {
-      setError(err.message || 'Worker not found');
+      setError(err.message || 'Employee not found');
     }
+  };
+
+  const handleConfirmIdentity = () => {
+    if (recognizedWorker) {
+      recordAttendance(recognizedWorker.id, 'face');
+    }
+  };
+
+  const handleDenyIdentity = () => {
+    setStatus('id-input');
+    setRecognizedWorker(null);
   };
 
   const isClockIn = subMode === 'clock-in';
@@ -292,7 +295,46 @@ export default function AttendanceKiosk() {
       <div className="flex-1 flex items-center justify-center p-4 sm:p-8">
         <Card className="w-full max-w-2xl bg-white/95 backdrop-blur shadow-2xl border-0">
           <CardContent className="p-4 sm:p-8">
-            {status === 'id-input' ? (
+            {status === 'confirm-identity' && recognizedWorker ? (
+              <div className="space-y-6">
+                <div className="text-center">
+                  <ScanFace className="w-20 h-20 mx-auto text-blue-500 mb-4" />
+                  <h2 className="font-oswald text-2xl sm:text-3xl font-bold text-slate-800 mb-2">
+                    Is this you?
+                  </h2>
+                  <p className="text-3xl sm:text-4xl font-bold text-blue-600 mb-2">
+                    {recognizedWorker.name}
+                  </p>
+                  {recognizedWorker.department && (
+                    <p className="text-lg text-slate-500">{recognizedWorker.department}</p>
+                  )}
+                </div>
+                
+                <div className="flex gap-4">
+                  <Button 
+                    variant="outline"
+                    className="flex-1 h-16 text-lg border-red-300 text-red-600 hover:bg-red-50"
+                    onClick={handleDenyIdentity}
+                    data-testid="button-not-me"
+                  >
+                    <XCircle className="w-6 h-6 mr-2" />
+                    Not Me
+                  </Button>
+                  <Button 
+                    className={`flex-1 h-16 text-lg ${isClockIn ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}
+                    onClick={handleConfirmIdentity}
+                    data-testid="button-confirm-identity"
+                  >
+                    <CheckCircle2 className="w-6 h-6 mr-2" />
+                    Yes, {isClockIn ? 'Clock In' : 'Clock Out'}
+                  </Button>
+                </div>
+                
+                <p className="text-center text-sm text-slate-500">
+                  If this is not you, click "Not Me" to enter your Employee ID instead
+                </p>
+              </div>
+            ) : status === 'id-input' ? (
               <div className="space-y-6">
                 <div className="text-center">
                   <User className="w-16 h-16 mx-auto text-slate-400 mb-4" />
@@ -361,7 +403,7 @@ export default function AttendanceKiosk() {
                   
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className={`w-40 h-40 sm:w-56 sm:h-56 rounded-full border-4 ${
-                      status === 'recognized' || status === 'recording' ? (isClockIn ? 'border-green-500' : 'border-red-500') :
+                      status === 'recording' ? (isClockIn ? 'border-green-500' : 'border-red-500') :
                       status === 'success' ? 'border-green-400' :
                       status === 'error' ? 'border-red-400' :
                       status === 'scanning' ? `${isClockIn ? 'border-green-400' : 'border-red-400'} animate-pulse` :
@@ -403,12 +445,6 @@ export default function AttendanceKiosk() {
                               ? 'No faces registered - Use ID instead'
                               : 'Look at the camera'}
                           </span>
-                        </>
-                      )}
-                      {status === 'recognized' && recognizedWorker && (
-                        <>
-                          <CheckCircle2 className="w-6 h-6 text-green-400" />
-                          <span>Welcome, {recognizedWorker.name}!</span>
                         </>
                       )}
                       {status === 'recording' && (

@@ -246,8 +246,29 @@ export async function registerRoutes(
   // Get all users
   app.get("/api/users", async (req, res) => {
     try {
-      const users = await storage.getAllUsers();
-      return res.json(users);
+      const requestingUserId = req.headers['x-user-id'] as string;
+      const allUsers = await storage.getAllUsers();
+      
+      // If no requesting user specified, return all (for backward compatibility)
+      if (!requestingUserId) {
+        return res.json(allUsers);
+      }
+      
+      // Get the requesting user to check their access level
+      const requestingUser = await storage.getUser(requestingUserId);
+      
+      // Full admins see everyone
+      if (requestingUser?.hasFullAdminAccess === 'yes') {
+        return res.json(allUsers);
+      }
+      
+      // Limited access: only see themselves and their direct reports
+      const filteredUsers = allUsers.filter(u => 
+        u.id === requestingUserId || // Can see themselves
+        u.managerId === requestingUserId // Can see their direct reports
+      );
+      
+      return res.json(filteredUsers);
     } catch (error) {
       console.error("Get users error:", error);
       return res.status(500).json({ error: "Failed to fetch users" });

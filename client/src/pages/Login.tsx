@@ -32,15 +32,11 @@ export default function Login() {
   const [faceMessage, setFaceMessage] = useState<string>('');
   const [detectionStatus, setDetectionStatus] = useState<FaceDetectionStatus | null>(null);
 
-  const [adminFaceMode, setAdminFaceMode] = useState(false);
-
   useEffect(() => {
     if (loginMode === 'worker') {
       initFaceRecognition(true);
-    } else if (loginMode === 'admin' && adminFaceMode) {
-      initFaceRecognition(true);
     }
-  }, [loginMode, adminFaceMode]);
+  }, [loginMode]);
 
   const initFaceRecognition = async (includeAdmins: boolean) => {
     setFaceStatus('loading');
@@ -145,13 +141,12 @@ export default function Login() {
 
   useEffect(() => {
     const isWorkerScanning = loginMode === 'worker' && modelsReady && faceStatus === 'scanning';
-    const isAdminScanning = loginMode === 'admin' && adminFaceMode && modelsReady && faceStatus === 'scanning';
     
-    if (!isWorkerScanning && !isAdminScanning) return;
+    if (!isWorkerScanning) return;
     
     const interval = setInterval(detectAndMatchFace, 1500);
     return () => clearInterval(interval);
-  }, [loginMode, modelsReady, faceStatus, adminFaceMode, detectAndMatchFace]);
+  }, [loginMode, modelsReady, faceStatus, detectAndMatchFace]);
 
   const handleIdSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -196,7 +191,6 @@ export default function Login() {
     setShowIdInput(false);
     setFaceStatus('loading');
     setRecognizedUser(null);
-    setAdminFaceMode(false);
     setModelsReady(false);
   };
 
@@ -324,70 +318,6 @@ export default function Login() {
                 </form>
               )}
             </div>
-          ) : adminFaceMode ? (
-            <div className="space-y-4">
-              <div className="relative rounded-xl overflow-hidden bg-slate-900 aspect-video">
-                <Webcam
-                  ref={webcamRef}
-                  audio={false}
-                  screenshotFormat="image/jpeg"
-                  videoConstraints={{ facingMode: 'user', width: 640, height: 480 }}
-                  className="w-full h-full object-cover"
-                />
-                
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className={`w-48 h-48 rounded-full border-4 ${
-                    faceStatus === 'recognized' ? 'border-green-500' : 
-                    faceStatus === 'scanning' && detectionStatus === 'face_detected' ? 'border-green-500 animate-pulse' :
-                    faceStatus === 'scanning' && detectionStatus && detectionStatus !== 'face_detected' ? 'border-amber-500' :
-                    faceStatus === 'scanning' ? 'border-amber-500 animate-pulse' : 
-                    'border-white/50'
-                  } transition-colors`} />
-                </div>
-                
-                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
-                  <div className="flex items-center justify-center gap-2 text-white" data-testid="admin-face-feedback">
-                    {faceStatus === 'loading' && (
-                      <>
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                        <span>Loading face recognition...</span>
-                      </>
-                    )}
-                    {faceStatus === 'scanning' && (
-                      <>
-                        {detectionStatus === 'no_face' && <AlertCircle className="h-5 w-5 text-amber-400" />}
-                        {detectionStatus === 'poor_lighting' && <Sun className="h-5 w-5 text-amber-400" />}
-                        {detectionStatus === 'face_too_small' && <ZoomIn className="h-5 w-5 text-amber-400" />}
-                        {detectionStatus === 'face_too_large' && <ZoomOut className="h-5 w-5 text-amber-400" />}
-                        {detectionStatus === 'face_not_centered' && <Move className="h-5 w-5 text-amber-400" />}
-                        {detectionStatus === 'multiple_faces' && <Users className="h-5 w-5 text-amber-400" />}
-                        {detectionStatus === 'face_detected' && <ScanFace className="h-5 w-5 animate-pulse text-green-400" />}
-                        {!detectionStatus && <ScanFace className="h-5 w-5 animate-pulse" />}
-                        <span className={detectionStatus && detectionStatus !== 'face_detected' ? 'text-amber-300' : ''}>
-                          {faceMessage || 'Look at the camera'}
-                        </span>
-                      </>
-                    )}
-                    {faceStatus === 'recognized' && (
-                      <>
-                        <CheckCircle2 className="h-5 w-5 text-green-400" />
-                        <span>{faceMessage || `Welcome, ${recognizedUser}!`}</span>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="text-center">
-                <button
-                  onClick={() => setAdminFaceMode(false)}
-                  className="text-sm text-slate-500 hover:text-amber-500 underline"
-                  data-testid="button-use-password"
-                >
-                  Use Email/Password instead
-                </button>
-              </div>
-            </div>
           ) : (
             <form onSubmit={handleAdminSubmit} className="space-y-4">
               <div className="space-y-2">
@@ -425,17 +355,6 @@ export default function Login() {
               <Button type="submit" className="w-full h-12 bg-amber-500 hover:bg-amber-600 text-white text-lg mt-2" disabled={loading} data-testid="button-admin-login">
                 {loading ? 'Signing In...' : 'Sign In'} {!loading && <ArrowRight className="ml-2 h-5 w-5" />}
               </Button>
-
-              <div className="text-center">
-                <button
-                  type="button"
-                  onClick={() => setAdminFaceMode(true)}
-                  className="text-sm text-slate-500 hover:text-amber-500 underline"
-                  data-testid="button-admin-use-face"
-                >
-                  Use Face Recognition instead
-                </button>
-              </div>
             </form>
           )}
         </CardContent>

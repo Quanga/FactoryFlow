@@ -29,6 +29,8 @@ export default function AdminDashboard() {
   const { user, setUser, logout } = useAuth();
   const queryClient = useQueryClient();
   
+  // Server-side access control filters users based on X-User-Id header
+  // The server checks hasFullAdminAccess and returns appropriate data
   const { data: users = [] } = useQuery({
     queryKey: ['users'],
     queryFn: userApi.getAll,
