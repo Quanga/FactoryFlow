@@ -5,7 +5,8 @@
 2. [Getting Started](#getting-started)
 3. [Worker Guide](#worker-guide)
 4. [Administrator Guide](#administrator-guide)
-5. [Troubleshooting](#troubleshooting)
+5. [User Maintainer Guide](#user-maintainer-guide)
+6. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -18,9 +19,10 @@ AECE Checkpoint is an employee leave management and attendance tracking system d
 - **Grievance System** - Submit and track workplace grievances
 - **Employee Management** - Comprehensive personnel administration for managers
 
-The system has two main user types:
+The system has three user types:
 - **Workers** - Factory employees who clock in/out and request leave
-- **Administrators** - Managers who oversee operations and approve requests
+- **Administrators (Managers)** - Full access to oversee operations, approve requests, and configure the system
+- **User Maintainers** - Limited admin access for employee data entry and face registration only
 
 ---
 
@@ -49,12 +51,33 @@ You can log in using:
    - Enter your company Employee ID OR your National ID number
    - Click "Sign In"
 
-#### For Administrators
+#### For Administrators (Managers)
 
 1. Click "Admin" at the top of the login screen
 2. Enter your email address and password
 3. Click "Sign In"
 4. You can also use Face Recognition if your face is registered
+5. You will be taken to the full Admin Dashboard
+
+#### For User Maintainers
+
+User Maintainers have limited admin access for managing employee data only:
+
+1. Click "Admin" at the top of the login screen
+2. Enter your email address and password
+3. Click "Sign In"
+4. You will be taken to the Maintainer Dashboard (not the full Admin Dashboard)
+
+**What Maintainers Can Do:**
+- Add, edit, and view employee records
+- Register employee faces for facial recognition login
+- View employee details and contact information
+
+**What Maintainers Cannot Do:**
+- Approve or reject leave requests
+- Manage departments or leave rules
+- Access attendance records or grievances
+- Configure system settings
 
 ---
 
@@ -365,6 +388,74 @@ View the company hierarchy:
 1. Go to **Organization Chart** from the admin menu
 2. See departments and their employees
 3. View reporting relationships
+
+---
+
+## User Maintainer Guide
+
+User Maintainers are staff members with limited administrative access, specifically for managing employee data and face registration. This role is ideal for HR assistants or reception staff who need to onboard new employees without full system access.
+
+### Maintainer Dashboard
+
+When you log in as a User Maintainer, you'll see a simplified dashboard with:
+
+- **Statistics** - Total employees, workers, and managers
+- **Employee List** - Searchable table of all employees
+- **Add Employee** - Button to create new employee records
+
+### Adding New Employees
+
+1. Click **Add Employee**
+2. Fill in the required fields:
+   - **Employee ID** - Unique company ID (e.g., AECE1001)
+   - **First Name** and **Surname**
+   - **Role** - Worker or Manager
+   - **Department** - For workers
+   - **Employee Type** - Permanent, Contractor, etc.
+3. Optional fields:
+   - Email, Mobile, National ID
+   - Home Address
+   - Manager assignment
+   - Start Date, Contract End Date
+   - Next of Kin, Emergency Contact
+4. Click **Save**
+
+The system will generate a secure password automatically.
+
+### Editing Employees
+
+1. Find the employee in the list using the search box
+2. Click the **Edit** button (pencil icon)
+3. Update any fields as needed
+4. Click **Save**
+
+### Registering Employee Faces
+
+Face registration allows employees to log in using facial recognition:
+
+1. Edit the employee's profile
+2. Click **Capture Face** or **Register Face**
+3. Have the employee position their face in the camera
+4. Click to capture the photo
+5. The face data is saved automatically
+
+**Tips for good face registration:**
+- Ensure good lighting on the employee's face
+- Have them remove glasses or hats if possible
+- Make sure their face is clearly visible and centered
+- Capture in a similar environment to where they'll clock in
+
+### What You Cannot Access
+
+As a Maintainer, you do not have access to:
+- Leave request approvals
+- Department management
+- Leave balance adjustments
+- Attendance records
+- Grievance management
+- System settings
+
+If you need access to these features, contact your system administrator.
 
 ---
 
