@@ -95,7 +95,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   <Button 
                     variant="ghost" 
                     className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10 px-4"
-                    onClick={() => window.location.href = '/'}
+                    onClick={() => {
+                      logout();
+                      window.location.href = '/';
+                    }}
                   >
                     <LogOut className="mr-2 h-5 w-5" />
                     Sign Out
@@ -126,7 +129,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <Button 
                 variant="outline" 
                 className="w-full justify-start text-muted-foreground hover:text-destructive hover:border-destructive"
-                onClick={() => window.location.href = '/'}
+                onClick={() => {
+                  logout();
+                  window.location.href = '/';
+                }}
               >
                 <LogOut className="mr-2 h-4 w-4" />
                 Sign Out

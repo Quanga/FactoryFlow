@@ -1425,7 +1425,10 @@ export default function AdminDashboard() {
               
               <div className="pt-4 mt-4 border-t">
                 <button
-                  onClick={logout}
+                  onClick={() => {
+                    logout();
+                    setLocation('/');
+                  }}
                   className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors hover:bg-red-50 text-red-600"
                   data-testid="nav-logout"
                 >
