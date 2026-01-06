@@ -11,6 +11,7 @@ import Dashboard from "@/pages/Dashboard";
 import LeaveRequest from "@/pages/LeaveRequest";
 import Attendance from "@/pages/Attendance";
 import AttendanceKiosk from "@/pages/AttendanceKiosk";
+import AttendanceTileMode from "@/pages/AttendanceTileMode";
 import AdminLogin from "@/pages/AdminLogin";
 import AdminDashboard from "@/pages/AdminDashboard";
 import MaintainerDashboard from "@/pages/MaintainerDashboard";
@@ -32,6 +33,7 @@ function Router() {
       <Route path="/leave-request" component={LeaveRequest} />
       <Route path="/attendance" component={Attendance} />
       <Route path="/attendance-kiosk" component={AttendanceKiosk} />
+      <Route path="/attendance-tiles" component={AttendanceTileMode} />
       <Route path="/reset-password" component={ResetPassword} />
       <Route path="/profile" component={EmployeeProfile} />
       <Route path="/grievances" component={Grievances} />

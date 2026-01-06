@@ -1,24 +1,43 @@
 import { useState } from 'react';
 import { useLocation } from 'wouter';
 import { Card, CardContent } from '@/components/ui/card';
-import { Clock, FileText, LogIn, LogOut, Settings } from 'lucide-react';
+import { Clock, FileText, LogIn, LogOut, Settings, Camera, Grid3X3 } from 'lucide-react';
 import aeceLogo from '@assets/AECE_Logo_1765516911038.png';
 
 type AttendanceSubMode = 'clock-in' | 'clock-out';
+type SelectionStep = 'mode' | 'attendance-type' | 'attendance-method';
 
 export default function ModeSelect() {
   const [, setLocation] = useLocation();
-  const [showAttendanceOptions, setShowAttendanceOptions] = useState(false);
+  const [step, setStep] = useState<SelectionStep>('mode');
+  const [selectedSubMode, setSelectedSubMode] = useState<AttendanceSubMode>('clock-in');
 
-  const handleAttendanceMode = (subMode: AttendanceSubMode) => {
-    sessionStorage.setItem('appMode', 'attendance');
+  const handleSelectAttendanceType = (subMode: AttendanceSubMode) => {
+    setSelectedSubMode(subMode);
     sessionStorage.setItem('attendanceSubMode', subMode);
-    setLocation('/attendance-kiosk');
+    setStep('attendance-method');
+  };
+
+  const handleAttendanceMethod = (method: 'camera' | 'tiles') => {
+    sessionStorage.setItem('appMode', 'attendance');
+    if (method === 'camera') {
+      setLocation('/attendance-kiosk');
+    } else {
+      setLocation('/attendance-tiles');
+    }
   };
 
   const handleApplicationMode = () => {
     sessionStorage.setItem('appMode', 'application');
     setLocation('/login');
+  };
+
+  const goBack = () => {
+    if (step === 'attendance-method') {
+      setStep('attendance-type');
+    } else if (step === 'attendance-type') {
+      setStep('mode');
+    }
   };
 
   return (
@@ -29,14 +48,18 @@ export default function ModeSelect() {
           <h1 className="font-oswald text-4xl font-bold text-slate-800 tracking-wider mb-2">
             AECE CHECKPOINT
           </h1>
-          <p className="text-slate-600 text-lg">Select Operating Mode</p>
+          <p className="text-slate-600 text-lg">
+            {step === 'mode' && 'Select Operating Mode'}
+            {step === 'attendance-type' && 'Select Attendance Type'}
+            {step === 'attendance-method' && `${selectedSubMode === 'clock-in' ? 'Clock In' : 'Clock Out'} - Select Method`}
+          </p>
         </div>
 
-        {!showAttendanceOptions ? (
+        {step === 'mode' && (
           <div className="grid md:grid-cols-2 gap-6">
             <Card 
               className="cursor-pointer hover:scale-105 transition-transform duration-300 bg-white border border-slate-200 shadow-lg"
-              onClick={() => setShowAttendanceOptions(true)}
+              onClick={() => setStep('attendance-type')}
               data-testid="card-attendance-mode"
             >
               <CardContent className="p-8 text-center">
@@ -70,10 +93,12 @@ export default function ModeSelect() {
               </CardContent>
             </Card>
           </div>
-        ) : (
+        )}
+
+        {step === 'attendance-type' && (
           <div className="space-y-6">
             <button 
-              onClick={() => setShowAttendanceOptions(false)}
+              onClick={goBack}
               className="text-slate-600 hover:text-slate-800 flex items-center gap-2 mb-4"
               data-testid="button-back"
             >
@@ -83,7 +108,7 @@ export default function ModeSelect() {
             <div className="grid md:grid-cols-2 gap-6">
               <Card 
                 className="cursor-pointer hover:scale-105 transition-transform duration-300 bg-green-50 border-green-200 shadow-2xl"
-                onClick={() => handleAttendanceMode('clock-in')}
+                onClick={() => handleSelectAttendanceType('clock-in')}
                 data-testid="card-clock-in"
               >
                 <CardContent className="p-8 text-center">
@@ -101,7 +126,7 @@ export default function ModeSelect() {
 
               <Card 
                 className="cursor-pointer hover:scale-105 transition-transform duration-300 bg-red-50 border-red-200 shadow-2xl"
-                onClick={() => handleAttendanceMode('clock-out')}
+                onClick={() => handleSelectAttendanceType('clock-out')}
                 data-testid="card-clock-out"
               >
                 <CardContent className="p-8 text-center">
@@ -113,6 +138,56 @@ export default function ModeSelect() {
                   </h2>
                   <p className="text-red-700">
                     Record worker departures at end of shift
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        )}
+
+        {step === 'attendance-method' && (
+          <div className="space-y-6">
+            <button 
+              onClick={goBack}
+              className="text-slate-600 hover:text-slate-800 flex items-center gap-2 mb-4"
+              data-testid="button-back-method"
+            >
+              ← Back to Type Selection
+            </button>
+            
+            <div className="grid md:grid-cols-2 gap-6">
+              <Card 
+                className="cursor-pointer hover:scale-105 transition-transform duration-300 bg-blue-50 border-blue-200 shadow-2xl"
+                onClick={() => handleAttendanceMethod('camera')}
+                data-testid="card-camera-mode"
+              >
+                <CardContent className="p-8 text-center">
+                  <div className="w-20 h-20 mx-auto mb-4 bg-blue-500/20 rounded-full flex items-center justify-center">
+                    <Camera className="w-10 h-10 text-blue-600" />
+                  </div>
+                  <h2 className="font-oswald text-2xl font-bold text-blue-800 mb-2">
+                    CAMERA MODE
+                  </h2>
+                  <p className="text-blue-700">
+                    Use facial recognition to identify workers automatically
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card 
+                className="cursor-pointer hover:scale-105 transition-transform duration-300 bg-purple-50 border-purple-200 shadow-2xl"
+                onClick={() => handleAttendanceMethod('tiles')}
+                data-testid="card-tile-mode"
+              >
+                <CardContent className="p-8 text-center">
+                  <div className="w-20 h-20 mx-auto mb-4 bg-purple-500/20 rounded-full flex items-center justify-center">
+                    <Grid3X3 className="w-10 h-10 text-purple-600" />
+                  </div>
+                  <h2 className="font-oswald text-2xl font-bold text-purple-800 mb-2">
+                    TILE MODE
+                  </h2>
+                  <p className="text-purple-700">
+                    Tap employee tiles to quickly record attendance
                   </p>
                 </CardContent>
               </Card>
