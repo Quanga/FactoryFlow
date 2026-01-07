@@ -2422,9 +2422,9 @@ export default function AdminDashboard() {
                             return true;
                           });
                           
-                          const workers = users.filter(u => u.role === 'worker' && !u.exclude);
+                          const eligibleEmployees = users.filter(u => !u.exclude);
                           const usersWithAttendance = new Set(attendanceRecords.map((r: AttendanceRecord) => r.userId));
-                          const nonAttendanceRecords = workers
+                          const nonAttendanceRecords = eligibleEmployees
                             .filter(w => {
                               if (attendanceUserFilter && attendanceUserFilter !== 'all' && w.id !== attendanceUserFilter) {
                                 return false;
@@ -2584,9 +2584,9 @@ export default function AdminDashboard() {
                     return true;
                   });
                   
-                  const workers = users.filter(u => u.role === 'worker' && !u.exclude);
+                  const eligibleEmployees = users.filter(u => !u.exclude);
                   const usersWithAttendance = new Set(attendanceRecords.map((r: AttendanceRecord) => r.userId));
-                  const nonAttendanceRecords = workers
+                  const nonAttendanceRecords = eligibleEmployees
                     .filter(w => {
                       if (attendanceUserFilter && attendanceUserFilter !== 'all' && w.id !== attendanceUserFilter) {
                         return false;
