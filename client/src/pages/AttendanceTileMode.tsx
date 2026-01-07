@@ -8,7 +8,7 @@ import {
   ArrowLeft, Clock, Search, User, Grid3X3, Camera
 } from 'lucide-react';
 import { userApi, attendanceApi, departmentApi } from '@/lib/api';
-import type { User as UserType, Department } from '@shared/schema';
+import type { User as UserType, Department, AttendanceRecord } from '@shared/schema';
 
 type SubMode = 'clock-in' | 'clock-out';
 type TileStatus = 'mode-select' | 'selecting' | 'confirm' | 'recording' | 'success' | 'error';
@@ -39,6 +39,7 @@ export default function AttendanceTileMode() {
   const [selectedUser, setSelectedUser] = useState<UserType | null>(null);
   const [users, setUsers] = useState<UserType[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -51,18 +52,31 @@ export default function AttendanceTileMode() {
     return () => clearInterval(timer);
   }, []);
 
+  const loadAttendance = async () => {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const records = await attendanceApi.getAll(today, today);
+      setAttendanceRecords(records);
+    } catch (err) {
+      console.error('Failed to load attendance:', err);
+    }
+  };
+
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [usersData, deptsData] = await Promise.all([
+        const today = new Date().toISOString().split('T')[0];
+        const [usersData, deptsData, attendanceData] = await Promise.all([
           userApi.getAll(),
-          departmentApi.getAll()
+          departmentApi.getAll(),
+          attendanceApi.getAll(today, today)
         ]);
         const activeUsers = usersData.filter(u => 
           !u.terminationDate && (u.role === 'worker' || u.role === 'manager')
         );
         setUsers(activeUsers);
         setDepartments(deptsData);
+        setAttendanceRecords(attendanceData);
       } catch (err) {
         console.error('Failed to load users:', err);
         setError('Failed to load employee data');
@@ -72,6 +86,34 @@ export default function AttendanceTileMode() {
     };
     loadData();
   }, []);
+
+  // Calculate who is currently clocked in
+  const clockedInUserIds = useMemo(() => {
+    if (attendanceRecords.length === 0) return new Set<string>();
+    
+    const now = new Date();
+    const userLastAction = new Map<string, { type: string; timestamp: Date }>();
+    
+    const sortedRecords = [...attendanceRecords].sort((a, b) => 
+      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
+    
+    sortedRecords.forEach(record => {
+      const recordTime = new Date(record.timestamp);
+      if (recordTime <= now) {
+        userLastAction.set(record.userId, { type: record.type, timestamp: recordTime });
+      }
+    });
+    
+    const clockedIn = new Set<string>();
+    userLastAction.forEach((action, odewUserId) => {
+      if (action.type === 'in') {
+        clockedIn.add(odewUserId);
+      }
+    });
+    
+    return clockedIn;
+  }, [attendanceRecords]);
 
   const filteredUsers = useMemo(() => {
     let result = users;
@@ -126,6 +168,9 @@ export default function AttendanceTileMode() {
           : `${selectedUser.firstName} clocked out at ${timeStr}`
       );
       setStatus('success');
+      
+      // Refresh attendance data to update tile colors
+      loadAttendance();
       
       setTimeout(() => {
         setStatus('selecting');
@@ -368,41 +413,50 @@ export default function AttendanceTileMode() {
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
-              {filteredUsers.map((user) => (
-                <button
-                  key={user.id}
-                  onClick={() => handleTileClick(user)}
-                  className="group relative bg-white/5 hover:bg-white/15 border border-white/10 hover:border-primary/50 rounded-xl p-3 sm:p-4 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary/50 text-left"
-                  data-testid={`tile-user-${user.id}`}
-                >
-                  <div className="aspect-square mb-3 rounded-lg overflow-hidden bg-slate-700 flex items-center justify-center">
-                    {user.photoUrl ? (
-                      <img 
-                        src={user.photoUrl} 
-                        alt={`${user.firstName} ${user.surname}`}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <User className="h-12 w-12 text-slate-500" />
-                    )}
-                  </div>
-                  <div className="space-y-1">
-                    <p className="font-semibold text-white text-sm sm:text-base truncate group-hover:text-primary transition-colors">
-                      {user.firstName} {user.surname}
-                    </p>
-                    {user.nickname && (
-                      <p className="text-xs text-slate-400 truncate">"{user.nickname}"</p>
-                    )}
-                    <p className="text-xs text-slate-500 truncate">
-                      {getDepartmentName(user.department)}
-                    </p>
-                  </div>
-                  <div className={`absolute top-2 right-2 w-3 h-3 rounded-full ${
-                    subMode === 'clock-in' ? 'bg-green-500' : 'bg-orange-500'
-                  } opacity-0 group-hover:opacity-100 transition-opacity`} />
-                </button>
-              ))}
+              {filteredUsers.map((user) => {
+                const isClockedIn = clockedInUserIds.has(user.id);
+                return (
+                  <button
+                    key={user.id}
+                    onClick={() => handleTileClick(user)}
+                    className={`group relative rounded-xl p-3 sm:p-4 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary/50 text-left border-2 ${
+                      isClockedIn 
+                        ? 'bg-green-900/40 border-green-500 hover:bg-green-800/50 hover:border-green-400' 
+                        : 'bg-red-900/40 border-red-500 hover:bg-red-800/50 hover:border-red-400'
+                    }`}
+                    data-testid={`tile-user-${user.id}`}
+                  >
+                    <div className={`aspect-square mb-3 rounded-lg overflow-hidden flex items-center justify-center ${
+                      isClockedIn ? 'bg-green-800/50' : 'bg-red-800/50'
+                    }`}>
+                      {user.photoUrl ? (
+                        <img 
+                          src={user.photoUrl} 
+                          alt={`${user.firstName} ${user.surname}`}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <User className="h-12 w-12 text-slate-400" />
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <p className="font-semibold text-white text-sm sm:text-base truncate group-hover:text-primary transition-colors">
+                        {user.firstName} {user.surname}
+                      </p>
+                      {user.nickname && (
+                        <p className="text-xs text-slate-300 truncate">"{user.nickname}"</p>
+                      )}
+                      <p className="text-xs text-slate-400 truncate">
+                        {getDepartmentName(user.department)}
+                      </p>
+                    </div>
+                    <div className={`absolute top-2 right-2 w-3 h-3 rounded-full ${
+                      isClockedIn ? 'bg-green-400' : 'bg-red-400'
+                    }`} />
+                  </button>
+                );
+              })}
             </div>
 
             {filteredUsers.length === 0 && (
