@@ -833,7 +833,14 @@ export async function registerRoutes(
   app.get("/api/attendance", async (req, res) => {
     try {
       const startDate = req.query.startDate ? new Date(req.query.startDate as string) : undefined;
-      const endDate = req.query.endDate ? new Date(req.query.endDate as string) : undefined;
+      let endDate = req.query.endDate ? new Date(req.query.endDate as string) : undefined;
+      
+      // Adjust endDate to include the entire day (end of day instead of start)
+      if (endDate) {
+        endDate = new Date(endDate);
+        endDate.setHours(23, 59, 59, 999);
+      }
+      
       const records = await storage.getAllAttendanceRecords(startDate, endDate);
       return res.json(records);
     } catch (error) {
@@ -847,7 +854,14 @@ export async function registerRoutes(
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
       const startDate = req.query.startDate ? new Date(req.query.startDate as string) : undefined;
-      const endDate = req.query.endDate ? new Date(req.query.endDate as string) : undefined;
+      let endDate = req.query.endDate ? new Date(req.query.endDate as string) : undefined;
+      
+      // Adjust endDate to include the entire day
+      if (endDate) {
+        endDate = new Date(endDate);
+        endDate.setHours(23, 59, 59, 999);
+      }
+      
       const records = await storage.getAttendanceRecords(req.params.userId, limit, startDate, endDate);
       return res.json(records);
     } catch (error) {
