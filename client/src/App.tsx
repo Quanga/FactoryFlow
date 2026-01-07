@@ -34,6 +34,7 @@ function Router() {
       <Route path="/attendance" component={Attendance} />
       <Route path="/attendance-kiosk" component={AttendanceKiosk} />
       <Route path="/attendance-tiles" component={AttendanceTileMode} />
+      <Route path="/attendance-tile" component={AttendanceTileMode} />
       <Route path="/reset-password" component={ResetPassword} />
       <Route path="/profile" component={EmployeeProfile} />
       <Route path="/grievances" component={Grievances} />
