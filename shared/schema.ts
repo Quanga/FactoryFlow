@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, integer, timestamp, serial, varchar } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, timestamp, serial, varchar, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -131,6 +131,7 @@ export const users = pgTable("users", {
   managerId: text("manager_id"), // ID of the employee's direct manager
   photoUrl: text("photo_url"),
   faceDescriptor: text("face_descriptor"), // JSON array of 128 face embedding values
+  excludeFromStructure: boolean("exclude_from_structure").default(false), // Exclude from org chart
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

@@ -829,6 +829,7 @@ export default function AdminDashboard() {
       startDate: currentUser.startDate || null,
       userGroupId: currentUser.userGroupId || null,
       managerId: currentUser.managerId || null,
+      excludeFromStructure: currentUser.excludeFromStructure || false,
     };
 
     if (isEditing) {
@@ -4208,6 +4209,20 @@ export default function AdminDashboard() {
                   </Select>
                   <p className="text-xs text-muted-foreground mt-1">
                     Select the direct manager for this employee. Only users with "Manager" position type are shown.
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="excludeFromStructure" className="text-right">Exclude from Org Chart</Label>
+                <div className="col-span-3 flex items-center gap-3">
+                  <Switch
+                    id="excludeFromStructure"
+                    checked={currentUser.excludeFromStructure || false}
+                    onCheckedChange={(checked) => setCurrentUser({...currentUser, excludeFromStructure: checked})}
+                    data-testid="switch-exclude-from-structure"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    When enabled, this employee will not appear on the organization chart.
                   </p>
                 </div>
               </div>
