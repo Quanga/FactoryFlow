@@ -2549,7 +2549,34 @@ export default function AdminDashboard() {
                     return true;
                   });
                   
-                  if (filteredRecords.length === 0) {
+                  const workers = users.filter(u => u.role === 'worker');
+                  const usersWithAttendance = new Set(attendanceRecords.map((r: AttendanceRecord) => r.userId));
+                  const nonAttendanceRecords = workers
+                    .filter(w => {
+                      if (attendanceUserFilter && attendanceUserFilter !== 'all' && w.id !== attendanceUserFilter) {
+                        return false;
+                      }
+                      return !usersWithAttendance.has(w.id);
+                    })
+                    .map(w => ({
+                      id: `no-attendance-${w.id}`,
+                      odId: -1,
+                      userId: w.id,
+                      type: 'non-attendance' as const,
+                      timestamp: attendanceStartDate ? new Date(attendanceStartDate).toISOString() : new Date().toISOString(),
+                      photoUrl: null,
+                      method: null,
+                      context: null,
+                      employee: w,
+                    }));
+                  
+                  type DisplayRecord = (AttendanceRecord & { employee?: typeof users[0] }) | typeof nonAttendanceRecords[0];
+                  const allRecords: DisplayRecord[] = [
+                    ...filteredRecords.map((r: AttendanceRecord) => ({ ...r, employee: users.find(u => u.id === r.userId) })),
+                    ...nonAttendanceRecords,
+                  ];
+                  
+                  if (allRecords.length === 0) {
                     return (
                       <div className="text-center py-8 text-muted-foreground">
                         {attendanceInfringementFilter 
@@ -2573,14 +2600,18 @@ export default function AdminDashboard() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredRecords.map((record: AttendanceRecord) => {
-                          const employee = users.find(u => u.id === record.userId);
+                        {allRecords.map((record) => {
+                          const employee = record.employee || users.find(u => u.id === record.userId);
+                          const isNonAttendance = record.type === 'non-attendance';
                           const recordTime = new Date(record.timestamp);
-                          const timeStr = format(recordTime, 'HH:mm');
+                          const timeStr = isNonAttendance ? '' : format(recordTime, 'HH:mm');
                           
                           let isInfringement = false;
                           let infringementType = '';
-                          if (record.type === 'in' && timeStr > clockInCutoffTime) {
+                          if (isNonAttendance) {
+                            isInfringement = true;
+                            infringementType = 'No Attendance';
+                          } else if (record.type === 'in' && timeStr > clockInCutoffTime) {
                             isInfringement = true;
                             infringementType = 'Late Arrival';
                           } else if (record.type === 'out' && timeStr < clockOutCutoffTime) {
@@ -2594,12 +2625,20 @@ export default function AdminDashboard() {
                                 {employee ? `${employee.firstName} ${employee.surname}` : record.userId}
                               </TableCell>
                               <TableCell>
-                                <Badge variant={record.type === 'in' ? 'default' : 'secondary'}>
-                                  Clock {record.type === 'in' ? 'In' : 'Out'}
-                                </Badge>
+                                {isNonAttendance ? (
+                                  <Badge variant="outline" className="text-gray-500 border-gray-300">Non-Attendance</Badge>
+                                ) : (
+                                  <Badge variant={record.type === 'in' ? 'default' : 'secondary'}>
+                                    Clock {record.type === 'in' ? 'In' : 'Out'}
+                                  </Badge>
+                                )}
                               </TableCell>
                               <TableCell>
-                                {format(recordTime, "dd/MM/yyyy 'at' HH:mm")}
+                                {isNonAttendance ? (
+                                  <span className="text-muted-foreground">-</span>
+                                ) : (
+                                  format(recordTime, "dd/MM/yyyy 'at' HH:mm")
+                                )}
                               </TableCell>
                               <TableCell>
                                 {isInfringement ? (
@@ -2611,28 +2650,32 @@ export default function AdminDashboard() {
                               <TableCell className="capitalize">{record.context || '-'}</TableCell>
                               <TableCell className="capitalize">{record.method || '-'}</TableCell>
                               <TableCell className="text-right">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => openEditAttendance(record)}
-                                  title="Edit attendance record"
-                                  data-testid={`button-edit-attendance-${record.id}`}
-                                >
-                                  <Pencil className="h-4 w-4 text-slate-500" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => {
-                                    if (confirm('Are you sure you want to delete this attendance record?')) {
-                                      deleteAttendanceMutation.mutate(record.id);
-                                    }
-                                  }}
-                                  title="Delete attendance record"
-                                  data-testid={`button-delete-attendance-${record.id}`}
-                                >
-                                  <Trash2 className="h-4 w-4 text-red-500" />
-                                </Button>
+                                {!isNonAttendance && (
+                                  <>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => openEditAttendance(record as AttendanceRecord)}
+                                      title="Edit attendance record"
+                                      data-testid={`button-edit-attendance-${record.id}`}
+                                    >
+                                      <Pencil className="h-4 w-4 text-slate-500" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => {
+                                        if (confirm('Are you sure you want to delete this attendance record?')) {
+                                          deleteAttendanceMutation.mutate((record as AttendanceRecord).id);
+                                        }
+                                      }}
+                                      title="Delete attendance record"
+                                      data-testid={`button-delete-attendance-${record.id}`}
+                                    >
+                                      <Trash2 className="h-4 w-4 text-red-500" />
+                                    </Button>
+                                  </>
+                                )}
                               </TableCell>
                             </TableRow>
                           );
