@@ -565,7 +565,7 @@ export default function OrgChart() {
 
   const isLoading = usersLoading || deptsLoading;
 
-  const activeUsers = useMemo(() => users.filter(u => !u.terminationDate && !u.excludeFromStructure), [users]);
+  const activeUsers = useMemo(() => users.filter(u => !u.terminationDate && !u.exclude), [users]);
 
   const { treeData, dimensions } = useMemo(() => {
     if (activeUsers.length === 0) {

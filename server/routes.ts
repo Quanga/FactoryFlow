@@ -281,7 +281,7 @@ export async function registerRoutes(
       const includeAdmins = req.query.includeAdmins === 'true';
       const users = await storage.getAllUsers();
       const usersWithFaces = users
-        .filter(u => u.faceDescriptor && (u.role === 'worker' || (includeAdmins && u.role === 'manager')))
+        .filter(u => u.faceDescriptor && !u.terminationDate && !u.exclude && (u.role === 'worker' || (includeAdmins && u.role === 'manager')))
         .map(u => ({
           id: u.id,
           firstName: u.firstName,

@@ -131,7 +131,7 @@ export const users = pgTable("users", {
   managerId: text("manager_id"), // ID of the employee's direct manager
   photoUrl: text("photo_url"),
   faceDescriptor: text("face_descriptor"), // JSON array of 128 face embedding values
-  excludeFromStructure: boolean("exclude_from_structure").default(false), // Exclude from org chart
+  exclude: boolean("exclude").default(false), // Exclude from org chart and attendance (for test/dummy users)
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
