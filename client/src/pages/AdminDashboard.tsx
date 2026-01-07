@@ -98,6 +98,8 @@ export default function AdminDashboard() {
 
   const [attendanceStartDate, setAttendanceStartDate] = useState('');
   const [attendanceEndDate, setAttendanceEndDate] = useState('');
+  const [attendanceUserFilter, setAttendanceUserFilter] = useState('');
+  const [attendanceInfringementFilter, setAttendanceInfringementFilter] = useState(false);
 
   const { data: attendanceRecords = [] } = useQuery({
     queryKey: ['attendance', attendanceStartDate, attendanceEndDate],
@@ -207,8 +209,8 @@ export default function AdminDashboard() {
   const [emailSettings, setEmailSettings] = useState('');
   const [clockInCutoff, setClockInCutoff] = useState('08:00');
   const [clockOutCutoff, setClockOutCutoff] = useState('17:00');
-  const [lateArrivalMessage, setLateArrivalMessage] = useState('{name} (ID: {id}) clocked in late at {time}. Expected by {cutoff}.');
-  const [earlyDepartureMessage, setEarlyDepartureMessage] = useState('{name} (ID: {id}) left early at {time}. Expected after {cutoff}.');
+  const [lateArrivalMessage, setLateArrivalMessage] = useState('{name} (ID: {id}) clocked in late at {time}.');
+  const [earlyDepartureMessage, setEarlyDepartureMessage] = useState('{name} (ID: {id}) left early at {time}.');
   const [timezone, setTimezone] = useState('Africa/Johannesburg');
 
   useEffect(() => {
@@ -413,6 +415,26 @@ export default function AdminDashboard() {
     },
     onError: (error: any) => {
       toast({ variant: "destructive", title: "Error", description: error.message || "Failed to process decision" });
+    },
+  });
+
+  const adminCancelMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: number; reason?: string }) => 
+      leaveRequestApi.adminCancel(id, user?.id || '', reason),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['leave-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['leave-balances'] });
+      setAdminNotes('');
+      setIsReviewDialogOpen(false);
+      toast({ 
+        title: "Leave Request Cancelled", 
+        description: data.balanceAdjusted 
+          ? "Leave request cancelled and leave balance has been credited back."
+          : "Leave request has been cancelled."
+      });
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Error", description: error.message || "Failed to cancel leave request" });
     },
   });
 
@@ -2286,80 +2308,164 @@ export default function AdminDashboard() {
               {attendanceTab === 'records' && (
             <Card>
               <CardHeader>
-                <div className="flex flex-row items-center justify-between w-full">
-                  <div>
-                    <CardTitle>Attendance Records</CardTitle>
-                    <CardDescription>View employee clock-in/clock-out history</CardDescription>
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-row items-center justify-between w-full">
+                    <div>
+                      <CardTitle>Attendance Records</CardTitle>
+                      <CardDescription>View employee clock-in/clock-out history</CardDescription>
+                    </div>
+                    <div className="flex gap-2 items-center">
+                      <Input
+                        type="date"
+                        value={attendanceStartDate}
+                        onChange={(e) => setAttendanceStartDate(e.target.value)}
+                        className="w-40"
+                        data-testid="input-start-date"
+                      />
+                      <span className="text-muted-foreground">to</span>
+                      <Input
+                        type="date"
+                        value={attendanceEndDate}
+                        onChange={(e) => setAttendanceEndDate(e.target.value)}
+                        className="w-40"
+                        data-testid="input-end-date"
+                      />
+                    </div>
                   </div>
-                  <div className="flex gap-2 items-center">
-                    <Input
-                      type="date"
-                      value={attendanceStartDate}
-                      onChange={(e) => setAttendanceStartDate(e.target.value)}
-                      className="w-40"
-                      data-testid="input-start-date"
-                    />
-                    <span className="text-muted-foreground">to</span>
-                    <Input
-                      type="date"
-                      value={attendanceEndDate}
-                      onChange={(e) => setAttendanceEndDate(e.target.value)}
-                      className="w-40"
-                      data-testid="input-end-date"
-                    />
+                  <div className="flex gap-4 items-center flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <Label className="text-sm whitespace-nowrap">Filter by Employee:</Label>
+                      <Select value={attendanceUserFilter} onValueChange={setAttendanceUserFilter}>
+                        <SelectTrigger className="w-[200px]" data-testid="select-user-filter">
+                          <SelectValue placeholder="All employees" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All employees</SelectItem>
+                          {users.map(u => (
+                            <SelectItem key={u.id} value={u.id}>
+                              {u.firstName} {u.surname} ({u.id})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch 
+                        id="infringement-filter" 
+                        checked={attendanceInfringementFilter}
+                        onCheckedChange={setAttendanceInfringementFilter}
+                        data-testid="switch-infringement-filter"
+                      />
+                      <Label htmlFor="infringement-filter" className="text-sm cursor-pointer">
+                        Show infringements only
+                      </Label>
+                    </div>
                     <Button
                       variant="outline"
                       onClick={() => {
                         setAttendanceStartDate('');
                         setAttendanceEndDate('');
+                        setAttendanceUserFilter('');
+                        setAttendanceInfringementFilter(false);
                       }}
                       data-testid="button-clear-filters"
                     >
-                      Clear
+                      Clear All Filters
                     </Button>
                   </div>
                 </div>
               </CardHeader>
               <CardContent>
-                {attendanceRecords.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No attendance records found for the selected date range.
-                  </div>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Employee</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Time</TableHead>
-                        <TableHead>Context</TableHead>
-                        <TableHead>Method</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {attendanceRecords.map((record: AttendanceRecord) => {
-                        const employee = users.find(u => u.id === record.userId);
-                        return (
-                          <TableRow key={record.id} data-testid={`row-attendance-${record.id}`}>
-                            <TableCell className="font-medium">
-                              {employee ? `${employee.firstName} ${employee.surname}` : record.userId}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant={record.type === 'in' ? 'default' : 'secondary'}>
-                                Clock {record.type === 'in' ? 'In' : 'Out'}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              {format(new Date(record.timestamp), "dd/MM/yyyy 'at' HH:mm")}
-                            </TableCell>
-                            <TableCell className="capitalize">{record.context || '-'}</TableCell>
-                            <TableCell className="capitalize">{record.method || '-'}</TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                )}
+                {(() => {
+                  const clockInCutoffTime = clockInCutoff || '08:00';
+                  const clockOutCutoffTime = clockOutCutoff || '17:00';
+                  
+                  const filteredRecords = attendanceRecords.filter((record: AttendanceRecord) => {
+                    if (attendanceUserFilter && attendanceUserFilter !== 'all' && record.userId !== attendanceUserFilter) {
+                      return false;
+                    }
+                    
+                    if (attendanceInfringementFilter) {
+                      const recordTime = new Date(record.timestamp);
+                      const timeStr = format(recordTime, 'HH:mm');
+                      
+                      if (record.type === 'in') {
+                        if (timeStr <= clockInCutoffTime) return false;
+                      } else if (record.type === 'out') {
+                        if (timeStr >= clockOutCutoffTime) return false;
+                      }
+                    }
+                    
+                    return true;
+                  });
+                  
+                  if (filteredRecords.length === 0) {
+                    return (
+                      <div className="text-center py-8 text-muted-foreground">
+                        {attendanceInfringementFilter 
+                          ? "No attendance infringements found for the selected filters."
+                          : "No attendance records found for the selected filters."}
+                      </div>
+                    );
+                  }
+                  
+                  return (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Employee</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Time</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Context</TableHead>
+                          <TableHead>Method</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredRecords.map((record: AttendanceRecord) => {
+                          const employee = users.find(u => u.id === record.userId);
+                          const recordTime = new Date(record.timestamp);
+                          const timeStr = format(recordTime, 'HH:mm');
+                          
+                          let isInfringement = false;
+                          let infringementType = '';
+                          if (record.type === 'in' && timeStr > clockInCutoffTime) {
+                            isInfringement = true;
+                            infringementType = 'Late Arrival';
+                          } else if (record.type === 'out' && timeStr < clockOutCutoffTime) {
+                            isInfringement = true;
+                            infringementType = 'Early Departure';
+                          }
+                          
+                          return (
+                            <TableRow key={record.id} data-testid={`row-attendance-${record.id}`} className={isInfringement ? 'bg-red-50' : ''}>
+                              <TableCell className="font-medium">
+                                {employee ? `${employee.firstName} ${employee.surname}` : record.userId}
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant={record.type === 'in' ? 'default' : 'secondary'}>
+                                  Clock {record.type === 'in' ? 'In' : 'Out'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                {format(recordTime, "dd/MM/yyyy 'at' HH:mm")}
+                              </TableCell>
+                              <TableCell>
+                                {isInfringement ? (
+                                  <Badge variant="destructive">{infringementType}</Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-green-600 border-green-300">On Time</Badge>
+                                )}
+                              </TableCell>
+                              <TableCell className="capitalize">{record.context || '-'}</TableCell>
+                              <TableCell className="capitalize">{record.method || '-'}</TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  );
+                })()}
               </CardContent>
             </Card>
               )}
@@ -2964,7 +3070,7 @@ export default function AdminDashboard() {
                       value={lateArrivalMessage} 
                       onChange={(e) => setLateArrivalMessage(e.target.value)}
                       rows={3}
-                      placeholder="{firstName} {surname} (ID: {id}) clocked in late at {time}. Expected by {cutoff}."
+                      placeholder="{firstName} {surname} (ID: {id}) clocked in late at {time}."
                       data-testid="input-late-arrival-message"
                     />
                   </div>
@@ -2975,7 +3081,7 @@ export default function AdminDashboard() {
                       value={earlyDepartureMessage} 
                       onChange={(e) => setEarlyDepartureMessage(e.target.value)}
                       rows={3}
-                      placeholder="{firstName} {surname} (ID: {id}) left early at {time}. Expected after {cutoff}."
+                      placeholder="{firstName} {surname} (ID: {id}) left early at {time}."
                       data-testid="input-early-departure-message"
                     />
                   </div>
@@ -4399,6 +4505,10 @@ export default function AdminDashboard() {
             </DialogHeader>
             {selectedLeaveRequest && (() => {
               const employee = users.find(u => u.id === selectedLeaveRequest.userId);
+              const employeeLeaveBalances = leaveBalances.filter((b: LeaveBalance) => b.userId === selectedLeaveRequest.userId);
+              const relevantBalance = employeeLeaveBalances.find((b: LeaveBalance) => b.leaveType === selectedLeaveRequest.leaveType);
+              const availableDays = relevantBalance ? relevantBalance.total - relevantBalance.taken - relevantBalance.pending : 0;
+              
               return (
                 <div className="space-y-6">
                   <div className="grid grid-cols-2 gap-4">
@@ -4428,6 +4538,31 @@ export default function AdminDashboard() {
                       <Label className="text-muted-foreground text-sm">Submitted</Label>
                       <p className="font-medium">{format(new Date(selectedLeaveRequest.createdAt), 'MMM d, yyyy h:mm a')}</p>
                     </div>
+                  </div>
+                  
+                  <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                    <Label className="text-green-800 text-sm font-medium">Employee Leave Balance ({selectedLeaveRequest.leaveType.replace('_', ' ')})</Label>
+                    <div className="grid grid-cols-4 gap-2 mt-2 text-sm">
+                      <div className="text-center p-2 bg-white rounded">
+                        <p className="text-muted-foreground text-xs">Total</p>
+                        <p className="font-semibold">{relevantBalance?.total || 0}</p>
+                      </div>
+                      <div className="text-center p-2 bg-white rounded">
+                        <p className="text-muted-foreground text-xs">Taken</p>
+                        <p className="font-semibold text-amber-600">{relevantBalance?.taken || 0}</p>
+                      </div>
+                      <div className="text-center p-2 bg-white rounded">
+                        <p className="text-muted-foreground text-xs">Pending</p>
+                        <p className="font-semibold text-blue-600">{relevantBalance?.pending || 0}</p>
+                      </div>
+                      <div className="text-center p-2 bg-white rounded">
+                        <p className="text-muted-foreground text-xs">Available</p>
+                        <p className={`font-semibold ${availableDays > 0 ? 'text-green-600' : 'text-red-600'}`}>{availableDays}</p>
+                      </div>
+                    </div>
+                    {availableDays <= 0 && (
+                      <p className="text-red-600 text-xs mt-2 font-medium">Warning: Employee has no available leave for this type!</p>
+                    )}
                   </div>
 
                   <div>
@@ -4547,6 +4682,38 @@ export default function AdminDashboard() {
                           );
                         })}
                       </div>
+                    </div>
+                  )}
+
+                  {/* Admin Cancel for completed requests (approved/rejected) */}
+                  {['approved', 'rejected'].includes(selectedLeaveRequest.status) && (
+                    <div className="mt-4 p-4 bg-red-50 rounded-lg border border-red-200">
+                      <p className="text-sm text-red-700 mb-2 font-medium">Admin Cancel</p>
+                      <p className="text-xs text-red-600 mb-3">
+                        {selectedLeaveRequest.status === 'approved' 
+                          ? "Cancelling this approved leave will credit the leave days back to the employee's balance."
+                          : "Cancel this rejected request if needed."}
+                      </p>
+                      <Button 
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => {
+                          if (confirm('Are you sure you want to cancel this leave request?' + 
+                            (selectedLeaveRequest.status === 'approved' ? ' The leave days will be credited back to the employee.' : ''))) {
+                            adminCancelMutation.mutate({ 
+                              id: selectedLeaveRequest.id, 
+                              reason: 'Cancelled by admin'
+                            });
+                          }
+                        }}
+                        disabled={adminCancelMutation.isPending}
+                      >
+                        {adminCancelMutation.isPending ? (
+                          <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cancelling...</>
+                        ) : (
+                          <><X className="mr-2 h-4 w-4" /> Cancel Leave Request</>
+                        )}
+                      </Button>
                     </div>
                   )}
 
@@ -4678,6 +4845,38 @@ export default function AdminDashboard() {
                             </Button>
                           )}
                         </div>
+                        
+                        {selectedLeaveRequest.status !== 'cancelled' && selectedLeaveRequest.status !== 'rejected' && (
+                          <div className="mt-4 pt-4 border-t border-red-200 bg-red-50 -m-4 p-4 rounded-b-lg">
+                            <p className="text-sm text-red-700 mb-2 font-medium">Admin Cancel</p>
+                            <p className="text-xs text-red-600 mb-3">
+                              {selectedLeaveRequest.status === 'approved' 
+                                ? "Cancelling this approved leave will credit the leave days back to the employee's balance."
+                                : "Cancel this leave request completely."}
+                            </p>
+                            <Button 
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => {
+                                if (confirm('Are you sure you want to cancel this leave request?' + 
+                                  (selectedLeaveRequest.status === 'approved' ? ' The leave days will be credited back to the employee.' : ''))) {
+                                  adminCancelMutation.mutate({ 
+                                    id: selectedLeaveRequest.id, 
+                                    reason: adminNotes || 'Cancelled by admin'
+                                  });
+                                }
+                              }}
+                              disabled={adminCancelMutation.isPending}
+                            >
+                              {adminCancelMutation.isPending ? (
+                                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cancelling...</>
+                              ) : (
+                                <><X className="mr-2 h-4 w-4" /> Cancel Leave Request</>
+                              )}
+                            </Button>
+                          </div>
+                        )}
+                        
                       </>
                     );
                   })()}

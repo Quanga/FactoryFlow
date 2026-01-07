@@ -26,7 +26,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/leave-request', label: 'Request Leave', icon: CalendarPlus },
     { href: '/attendance', label: 'Attendance', icon: Clock },
-    { href: '/grievances', label: 'Grievances', icon: MessageSquareWarning },
     { href: '/profile', label: 'My Profile', icon: UserCircle },
   ];
 

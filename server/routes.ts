@@ -462,13 +462,24 @@ export async function registerRoutes(
   app.post("/api/leave-requests", async (req, res) => {
     try {
       const validatedData = insertLeaveRequestSchema.parse(req.body);
-      const newRequest = await storage.createLeaveRequest(validatedData);
+      
+      // Determine initial status based on whether user has a manager
+      const user = await storage.getUser(validatedData.userId);
+      let initialStatus = 'pending_manager';
+      
+      if (!user?.managerId) {
+        // No manager assigned, go directly to HR
+        initialStatus = 'pending_hr';
+      }
+      
+      // Override the status with the correct initial status
+      const requestWithStatus = { ...validatedData, status: initialStatus };
+      const newRequest = await storage.createLeaveRequest(requestWithStatus);
       
       // Send email notification to manager and admin recipients
       try {
         const adminEmailSetting = await storage.getSetting('admin_email');
         const senderEmail = "noreply@aece.co.za";
-        const user = await storage.getUser(validatedData.userId);
         
         // Construct the app URL from the request
         const appUrl = process.env.REPLIT_DEV_DOMAIN 
@@ -721,7 +732,7 @@ export async function registerRoutes(
     }
   });
 
-  // Cancel leave request (by employee)
+  // Cancel leave request (by employee - pending only)
   app.delete("/api/leave-requests/:id", async (req, res) => {
     try {
       const requestId = parseInt(req.params.id);
@@ -743,6 +754,75 @@ export async function registerRoutes(
       return res.json({ message: "Leave request cancelled successfully", request: updatedRequest });
     } catch (error) {
       console.error("Cancel leave request error:", error);
+      return res.status(500).json({ error: "Failed to cancel leave request" });
+    }
+  });
+
+  // Admin cancel leave request (can cancel any status including approved, adjusts balance)
+  app.post("/api/leave-requests/:id/admin-cancel", async (req, res) => {
+    try {
+      const requestId = parseInt(req.params.id);
+      const { reason, adminId } = req.body;
+      
+      const request = await storage.getLeaveRequest(requestId);
+      
+      if (!request) {
+        return res.status(404).json({ error: "Leave request not found" });
+      }
+      
+      if (request.status === 'cancelled') {
+        return res.status(400).json({ error: "Leave request is already cancelled" });
+      }
+      
+      const wasApproved = request.status === 'approved';
+      
+      // Update status to cancelled
+      const updatedRequest = await storage.updateLeaveRequestStatus(requestId, 'cancelled');
+      
+      // If the leave was already approved, we need to credit back the leave balance
+      if (wasApproved && updatedRequest) {
+        // Calculate number of days
+        const startDate = new Date(request.startDate);
+        const endDate = new Date(request.endDate);
+        const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        
+        // Credit back the taken days
+        const balances = await storage.getLeaveBalances(request.userId);
+        const balance = balances.find(b => b.leaveType === request.leaveType);
+        if (balance) {
+          await storage.updateLeaveBalance(balance.id, {
+            taken: Math.max(0, balance.taken - days)
+          });
+        }
+      }
+      
+      // Send email notification to employee
+      try {
+        const user = await storage.getUser(request.userId);
+        const adminEmailSetting = await storage.getSetting('admin_email');
+        const senderEmail = "noreply@aece.co.za";
+        
+        if (user && user.email) {
+          // TODO: Send cancellation notification email
+        }
+        
+        // Notify HR about the admin cancellation
+        if (adminEmailSetting) {
+          // TODO: Send HR notification about admin cancellation
+        }
+      } catch (emailError) {
+        console.error('Failed to send cancellation notification:', emailError);
+      }
+      
+      return res.json({ 
+        message: wasApproved 
+          ? "Leave request cancelled and balance credited back" 
+          : "Leave request cancelled successfully", 
+        request: updatedRequest,
+        balanceAdjusted: wasApproved
+      });
+    } catch (error) {
+      console.error("Admin cancel leave request error:", error);
       return res.status(500).json({ error: "Failed to cancel leave request" });
     }
   });

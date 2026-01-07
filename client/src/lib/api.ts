@@ -253,6 +253,19 @@ export const leaveRequestApi = {
     }
     return res.json();
   },
+
+  async adminCancel(id: number, adminId: string, reason?: string): Promise<{ message: string; request: LeaveRequest; balanceAdjusted: boolean }> {
+    const res = await fetch(`${API_BASE}/leave-requests/${id}/admin-cancel`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ adminId, reason }),
+    });
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to cancel leave request");
+    }
+    return res.json();
+  },
 };
 
 // Attendance API

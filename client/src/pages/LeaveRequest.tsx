@@ -28,6 +28,7 @@ export default function LeaveRequest() {
   const [reason, setReason] = useState('');
   const [comments, setComments] = useState('');
   const [files, setFiles] = useState<File[]>([]);
+  const [fileContents, setFileContents] = useState<{name: string; data: string}[]>([]);
   
   // Fetch the user's manager details
   const { data: manager } = useQuery({
@@ -36,14 +37,53 @@ export default function LeaveRequest() {
     enabled: !!user?.managerId,
   });
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      setFiles([...files, ...Array.from(e.target.files)]);
+      const newFiles = Array.from(e.target.files);
+      
+      const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+      const invalidFiles = newFiles.filter(f => !validTypes.includes(f.type));
+      
+      if (invalidFiles.length > 0) {
+        toast({
+          variant: "destructive",
+          title: "Invalid File Type",
+          description: "Please upload only JPEG, PNG, or PDF files.",
+        });
+        return;
+      }
+      
+      const filePromises = newFiles.map(file => {
+        return new Promise<{name: string; data: string}>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            resolve({
+              name: file.name,
+              data: reader.result as string
+            });
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      });
+      
+      try {
+        const newFileContents = await Promise.all(filePromises);
+        setFiles([...files, ...newFiles]);
+        setFileContents([...fileContents, ...newFileContents]);
+      } catch (error) {
+        toast({
+          variant: "destructive",
+          title: "File Read Error",
+          description: "Could not read one or more files. Please try again.",
+        });
+      }
     }
   };
 
   const removeFile = (index: number) => {
     setFiles(files.filter((_, i) => i !== index));
+    setFileContents(fileContents.filter((_, i) => i !== index));
   };
 
   const createRequestMutation = useMutation({
@@ -59,6 +99,7 @@ export default function LeaveRequest() {
       setReason('');
       setComments('');
       setFiles([]);
+      setFileContents([]);
       setDateRange({ from: undefined, to: undefined });
     },
     onError: () => {
@@ -88,8 +129,8 @@ export default function LeaveRequest() {
       endDate: dateRange.to ? format(dateRange.to, 'yyyy-MM-dd') : format(dateRange.from, 'yyyy-MM-dd'),
       reason,
       comments: comments || undefined,
-      status: 'pending',
-      documents: files.map(f => f.name),
+      status: user.managerId ? 'pending_manager' : 'pending_hr',
+      documents: fileContents.map(f => f.data),
     });
   };
 
