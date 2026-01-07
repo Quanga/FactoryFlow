@@ -2422,6 +2422,33 @@ export default function AdminDashboard() {
                             return true;
                           });
                           
+                          const workers = users.filter(u => u.role === 'worker');
+                          const usersWithAttendance = new Set(attendanceRecords.map((r: AttendanceRecord) => r.userId));
+                          const nonAttendanceRecords = workers
+                            .filter(w => {
+                              if (attendanceUserFilter && attendanceUserFilter !== 'all' && w.id !== attendanceUserFilter) {
+                                return false;
+                              }
+                              return !usersWithAttendance.has(w.id);
+                            })
+                            .map(w => ({
+                              id: `no-attendance-${w.id}`,
+                              odId: -1,
+                              userId: w.id,
+                              type: 'non-attendance' as const,
+                              timestamp: attendanceStartDate ? new Date(attendanceStartDate).toISOString() : new Date().toISOString(),
+                              photoUrl: null,
+                              method: null,
+                              context: null,
+                              employee: w,
+                            }));
+                          
+                          type PdfRecord = { userId: string; type: string; timestamp: string; employee?: typeof users[0] };
+                          const allRecords: PdfRecord[] = [
+                            ...filteredRecords.map((r: AttendanceRecord) => ({ ...r, employee: users.find(u => u.id === r.userId) })),
+                            ...nonAttendanceRecords,
+                          ];
+                          
                           const pdf = new jsPDF();
                           let dateRange = 'All Records';
                           if (attendanceStartDate && attendanceEndDate) {
@@ -2450,24 +2477,32 @@ export default function AdminDashboard() {
                           y += 8;
                           pdf.setFont('helvetica', 'normal');
                           
-                          filteredRecords.forEach((record: AttendanceRecord) => {
+                          allRecords.forEach((record) => {
                             if (y > 270) {
                               pdf.addPage();
                               y = 20;
                             }
-                            const emp = users.find(u => u.id === record.userId);
+                            const emp = record.employee || users.find(u => u.id === record.userId);
+                            const isNonAttendance = record.type === 'non-attendance';
                             const recordTime = new Date(record.timestamp);
-                            const timeStr = format(recordTime, 'HH:mm');
+                            const timeStr = isNonAttendance ? '' : format(recordTime, 'HH:mm');
+                            
                             let status = 'OK';
-                            if (record.type === 'in' && timeStr > clockInCutoffTime) {
-                              status = 'Late';
-                            } else if (record.type === 'out' && timeStr < clockOutCutoffTime) {
-                              status = 'Early';
+                            let typeLabel = '';
+                            if (isNonAttendance) {
+                              status = 'No Attendance';
+                              typeLabel = 'Non-Attendance';
+                            } else if (record.type === 'in') {
+                              typeLabel = 'Clock In';
+                              if (timeStr > clockInCutoffTime) status = 'Late';
+                            } else if (record.type === 'out') {
+                              typeLabel = 'Clock Out';
+                              if (timeStr < clockOutCutoffTime) status = 'Early';
                             }
                             
                             pdf.text(emp ? `${emp.firstName} ${emp.surname}` : record.userId, 20, y);
-                            pdf.text(record.type === 'in' ? 'Clock In' : 'Clock Out', 80, y);
-                            pdf.text(format(recordTime, 'dd/MM/yyyy HH:mm'), 110, y);
+                            pdf.text(typeLabel, 80, y);
+                            pdf.text(isNonAttendance ? '-' : format(recordTime, 'dd/MM/yyyy HH:mm'), 110, y);
                             pdf.text(status, 160, y);
                             y += 6;
                           });
