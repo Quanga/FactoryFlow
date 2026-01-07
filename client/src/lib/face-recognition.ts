@@ -3,6 +3,11 @@ import * as faceapi from '@vladmandic/face-api';
 let modelsLoaded = false;
 let modelsLoading = false;
 
+const DETECTION_OPTIONS = new faceapi.SsdMobilenetv1Options({ 
+  minConfidence: 0.3,
+  maxResults: 10
+});
+
 export async function loadFaceModels(): Promise<boolean> {
   if (modelsLoaded) return true;
   if (modelsLoading) {
@@ -14,7 +19,6 @@ export async function loadFaceModels(): Promise<boolean> {
 
   modelsLoading = true;
   try {
-    // Set TensorFlow.js backend to 'webgl' (avoids WASM issues)
     const tf = faceapi.tf;
     await tf.setBackend('webgl');
     await tf.ready();
@@ -46,7 +50,7 @@ export async function detectFace(input: HTMLVideoElement | HTMLImageElement | HT
   }
 
   const detection = await faceapi
-    .detectSingleFace(input)
+    .detectSingleFace(input, DETECTION_OPTIONS)
     .withFaceLandmarks()
     .withFaceDescriptor();
 
@@ -154,7 +158,7 @@ export async function detectFaceWithFeedback(
 
   try {
     const detections = await faceapi
-      .detectAllFaces(input)
+      .detectAllFaces(input, DETECTION_OPTIONS)
       .withFaceLandmarks()
       .withFaceDescriptors();
 
@@ -185,8 +189,8 @@ export async function detectFaceWithFeedback(
     const faceCenterX = box.x + faceWidth / 2;
     const faceCenterY = box.y + faceHeight / 2;
     
-    const minFaceSize = Math.min(inputWidth, inputHeight) * 0.15;
-    const maxFaceSize = Math.min(inputWidth, inputHeight) * 0.85;
+    const minFaceSize = Math.min(inputWidth, inputHeight) * 0.08;
+    const maxFaceSize = Math.min(inputWidth, inputHeight) * 0.95;
     
     if (faceWidth < minFaceSize || faceHeight < minFaceSize) {
       return {
@@ -204,7 +208,7 @@ export async function detectFaceWithFeedback(
       };
     }
     
-    const centerThreshold = 0.25;
+    const centerThreshold = 0.40;
     const normalizedCenterX = faceCenterX / inputWidth;
     const normalizedCenterY = faceCenterY / inputHeight;
     
@@ -222,7 +226,7 @@ export async function detectFaceWithFeedback(
     }
     
     const score = detection.detection.score;
-    if (score < 0.5) {
+    if (score < 0.3) {
       return {
         status: 'poor_lighting',
         message: 'Poor lighting - try moving to a brighter area',
