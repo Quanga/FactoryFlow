@@ -341,6 +341,29 @@ export const attendanceApi = {
     }
     return res.json();
   },
+
+  async update(id: number, data: { timestamp?: string; type?: string }): Promise<AttendanceRecord> {
+    const res = await fetch(`${API_BASE}/attendance/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to update attendance record");
+    }
+    return res.json();
+  },
+
+  async delete(id: number): Promise<void> {
+    const res = await fetch(`${API_BASE}/attendance/${id}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to delete attendance record");
+    }
+  },
 };
 
 // Password Reset API

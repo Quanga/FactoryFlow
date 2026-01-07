@@ -1026,6 +1026,50 @@ export async function registerRoutes(
     }
   });
 
+  // Update attendance record (admin only)
+  app.patch("/api/attendance/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { timestamp, type } = req.body;
+      
+      const updateData: { timestamp?: Date; type?: string } = {};
+      if (timestamp) {
+        const parsedTime = new Date(timestamp);
+        if (isNaN(parsedTime.getTime())) {
+          return res.status(400).json({ error: "Invalid timestamp format" });
+        }
+        updateData.timestamp = parsedTime;
+      }
+      if (type && (type === 'in' || type === 'out')) {
+        updateData.type = type;
+      }
+      
+      const updated = await storage.updateAttendanceRecord(parseInt(id), updateData);
+      if (!updated) {
+        return res.status(404).json({ error: "Attendance record not found" });
+      }
+      return res.json(updated);
+    } catch (error) {
+      console.error("Update attendance record error:", error);
+      return res.status(500).json({ error: "Failed to update attendance record" });
+    }
+  });
+
+  // Delete attendance record (admin only)
+  app.delete("/api/attendance/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = await storage.deleteAttendanceRecord(parseInt(id));
+      if (!deleted) {
+        return res.status(404).json({ error: "Attendance record not found" });
+      }
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("Delete attendance record error:", error);
+      return res.status(500).json({ error: "Failed to delete attendance record" });
+    }
+  });
+
   // Get clock-in status for a user
   app.get("/api/attendance/status/:userId", async (req, res) => {
     try {

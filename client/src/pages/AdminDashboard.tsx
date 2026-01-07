@@ -178,6 +178,12 @@ export default function AdminDashboard() {
   });
   const [manualAttendanceEntries, setManualAttendanceEntries] = useState<Record<string, { clockIn: string; clockOut: string }>>({});
 
+  // Attendance Edit State
+  const [editingAttendance, setEditingAttendance] = useState<AttendanceRecord | null>(null);
+  const [editAttendanceTime, setEditAttendanceTime] = useState('');
+  const [editAttendanceDate, setEditAttendanceDate] = useState('');
+  const [editAttendanceType, setEditAttendanceType] = useState<'in' | 'out'>('in');
+
   // Employee Types Management State
   const [isTypeDialogOpen, setIsTypeDialogOpen] = useState(false);
   const [currentType, setCurrentType] = useState<Partial<EmployeeType>>({});
@@ -484,17 +490,66 @@ export default function AdminDashboard() {
     },
   });
 
+  const updateAttendanceMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: { timestamp?: string; type?: string } }) => attendanceApi.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['attendance'] });
+      setEditingAttendance(null);
+      toast({ title: "Attendance Updated", description: "Attendance record has been corrected." });
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Error", description: error.message || "Failed to update attendance record" });
+    },
+  });
+
+  const deleteAttendanceMutation = useMutation({
+    mutationFn: (id: number) => attendanceApi.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['attendance'] });
+      toast({ title: "Attendance Deleted", description: "Attendance record has been removed." });
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Error", description: error.message || "Failed to delete attendance record" });
+    },
+  });
+
+  const openEditAttendance = (record: AttendanceRecord) => {
+    const timestamp = new Date(record.timestamp);
+    setEditingAttendance(record);
+    setEditAttendanceDate(format(timestamp, 'yyyy-MM-dd'));
+    setEditAttendanceTime(format(timestamp, 'HH:mm'));
+    setEditAttendanceType(record.type as 'in' | 'out');
+  };
+
+  const handleSaveAttendanceEdit = () => {
+    if (!editingAttendance) return;
+    const [year, month, day] = editAttendanceDate.split('-').map(Number);
+    const [hours, minutes] = editAttendanceTime.split(':').map(Number);
+    const newTimestamp = new Date(year, month - 1, day, hours, minutes, 0);
+    updateAttendanceMutation.mutate({
+      id: editingAttendance.id,
+      data: {
+        timestamp: newTimestamp.toISOString(),
+        type: editAttendanceType,
+      },
+    });
+  };
+
   const handleSaveManualAttendance = () => {
     const records: { userId: string; type: string; timestamp: string }[] = [];
     
     Object.entries(manualAttendanceEntries).forEach(([userId, entry]) => {
       if (entry.clockIn) {
-        const clockInTimestamp = `${manualAttendanceDate}T${entry.clockIn}:00`;
-        records.push({ userId, type: 'in', timestamp: clockInTimestamp });
+        const [hours, minutes] = entry.clockIn.split(':').map(Number);
+        const [year, month, day] = manualAttendanceDate.split('-').map(Number);
+        const clockInDate = new Date(year, month - 1, day, hours, minutes, 0);
+        records.push({ userId, type: 'in', timestamp: clockInDate.toISOString() });
       }
       if (entry.clockOut) {
-        const clockOutTimestamp = `${manualAttendanceDate}T${entry.clockOut}:00`;
-        records.push({ userId, type: 'out', timestamp: clockOutTimestamp });
+        const [hours, minutes] = entry.clockOut.split(':').map(Number);
+        const [year, month, day] = manualAttendanceDate.split('-').map(Number);
+        const clockOutDate = new Date(year, month - 1, day, hours, minutes, 0);
+        records.push({ userId, type: 'out', timestamp: clockOutDate.toISOString() });
       }
     });
 
@@ -2514,6 +2569,7 @@ export default function AdminDashboard() {
                           <TableHead>Status</TableHead>
                           <TableHead>Context</TableHead>
                           <TableHead>Method</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -2554,6 +2610,30 @@ export default function AdminDashboard() {
                               </TableCell>
                               <TableCell className="capitalize">{record.context || '-'}</TableCell>
                               <TableCell className="capitalize">{record.method || '-'}</TableCell>
+                              <TableCell className="text-right">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => openEditAttendance(record)}
+                                  title="Edit attendance record"
+                                  data-testid={`button-edit-attendance-${record.id}`}
+                                >
+                                  <Pencil className="h-4 w-4 text-slate-500" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => {
+                                    if (confirm('Are you sure you want to delete this attendance record?')) {
+                                      deleteAttendanceMutation.mutate(record.id);
+                                    }
+                                  }}
+                                  title="Delete attendance record"
+                                  data-testid={`button-delete-attendance-${record.id}`}
+                                >
+                                  <Trash2 className="h-4 w-4 text-red-500" />
+                                </Button>
+                              </TableCell>
                             </TableRow>
                           );
                         })}
@@ -5282,6 +5362,84 @@ export default function AdminDashboard() {
                 </div>
               );
             })()}
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Attendance Dialog */}
+        <Dialog open={!!editingAttendance} onOpenChange={(open) => !open && setEditingAttendance(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Attendance Record</DialogTitle>
+              <DialogDescription>
+                Correct the time or type for this attendance record.
+              </DialogDescription>
+            </DialogHeader>
+            {editingAttendance && (
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-muted-foreground text-sm">Employee</Label>
+                  <p className="font-medium">
+                    {(() => {
+                      const emp = users.find(u => u.id === editingAttendance.userId);
+                      return emp ? `${emp.firstName} ${emp.surname}` : editingAttendance.userId;
+                    })()}
+                  </p>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="editAttendanceDate">Date</Label>
+                    <Input
+                      id="editAttendanceDate"
+                      type="date"
+                      value={editAttendanceDate}
+                      onChange={(e) => setEditAttendanceDate(e.target.value)}
+                      data-testid="input-edit-attendance-date"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="editAttendanceTime">Time</Label>
+                    <Input
+                      id="editAttendanceTime"
+                      type="time"
+                      value={editAttendanceTime}
+                      onChange={(e) => setEditAttendanceTime(e.target.value)}
+                      data-testid="input-edit-attendance-time"
+                    />
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="editAttendanceType">Type</Label>
+                  <Select value={editAttendanceType} onValueChange={(v) => setEditAttendanceType(v as 'in' | 'out')}>
+                    <SelectTrigger id="editAttendanceType" data-testid="select-edit-attendance-type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="in">Clock In</SelectItem>
+                      <SelectItem value="out">Clock Out</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="flex justify-end gap-2 pt-4">
+                  <Button variant="outline" onClick={() => setEditingAttendance(null)}>
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={handleSaveAttendanceEdit}
+                    disabled={updateAttendanceMutation.isPending}
+                    data-testid="button-save-attendance-edit"
+                  >
+                    {updateAttendanceMutation.isPending ? (
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</>
+                    ) : (
+                      'Save Changes'
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
           </DialogContent>
         </Dialog>
     </Layout>

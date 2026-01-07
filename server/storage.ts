@@ -81,6 +81,8 @@ export interface IStorage {
   createAttendanceRecord(record: InsertAttendanceRecord): Promise<AttendanceRecord>;
   createBulkAttendanceRecords(records: { userId: string; type: string; timestamp: Date; method?: string; context?: string }[]): Promise<AttendanceRecord[]>;
   createSystemAutoClockOut(userId: string, timestamp: Date): Promise<AttendanceRecord>;
+  updateAttendanceRecord(id: number, data: { timestamp?: Date; type?: string }): Promise<AttendanceRecord | undefined>;
+  deleteAttendanceRecord(id: number): Promise<boolean>;
   
   // Settings operations
   getSetting(key: string): Promise<Setting | undefined>;
@@ -517,6 +519,29 @@ export class DrizzleStorage implements IStorage {
       context: 'missed_clockout',
     }).returning();
     return newRecord;
+  }
+
+  async updateAttendanceRecord(id: number, data: { timestamp?: Date; type?: string }): Promise<AttendanceRecord | undefined> {
+    const updateData: Record<string, unknown> = {};
+    if (data.timestamp !== undefined) updateData.timestamp = data.timestamp;
+    if (data.type !== undefined) updateData.type = data.type;
+    
+    if (Object.keys(updateData).length === 0) return undefined;
+    
+    const [updated] = await db
+      .update(schema.attendanceRecords)
+      .set(updateData)
+      .where(eq(schema.attendanceRecords.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteAttendanceRecord(id: number): Promise<boolean> {
+    const result = await db
+      .delete(schema.attendanceRecords)
+      .where(eq(schema.attendanceRecords.id, id))
+      .returning();
+    return result.length > 0;
   }
 
   // Settings operations
