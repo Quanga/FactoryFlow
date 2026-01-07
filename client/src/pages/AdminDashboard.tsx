@@ -2769,7 +2769,7 @@ export default function AdminDashboard() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {users.filter(u => u.role === 'worker').map((employee) => (
+                      {users.filter(u => !u.exclude).map((employee) => (
                         <TableRow key={employee.id} data-testid={`row-manual-${employee.id}`}>
                           <TableCell className="font-mono text-sm">{employee.id}</TableCell>
                           <TableCell className="font-medium">{employee.firstName} {employee.surname}</TableCell>
