@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Users, Building2, User as UserIcon, Crown, Briefcase, ZoomIn, ZoomOut, RotateCcw, Download, Loader2, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { userApi, departmentApi, attendanceApi } from '@/lib/api';
+import defaultAvatarUrl from '@/assets/default-avatar.jpg';
 import type { User, Department } from '@shared/schema';
 import * as d3 from 'd3-hierarchy';
 import { jsPDF } from 'jspdf';
@@ -146,17 +147,11 @@ function DepartmentGroupNode({ data, x, y, showAttendance, clockedInUserIds }: {
                   className={`flex items-center gap-2 px-2 py-1 ${idx > 0 ? 'border-t border-slate-100' : ''}`}
                   style={{ height: WORKER_ROW_HEIGHT, opacity: workerOpacity }}
                 >
-                  {worker.photoUrl ? (
-                    <img 
-                      src={worker.photoUrl} 
-                      alt={worker.name} 
-                      className="w-6 h-6 rounded-full object-cover shrink-0" 
-                    />
-                  ) : (
-                    <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center shrink-0">
-                      <UserIcon className="h-3 w-3 text-slate-500" />
-                    </div>
-                  )}
+                  <img 
+                    src={worker.photoUrl || defaultAvatarUrl} 
+                    alt={worker.name} 
+                    className="w-6 h-6 rounded-full object-cover shrink-0" 
+                  />
                   <div className="flex-1 min-w-0">
                     <p className="text-[11px] font-medium truncate">{worker.name}</p>
                     <p className="text-[9px] text-muted-foreground truncate">{worker.id}</p>

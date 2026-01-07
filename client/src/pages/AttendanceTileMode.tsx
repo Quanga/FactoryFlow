@@ -8,6 +8,7 @@ import {
   ArrowLeft, Clock, Search, User, Grid3X3, Camera
 } from 'lucide-react';
 import { userApi, attendanceApi, departmentApi } from '@/lib/api';
+import defaultAvatarUrl from '@/assets/default-avatar.jpg';
 import type { User as UserType, Department, AttendanceRecord } from '@shared/schema';
 
 type SubMode = 'clock-in' | 'clock-out';
@@ -429,16 +430,12 @@ export default function AttendanceTileMode() {
                     <div className={`aspect-square mb-3 rounded-lg overflow-hidden flex items-center justify-center ${
                       isClockedIn ? 'bg-green-800/50' : 'bg-red-800/50'
                     }`}>
-                      {user.photoUrl ? (
-                        <img 
-                          src={user.photoUrl} 
-                          alt={`${user.firstName} ${user.surname}`}
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <User className="h-12 w-12 text-slate-400" />
-                      )}
+                      <img 
+                        src={user.photoUrl || defaultAvatarUrl} 
+                        alt={`${user.firstName} ${user.surname}`}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
                     </div>
                     <div className="space-y-1">
                       <p className="font-semibold text-white text-sm sm:text-base truncate group-hover:text-primary transition-colors">
@@ -474,17 +471,11 @@ export default function AttendanceTileMode() {
             <Card className="w-full max-w-md bg-white/10 border-white/20 backdrop-blur-sm">
               <CardContent className="p-6 sm:p-8 text-center">
                 <div className="w-32 h-32 sm:w-40 sm:h-40 mx-auto mb-6 rounded-full overflow-hidden bg-slate-700 border-4 border-white/20">
-                  {selectedUser.photoUrl ? (
-                    <img 
-                      src={selectedUser.photoUrl} 
-                      alt={`${selectedUser.firstName} ${selectedUser.surname}`}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <User className="h-16 w-16 text-slate-500" />
-                    </div>
-                  )}
+                  <img 
+                    src={selectedUser.photoUrl || defaultAvatarUrl} 
+                    alt={`${selectedUser.firstName} ${selectedUser.surname}`}
+                    className="w-full h-full object-cover"
+                  />
                 </div>
                 
                 <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2">
