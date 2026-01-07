@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Users, Building2, User as UserIcon, Crown, Briefcase, ZoomIn, ZoomOut, RotateCcw, Download, Loader2, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, Users, Building2, User as UserIcon, Crown, Briefcase, ZoomIn, ZoomOut, RotateCcw, Download, Loader2, Eye, EyeOff, Maximize2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { userApi, departmentApi, attendanceApi } from '@/lib/api';
 import defaultAvatarUrl from '@/assets/default-avatar.jpg';
@@ -714,6 +714,15 @@ export default function OrgChart() {
   const handleZoomIn = () => setZoom(z => Math.min(z + 0.2, 2));
   const handleZoomOut = () => setZoom(z => Math.max(z - 0.2, 0.4));
   const handleZoomReset = () => setZoom(1);
+  const handleFitToWindow = () => {
+    if (!containerRef.current || !dimensions.width || !dimensions.height) return;
+    const containerWidth = containerRef.current.clientWidth;
+    const containerHeight = containerRef.current.clientHeight;
+    const scaleX = containerWidth / dimensions.width;
+    const scaleY = containerHeight / dimensions.height;
+    const fitScale = Math.min(scaleX, scaleY, 2);
+    setZoom(Math.max(0.4, Math.min(fitScale, 2)));
+  };
 
   if (!user || user.role !== 'manager') {
     return null;
@@ -810,8 +819,18 @@ export default function OrgChart() {
                     size="sm" 
                     onClick={handleZoomReset}
                     data-testid="button-zoom-reset"
+                    title="Reset zoom"
                   >
                     <RotateCcw className="h-4 w-4" />
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={handleFitToWindow}
+                    data-testid="button-fit-to-window"
+                    title="Fit to window"
+                  >
+                    <Maximize2 className="h-4 w-4" />
                   </Button>
                   <div className="h-6 w-px bg-slate-200 mx-1" />
                   <Button 
