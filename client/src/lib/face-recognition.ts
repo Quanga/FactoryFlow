@@ -3,8 +3,13 @@ import * as faceapi from '@vladmandic/face-api';
 let modelsLoaded = false;
 let modelsLoading = false;
 
-const DETECTION_OPTIONS = new faceapi.SsdMobilenetv1Options({ 
-  minConfidence: 0.3,
+const TINY_OPTIONS = new faceapi.TinyFaceDetectorOptions({ 
+  inputSize: 416,
+  scoreThreshold: 0.3
+});
+
+const SSD_OPTIONS = new faceapi.SsdMobilenetv1Options({ 
+  minConfidence: 0.2,
   maxResults: 10
 });
 
@@ -25,12 +30,13 @@ export async function loadFaceModels(): Promise<boolean> {
     
     const MODEL_URL = '/models';
     await Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
       faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
       faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
       faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
     ]);
     modelsLoaded = true;
-    console.log('Face recognition models loaded successfully');
+    console.log('Face recognition models loaded successfully (TinyFaceDetector + SSD)');
     return true;
   } catch (error) {
     console.error('Failed to load face models:', error);
@@ -49,10 +55,17 @@ export async function detectFace(input: HTMLVideoElement | HTMLImageElement | HT
     await loadFaceModels();
   }
 
-  const detection = await faceapi
-    .detectSingleFace(input, DETECTION_OPTIONS)
+  let detection = await faceapi
+    .detectSingleFace(input, TINY_OPTIONS)
     .withFaceLandmarks()
     .withFaceDescriptor();
+
+  if (!detection) {
+    detection = await faceapi
+      .detectSingleFace(input, SSD_OPTIONS)
+      .withFaceLandmarks()
+      .withFaceDescriptor();
+  }
 
   return detection;
 }
@@ -157,10 +170,17 @@ export async function detectFaceWithFeedback(
   }
 
   try {
-    const detections = await faceapi
-      .detectAllFaces(input, DETECTION_OPTIONS)
+    let detections = await faceapi
+      .detectAllFaces(input, TINY_OPTIONS)
       .withFaceLandmarks()
       .withFaceDescriptors();
+
+    if (detections.length === 0) {
+      detections = await faceapi
+        .detectAllFaces(input, SSD_OPTIONS)
+        .withFaceLandmarks()
+        .withFaceDescriptors();
+    }
 
     if (detections.length === 0) {
       return {
@@ -189,8 +209,8 @@ export async function detectFaceWithFeedback(
     const faceCenterX = box.x + faceWidth / 2;
     const faceCenterY = box.y + faceHeight / 2;
     
-    const minFaceSize = Math.min(inputWidth, inputHeight) * 0.08;
-    const maxFaceSize = Math.min(inputWidth, inputHeight) * 0.95;
+    const minFaceSize = Math.min(inputWidth, inputHeight) * 0.05;
+    const maxFaceSize = Math.min(inputWidth, inputHeight) * 0.98;
     
     if (faceWidth < minFaceSize || faceHeight < minFaceSize) {
       return {
@@ -208,7 +228,7 @@ export async function detectFaceWithFeedback(
       };
     }
     
-    const centerThreshold = 0.40;
+    const centerThreshold = 0.45;
     const normalizedCenterX = faceCenterX / inputWidth;
     const normalizedCenterY = faceCenterY / inputHeight;
     
@@ -226,7 +246,7 @@ export async function detectFaceWithFeedback(
     }
     
     const score = detection.detection.score;
-    if (score < 0.3) {
+    if (score < 0.2) {
       return {
         status: 'poor_lighting',
         message: 'Poor lighting - try moving to a brighter area',
