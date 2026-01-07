@@ -22,6 +22,7 @@ import { useAuth } from '@/lib/auth-context';
 import WebcamCapture from '@/components/WebcamCapture';
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { loadFaceModels, extractFaceDescriptorFromBase64, descriptorToJson } from '@/lib/face-recognition';
+import jsPDF from 'jspdf';
 
 export default function AdminDashboard() {
   const [, setLocation] = useLocation();
@@ -96,8 +97,9 @@ export default function AdminDashboard() {
     queryFn: () => leaveBalanceApi.getAll(),
   });
 
-  const [attendanceStartDate, setAttendanceStartDate] = useState('');
-  const [attendanceEndDate, setAttendanceEndDate] = useState('');
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const [attendanceStartDate, setAttendanceStartDate] = useState(today);
+  const [attendanceEndDate, setAttendanceEndDate] = useState(today);
   const [attendanceUserFilter, setAttendanceUserFilter] = useState('');
   const [attendanceInfringementFilter, setAttendanceInfringementFilter] = useState(false);
 
@@ -166,7 +168,7 @@ export default function AdminDashboard() {
   // Navigation State
   const [activeSection, setActiveSection] = useState<'dashboard' | 'employees' | 'leave-requests' | 'attendance' | 'departments' | 'employee-types' | 'leave-rules' | 'grievances' | 'settings'>('dashboard');
   const [settingsTab, setSettingsTab] = useState<'general' | 'user-groups'>('general');
-  const [attendanceTab, setAttendanceTab] = useState<'records' | 'manual-entry'>('records');
+  const [attendanceTab, setAttendanceTab] = useState<'records' | 'manual-entry' | 'trends'>('records');
   const [manualAttendanceDate, setManualAttendanceDate] = useState<string>(() => {
     const now = new Date();
     const year = now.getFullYear();
@@ -2303,6 +2305,18 @@ export default function AdminDashboard() {
                   <Plus className="inline h-4 w-4 mr-2" />
                   Manual Entry
                 </button>
+                <button
+                  onClick={() => setAttendanceTab('trends')}
+                  className={`px-4 py-2 rounded-t-lg text-sm font-medium transition-colors ${
+                    attendanceTab === 'trends' 
+                      ? 'bg-primary text-white' 
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                  data-testid="attendance-tab-trends"
+                >
+                  <AlertTriangle className="inline h-4 w-4 mr-2" />
+                  Trends
+                </button>
               </div>
               
               {/* Records Tab */}
@@ -2331,6 +2345,86 @@ export default function AdminDashboard() {
                         className="w-40"
                         data-testid="input-end-date"
                       />
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          const clockInCutoffTime = clockInCutoff || '08:00';
+                          const clockOutCutoffTime = clockOutCutoff || '17:00';
+                          
+                          const filteredRecords = attendanceRecords.filter((record: AttendanceRecord) => {
+                            if (attendanceUserFilter && attendanceUserFilter !== 'all' && record.userId !== attendanceUserFilter) {
+                              return false;
+                            }
+                            if (attendanceInfringementFilter) {
+                              const recordTime = new Date(record.timestamp);
+                              const timeStr = format(recordTime, 'HH:mm');
+                              if (record.type === 'in') {
+                                if (timeStr <= clockInCutoffTime) return false;
+                              } else if (record.type === 'out') {
+                                if (timeStr >= clockOutCutoffTime) return false;
+                              }
+                            }
+                            return true;
+                          });
+                          
+                          const pdf = new jsPDF();
+                          let dateRange = 'All Records';
+                          if (attendanceStartDate && attendanceEndDate) {
+                            dateRange = attendanceStartDate === attendanceEndDate 
+                              ? format(new Date(attendanceStartDate), 'dd/MM/yyyy')
+                              : `${format(new Date(attendanceStartDate), 'dd/MM/yyyy')} - ${format(new Date(attendanceEndDate), 'dd/MM/yyyy')}`;
+                          } else if (attendanceStartDate) {
+                            dateRange = `From ${format(new Date(attendanceStartDate), 'dd/MM/yyyy')}`;
+                          } else if (attendanceEndDate) {
+                            dateRange = `Until ${format(new Date(attendanceEndDate), 'dd/MM/yyyy')}`;
+                          }
+                          
+                          pdf.setFontSize(18);
+                          pdf.text('Attendance Report', 20, 20);
+                          pdf.setFontSize(12);
+                          pdf.text(`Date: ${dateRange}`, 20, 30);
+                          pdf.text(`Generated: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, 20, 38);
+                          
+                          let y = 50;
+                          pdf.setFontSize(10);
+                          pdf.setFont('helvetica', 'bold');
+                          pdf.text('Employee', 20, y);
+                          pdf.text('Type', 80, y);
+                          pdf.text('Time', 110, y);
+                          pdf.text('Status', 160, y);
+                          y += 8;
+                          pdf.setFont('helvetica', 'normal');
+                          
+                          filteredRecords.forEach((record: AttendanceRecord) => {
+                            if (y > 270) {
+                              pdf.addPage();
+                              y = 20;
+                            }
+                            const emp = users.find(u => u.id === record.userId);
+                            const recordTime = new Date(record.timestamp);
+                            const timeStr = format(recordTime, 'HH:mm');
+                            let status = 'OK';
+                            if (record.type === 'in' && timeStr > clockInCutoffTime) {
+                              status = 'Late';
+                            } else if (record.type === 'out' && timeStr < clockOutCutoffTime) {
+                              status = 'Early';
+                            }
+                            
+                            pdf.text(emp ? `${emp.firstName} ${emp.surname}` : record.userId, 20, y);
+                            pdf.text(record.type === 'in' ? 'Clock In' : 'Clock Out', 80, y);
+                            pdf.text(format(recordTime, 'dd/MM/yyyy HH:mm'), 110, y);
+                            pdf.text(status, 160, y);
+                            y += 6;
+                          });
+                          
+                          pdf.save(`attendance-${attendanceStartDate || format(new Date(), 'yyyy-MM-dd')}.pdf`);
+                          toast({ title: "PDF Exported", description: "Attendance report has been downloaded." });
+                        }}
+                        data-testid="button-export-pdf"
+                      >
+                        <FileText className="h-4 w-4 mr-2" />
+                        Export PDF
+                      </Button>
                     </div>
                   </div>
                   <div className="flex gap-4 items-center flex-wrap">
@@ -2550,6 +2644,159 @@ export default function AdminDashboard() {
                 </p>
               </CardContent>
             </Card>
+              )}
+              
+              {/* Trends Tab */}
+              {attendanceTab === 'trends' && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Attendance Trends</CardTitle>
+                    <CardDescription>View infringement patterns and attendance trends over time</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {(() => {
+                      const clockInCutoffTime = clockInCutoff || '08:00';
+                      const clockOutCutoffTime = clockOutCutoff || '17:00';
+                      
+                      // Calculate infringements per employee
+                      const infringementsByEmployee = new Map<string, { late: number; early: number; total: number }>();
+                      
+                      attendanceRecords.forEach((record: AttendanceRecord) => {
+                        const recordTime = new Date(record.timestamp);
+                        const timeStr = format(recordTime, 'HH:mm');
+                        
+                        let isInfringement = false;
+                        let type: 'late' | 'early' | null = null;
+                        
+                        if (record.type === 'in' && timeStr > clockInCutoffTime) {
+                          isInfringement = true;
+                          type = 'late';
+                        } else if (record.type === 'out' && timeStr < clockOutCutoffTime) {
+                          isInfringement = true;
+                          type = 'early';
+                        }
+                        
+                        if (isInfringement && type) {
+                          const current = infringementsByEmployee.get(record.userId) || { late: 0, early: 0, total: 0 };
+                          if (type === 'late') current.late++;
+                          if (type === 'early') current.early++;
+                          current.total++;
+                          infringementsByEmployee.set(record.userId, current);
+                        }
+                      });
+                      
+                      // Sort by total infringements (highest first)
+                      const sortedInfringements = Array.from(infringementsByEmployee.entries())
+                        .sort((a, b) => b[1].total - a[1].total);
+                      
+                      if (sortedInfringements.length === 0) {
+                        return (
+                          <div className="text-center py-12 text-muted-foreground">
+                            <CheckCircle2 className="h-16 w-16 mx-auto mb-4 text-green-500" />
+                            <p className="text-lg font-medium">No infringements detected</p>
+                            <p className="text-sm">All employees are clocking in and out on time based on the configured cutoff times.</p>
+                            <p className="text-xs mt-2">Clock-in cutoff: {clockInCutoffTime} | Clock-out cutoff: {clockOutCutoffTime}</p>
+                          </div>
+                        );
+                      }
+                      
+                      return (
+                        <div className="space-y-6">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                              <p className="text-sm text-red-600 font-medium">Total Late Arrivals</p>
+                              <p className="text-3xl font-bold text-red-700">
+                                {sortedInfringements.reduce((sum, [_, data]) => sum + data.late, 0)}
+                              </p>
+                              <p className="text-xs text-red-500">After {clockInCutoffTime}</p>
+                            </div>
+                            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                              <p className="text-sm text-orange-600 font-medium">Total Early Departures</p>
+                              <p className="text-3xl font-bold text-orange-700">
+                                {sortedInfringements.reduce((sum, [_, data]) => sum + data.early, 0)}
+                              </p>
+                              <p className="text-xs text-orange-500">Before {clockOutCutoffTime}</p>
+                            </div>
+                            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                              <p className="text-sm text-slate-600 font-medium">Employees with Infringements</p>
+                              <p className="text-3xl font-bold text-slate-700">
+                                {sortedInfringements.length}
+                              </p>
+                              <p className="text-xs text-slate-500">Out of {users.filter(u => !u.terminationDate).length} active</p>
+                            </div>
+                          </div>
+                          
+                          <div>
+                            <h3 className="text-lg font-semibold mb-3">Employees with Ongoing Infringements</h3>
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Employee</TableHead>
+                                  <TableHead>Department</TableHead>
+                                  <TableHead className="text-center">Late Arrivals</TableHead>
+                                  <TableHead className="text-center">Early Departures</TableHead>
+                                  <TableHead className="text-center">Total</TableHead>
+                                  <TableHead>Status</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {sortedInfringements.map(([userId, data]) => {
+                                  const emp = users.find(u => u.id === userId);
+                                  if (!emp) return null;
+                                  
+                                  const severity = data.total >= 5 ? 'critical' : data.total >= 3 ? 'warning' : 'minor';
+                                  
+                                  return (
+                                    <TableRow key={userId} className={severity === 'critical' ? 'bg-red-50' : severity === 'warning' ? 'bg-orange-50' : ''}>
+                                      <TableCell className="font-medium">
+                                        {emp.firstName} {emp.surname}
+                                      </TableCell>
+                                      <TableCell className="text-muted-foreground">
+                                        {emp.department || '-'}
+                                      </TableCell>
+                                      <TableCell className="text-center">
+                                        {data.late > 0 ? (
+                                          <Badge variant="destructive">{data.late}</Badge>
+                                        ) : (
+                                          <span className="text-muted-foreground">0</span>
+                                        )}
+                                      </TableCell>
+                                      <TableCell className="text-center">
+                                        {data.early > 0 ? (
+                                          <Badge className="bg-orange-500">{data.early}</Badge>
+                                        ) : (
+                                          <span className="text-muted-foreground">0</span>
+                                        )}
+                                      </TableCell>
+                                      <TableCell className="text-center font-bold">
+                                        {data.total}
+                                      </TableCell>
+                                      <TableCell>
+                                        {severity === 'critical' ? (
+                                          <Badge variant="destructive">Requires Attention</Badge>
+                                        ) : severity === 'warning' ? (
+                                          <Badge className="bg-orange-500">Monitor</Badge>
+                                        ) : (
+                                          <Badge variant="outline">Minor</Badge>
+                                        )}
+                                      </TableCell>
+                                    </TableRow>
+                                  );
+                                })}
+                              </TableBody>
+                            </Table>
+                          </div>
+                          
+                          <p className="text-xs text-muted-foreground">
+                            Note: Infringements are calculated based on the date range selected in the Records tab. 
+                            Currently showing data from {attendanceStartDate ? format(new Date(attendanceStartDate), 'dd/MM/yyyy') : 'all time'} 
+                            to {attendanceEndDate ? format(new Date(attendanceEndDate), 'dd/MM/yyyy') : 'now'}.
+                          </p>
+                        </div>
+                      );
+                    })()}
+                  </CardContent>
+                </Card>
               )}
             </div>
           )}
