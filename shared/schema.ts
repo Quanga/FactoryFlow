@@ -220,7 +220,8 @@ export const attendanceRecords = pgTable("attendance_records", {
 
 export const insertAttendanceRecordSchema = createInsertSchema(attendanceRecords).omit({
   id: true,
-  timestamp: true,
+}).extend({
+  timestamp: z.date().optional(),
 });
 export type InsertAttendanceRecord = z.infer<typeof insertAttendanceRecordSchema>;
 export type AttendanceRecord = typeof attendanceRecords.$inferSelect;

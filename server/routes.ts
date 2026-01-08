@@ -898,7 +898,10 @@ export async function registerRoutes(
         }
       }
       
-      const newRecord = await storage.createAttendanceRecord(validatedData);
+      const newRecord = await storage.createAttendanceRecord({
+        ...validatedData,
+        timestamp: new Date(),
+      });
       
       // Check for late arrival or early departure and send notification
       if (validatedData.context === 'attendance') {
