@@ -2423,31 +2423,69 @@ export default function AdminDashboard() {
                           });
                           
                           const eligibleEmployees = users.filter(u => !u.exclude);
-                          const usersWithAttendance = new Set(attendanceRecords.map((r: AttendanceRecord) => r.userId));
-                          const nonAttendanceRecords = eligibleEmployees
-                            .filter(w => {
-                              if (attendanceUserFilter && attendanceUserFilter !== 'all' && w.id !== attendanceUserFilter) {
-                                return false;
-                              }
-                              return !usersWithAttendance.has(w.id);
-                            })
-                            .map(w => ({
-                              id: `no-attendance-${w.id}`,
-                              odId: -1,
-                              userId: w.id,
-                              type: 'non-attendance' as const,
-                              timestamp: attendanceStartDate ? new Date(attendanceStartDate).toISOString() : new Date().toISOString(),
-                              photoUrl: null,
-                              method: null,
-                              context: null,
-                              employee: w,
-                            }));
+                          const usersWithAttendance = new Set(filteredRecords.map((r: AttendanceRecord) => r.userId));
                           
-                          type PdfRecord = { userId: string; type: string; timestamp: string; employee?: typeof users[0] };
-                          const allRecords: PdfRecord[] = [
-                            ...filteredRecords.map((r: AttendanceRecord) => ({ ...r, employee: users.find(u => u.id === r.userId) })),
-                            ...nonAttendanceRecords,
-                          ];
+                          type PdfConsolidated = {
+                            employee: typeof users[0];
+                            date: string;
+                            clockInTime: string | null;
+                            clockOutTime: string | null;
+                            isNonAttendance: boolean;
+                          };
+                          
+                          const pdfRecordsByUserAndDate = new Map<string, PdfConsolidated>();
+                          
+                          filteredRecords.forEach((record: AttendanceRecord) => {
+                            const employee = users.find(u => u.id === record.userId);
+                            if (!employee) return;
+                            const dateStr = format(new Date(record.timestamp), 'yyyy-MM-dd');
+                            const key = `${record.userId}-${dateStr}`;
+                            
+                            if (!pdfRecordsByUserAndDate.has(key)) {
+                              pdfRecordsByUserAndDate.set(key, {
+                                employee,
+                                date: dateStr,
+                                clockInTime: null,
+                                clockOutTime: null,
+                                isNonAttendance: false,
+                              });
+                            }
+                            
+                            const consolidated = pdfRecordsByUserAndDate.get(key)!;
+                            const timeStr = format(new Date(record.timestamp), 'HH:mm');
+                            if (record.type === 'in') {
+                              if (!consolidated.clockInTime || timeStr < consolidated.clockInTime) {
+                                consolidated.clockInTime = timeStr;
+                              }
+                            } else if (record.type === 'out') {
+                              if (!consolidated.clockOutTime || timeStr > consolidated.clockOutTime) {
+                                consolidated.clockOutTime = timeStr;
+                              }
+                            }
+                          });
+                          
+                          eligibleEmployees.forEach(emp => {
+                            if (attendanceUserFilter && attendanceUserFilter !== 'all' && emp.id !== attendanceUserFilter) {
+                              return;
+                            }
+                            if (!usersWithAttendance.has(emp.id)) {
+                              const dateStr = attendanceStartDate || format(new Date(), 'yyyy-MM-dd');
+                              const key = `${emp.id}-${dateStr}`;
+                              pdfRecordsByUserAndDate.set(key, {
+                                employee: emp,
+                                date: dateStr,
+                                clockInTime: null,
+                                clockOutTime: null,
+                                isNonAttendance: true,
+                              });
+                            }
+                          });
+                          
+                          const pdfConsolidated = Array.from(pdfRecordsByUserAndDate.values()).sort((a, b) => {
+                            const dateCompare = b.date.localeCompare(a.date);
+                            if (dateCompare !== 0) return dateCompare;
+                            return a.employee.firstName.localeCompare(b.employee.firstName);
+                          });
                           
                           const pdf = new jsPDF();
                           let dateRange = 'All Records';
@@ -2471,39 +2509,39 @@ export default function AdminDashboard() {
                           pdf.setFontSize(10);
                           pdf.setFont('helvetica', 'bold');
                           pdf.text('Employee', 20, y);
-                          pdf.text('Type', 80, y);
-                          pdf.text('Time', 110, y);
+                          pdf.text('Date', 70, y);
+                          pdf.text('Clock In', 105, y);
+                          pdf.text('Clock Out', 130, y);
                           pdf.text('Status', 160, y);
                           y += 8;
                           pdf.setFont('helvetica', 'normal');
                           
-                          allRecords.forEach((record) => {
+                          pdfConsolidated.forEach((record) => {
                             if (y > 270) {
                               pdf.addPage();
                               y = 20;
                             }
-                            const emp = record.employee || users.find(u => u.id === record.userId);
-                            const isNonAttendance = record.type === 'non-attendance';
-                            const recordTime = new Date(record.timestamp);
-                            const timeStr = isNonAttendance ? '' : format(recordTime, 'HH:mm');
                             
-                            let status = 'OK';
-                            let typeLabel = '';
-                            if (isNonAttendance) {
-                              status = 'No Attendance';
-                              typeLabel = 'Non-Attendance';
-                            } else if (record.type === 'in') {
-                              typeLabel = 'Clock In';
-                              if (timeStr > clockInCutoffTime) status = 'Late';
-                            } else if (record.type === 'out') {
-                              typeLabel = 'Clock Out';
-                              if (timeStr < clockOutCutoffTime) status = 'Early';
+                            const issues: string[] = [];
+                            if (record.isNonAttendance) {
+                              issues.push('No Attendance');
+                            } else {
+                              if (record.clockInTime && record.clockInTime > clockInCutoffTime) {
+                                issues.push('Late');
+                              }
+                              if (record.clockOutTime && record.clockOutTime < clockOutCutoffTime) {
+                                issues.push('Early');
+                              }
+                              if (!record.clockOutTime && record.clockInTime) {
+                                issues.push('No Out');
+                              }
                             }
                             
-                            pdf.text(emp ? `${emp.firstName} ${emp.surname}` : record.userId, 20, y);
-                            pdf.text(typeLabel, 80, y);
-                            pdf.text(isNonAttendance ? '-' : format(recordTime, 'dd/MM/yyyy HH:mm'), 110, y);
-                            pdf.text(status, 160, y);
+                            pdf.text(`${record.employee.firstName} ${record.employee.surname}`, 20, y);
+                            pdf.text(format(new Date(record.date), 'dd/MM/yyyy'), 70, y);
+                            pdf.text(record.clockInTime || '-', 105, y);
+                            pdf.text(record.clockOutTime || '-', 130, y);
+                            pdf.text(issues.length > 0 ? issues.join(', ') : 'OK', 160, y);
                             y += 6;
                           });
                           
@@ -2585,33 +2623,73 @@ export default function AdminDashboard() {
                   });
                   
                   const eligibleEmployees = users.filter(u => !u.exclude);
-                  const usersWithAttendance = new Set(attendanceRecords.map((r: AttendanceRecord) => r.userId));
-                  const nonAttendanceRecords = eligibleEmployees
-                    .filter(w => {
-                      if (attendanceUserFilter && attendanceUserFilter !== 'all' && w.id !== attendanceUserFilter) {
-                        return false;
+                  const usersWithAttendance = new Set(filteredRecords.map((r: AttendanceRecord) => r.userId));
+                  
+                  type ConsolidatedRecord = {
+                    odId: string;
+                    odIemployee: typeof users[0];
+                    date: string;
+                    clockInRecord: AttendanceRecord | null;
+                    clockOutRecord: AttendanceRecord | null;
+                    isNonAttendance: boolean;
+                  };
+                  
+                  const recordsByUserAndDate = new Map<string, ConsolidatedRecord>();
+                  
+                  filteredRecords.forEach((record: AttendanceRecord) => {
+                    const employee = users.find(u => u.id === record.userId);
+                    if (!employee) return;
+                    const dateStr = format(new Date(record.timestamp), 'yyyy-MM-dd');
+                    const key = `${record.userId}-${dateStr}`;
+                    
+                    if (!recordsByUserAndDate.has(key)) {
+                      recordsByUserAndDate.set(key, {
+                        odId: key,
+                        odIemployee: employee,
+                        date: dateStr,
+                        clockInRecord: null,
+                        clockOutRecord: null,
+                        isNonAttendance: false,
+                      });
+                    }
+                    
+                    const consolidated = recordsByUserAndDate.get(key)!;
+                    if (record.type === 'in') {
+                      if (!consolidated.clockInRecord || new Date(record.timestamp) < new Date(consolidated.clockInRecord.timestamp)) {
+                        consolidated.clockInRecord = record;
                       }
-                      return !usersWithAttendance.has(w.id);
-                    })
-                    .map(w => ({
-                      id: `no-attendance-${w.id}`,
-                      odId: -1,
-                      userId: w.id,
-                      type: 'non-attendance' as const,
-                      timestamp: attendanceStartDate ? new Date(attendanceStartDate).toISOString() : new Date().toISOString(),
-                      photoUrl: null,
-                      method: null,
-                      context: null,
-                      employee: w,
-                    }));
+                    } else if (record.type === 'out') {
+                      if (!consolidated.clockOutRecord || new Date(record.timestamp) > new Date(consolidated.clockOutRecord.timestamp)) {
+                        consolidated.clockOutRecord = record;
+                      }
+                    }
+                  });
                   
-                  type DisplayRecord = (AttendanceRecord & { employee?: typeof users[0] }) | typeof nonAttendanceRecords[0];
-                  const allRecords: DisplayRecord[] = [
-                    ...filteredRecords.map((r: AttendanceRecord) => ({ ...r, employee: users.find(u => u.id === r.userId) })),
-                    ...nonAttendanceRecords,
-                  ];
+                  eligibleEmployees.forEach(emp => {
+                    if (attendanceUserFilter && attendanceUserFilter !== 'all' && emp.id !== attendanceUserFilter) {
+                      return;
+                    }
+                    if (!usersWithAttendance.has(emp.id)) {
+                      const dateStr = attendanceStartDate || format(new Date(), 'yyyy-MM-dd');
+                      const key = `${emp.id}-${dateStr}`;
+                      recordsByUserAndDate.set(key, {
+                        odId: key,
+                        odIemployee: emp,
+                        date: dateStr,
+                        clockInRecord: null,
+                        clockOutRecord: null,
+                        isNonAttendance: true,
+                      });
+                    }
+                  });
                   
-                  if (allRecords.length === 0) {
+                  const consolidatedRecords = Array.from(recordsByUserAndDate.values()).sort((a, b) => {
+                    const dateCompare = b.date.localeCompare(a.date);
+                    if (dateCompare !== 0) return dateCompare;
+                    return a.odIemployee.firstName.localeCompare(b.odIemployee.firstName);
+                  });
+                  
+                  if (consolidatedRecords.length === 0) {
                     return (
                       <div className="text-center py-8 text-muted-foreground">
                         {attendanceInfringementFilter 
@@ -2626,90 +2704,102 @@ export default function AdminDashboard() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>Employee</TableHead>
-                          <TableHead>Type</TableHead>
-                          <TableHead>Time</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Clock In</TableHead>
+                          <TableHead>Clock Out</TableHead>
                           <TableHead>Status</TableHead>
-                          <TableHead>Context</TableHead>
-                          <TableHead>Method</TableHead>
                           <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {allRecords.map((record) => {
-                          const employee = record.employee || users.find(u => u.id === record.userId);
-                          const isNonAttendance = record.type === 'non-attendance';
-                          const recordTime = new Date(record.timestamp);
-                          const timeStr = isNonAttendance ? '' : format(recordTime, 'HH:mm');
+                        {consolidatedRecords.map((record) => {
+                          const clockInTime = record.clockInRecord ? format(new Date(record.clockInRecord.timestamp), 'HH:mm') : null;
+                          const clockOutTime = record.clockOutRecord ? format(new Date(record.clockOutRecord.timestamp), 'HH:mm') : null;
                           
-                          let isInfringement = false;
-                          let infringementType = '';
-                          if (isNonAttendance) {
-                            isInfringement = true;
-                            infringementType = 'No Attendance';
-                          } else if (record.type === 'in' && timeStr > clockInCutoffTime) {
-                            isInfringement = true;
-                            infringementType = 'Late Arrival';
-                          } else if (record.type === 'out' && timeStr < clockOutCutoffTime) {
-                            isInfringement = true;
-                            infringementType = 'Early Departure';
+                          const issues: string[] = [];
+                          if (record.isNonAttendance) {
+                            issues.push('No Attendance');
+                          } else {
+                            if (clockInTime && clockInTime > clockInCutoffTime) {
+                              issues.push('Late Arrival');
+                            }
+                            if (clockOutTime && clockOutTime < clockOutCutoffTime) {
+                              issues.push('Early Departure');
+                            }
+                            if (!clockOutTime && record.clockInRecord) {
+                              issues.push('No Clock Out');
+                            }
+                          }
+                          
+                          const hasIssue = issues.length > 0;
+                          
+                          if (attendanceInfringementFilter && !hasIssue) {
+                            return null;
                           }
                           
                           return (
-                            <TableRow key={record.id} data-testid={`row-attendance-${record.id}`} className={isInfringement ? 'bg-red-50' : ''}>
+                            <TableRow key={record.odId} data-testid={`row-attendance-${record.odId}`} className={hasIssue ? 'bg-red-50' : ''}>
                               <TableCell className="font-medium">
-                                {employee ? `${employee.firstName} ${employee.surname}` : record.userId}
+                                {record.odIemployee.firstName} {record.odIemployee.surname}
                               </TableCell>
                               <TableCell>
-                                {isNonAttendance ? (
-                                  <Badge variant="outline" className="text-gray-500 border-gray-300">Non-Attendance</Badge>
+                                {format(new Date(record.date), 'dd/MM/yyyy')}
+                              </TableCell>
+                              <TableCell>
+                                {clockInTime ? (
+                                  <span className={clockInTime > clockInCutoffTime ? 'text-red-600 font-medium' : ''}>
+                                    {clockInTime}
+                                  </span>
                                 ) : (
-                                  <Badge variant={record.type === 'in' ? 'default' : 'secondary'}>
-                                    Clock {record.type === 'in' ? 'In' : 'Out'}
-                                  </Badge>
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                {isNonAttendance ? (
                                   <span className="text-muted-foreground">-</span>
-                                ) : (
-                                  format(recordTime, "dd/MM/yyyy 'at' HH:mm")
                                 )}
                               </TableCell>
                               <TableCell>
-                                {isInfringement ? (
-                                  <Badge variant="destructive">{infringementType}</Badge>
+                                {clockOutTime ? (
+                                  <span className={clockOutTime < clockOutCutoffTime ? 'text-red-600 font-medium' : ''}>
+                                    {clockOutTime}
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {hasIssue ? (
+                                  <div className="flex flex-wrap gap-1">
+                                    {issues.map((issue, idx) => (
+                                      <Badge key={idx} variant="destructive" className="text-xs">{issue}</Badge>
+                                    ))}
+                                  </div>
                                 ) : (
                                   <Badge variant="outline" className="text-green-600 border-green-300">On Time</Badge>
                                 )}
                               </TableCell>
-                              <TableCell className="capitalize">{record.context || '-'}</TableCell>
-                              <TableCell className="capitalize">{record.method || '-'}</TableCell>
                               <TableCell className="text-right">
-                                {!isNonAttendance && (
-                                  <>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={() => openEditAttendance(record as AttendanceRecord)}
-                                      title="Edit attendance record"
-                                      data-testid={`button-edit-attendance-${record.id}`}
-                                    >
-                                      <Pencil className="h-4 w-4 text-slate-500" />
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={() => {
-                                        if (confirm('Are you sure you want to delete this attendance record?')) {
-                                          deleteAttendanceMutation.mutate((record as AttendanceRecord).id);
-                                        }
-                                      }}
-                                      title="Delete attendance record"
-                                      data-testid={`button-delete-attendance-${record.id}`}
-                                    >
-                                      <Trash2 className="h-4 w-4 text-red-500" />
-                                    </Button>
-                                  </>
+                                {!record.isNonAttendance && (
+                                  <div className="flex justify-end gap-1">
+                                    {record.clockInRecord && (
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => openEditAttendance(record.clockInRecord!)}
+                                        title="Edit clock-in"
+                                        data-testid={`button-edit-clockin-${record.odId}`}
+                                      >
+                                        <Pencil className="h-4 w-4 text-slate-500" />
+                                      </Button>
+                                    )}
+                                    {record.clockOutRecord && (
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => openEditAttendance(record.clockOutRecord!)}
+                                        title="Edit clock-out"
+                                        data-testid={`button-edit-clockout-${record.odId}`}
+                                      >
+                                        <Pencil className="h-4 w-4 text-blue-500" />
+                                      </Button>
+                                    )}
+                                  </div>
                                 )}
                               </TableCell>
                             </TableRow>
