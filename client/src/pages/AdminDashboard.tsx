@@ -2776,12 +2776,7 @@ export default function AdminDashboard() {
                           return (
                             <TableRow key={record.odId} data-testid={`row-attendance-${record.odId}`} className={hasIssue ? 'bg-red-50' : ''}>
                               <TableCell className="font-medium">
-                                <div className="flex items-center gap-2">
-                                  {record.odIemployee.firstName} {record.odIemployee.surname}
-                                  {isClockedIn && (
-                                    <Badge className="bg-green-500 hover:bg-green-600 text-white text-xs">Clocked In</Badge>
-                                  )}
-                                </div>
+                                {record.odIemployee.firstName} {record.odIemployee.surname}
                               </TableCell>
                               <TableCell>
                                 {format(new Date(record.date), 'dd/MM/yyyy')}
@@ -2805,15 +2800,20 @@ export default function AdminDashboard() {
                                 )}
                               </TableCell>
                               <TableCell>
-                                {hasIssue ? (
-                                  <div className="flex flex-wrap gap-1">
-                                    {issues.map((issue, idx) => (
-                                      <Badge key={idx} variant="destructive" className="text-xs">{issue}</Badge>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <Badge variant="outline" className="text-green-600 border-green-300">On Time</Badge>
-                                )}
+                                <div className="flex flex-wrap gap-1">
+                                  {isClockedIn && (
+                                    <Badge className="bg-green-500 hover:bg-green-600 text-white text-xs">Clocked In</Badge>
+                                  )}
+                                  {hasIssue ? (
+                                    <>
+                                      {issues.map((issue, idx) => (
+                                        <Badge key={idx} variant="destructive" className="text-xs">{issue}</Badge>
+                                      ))}
+                                    </>
+                                  ) : (
+                                    !isClockedIn && <Badge variant="outline" className="text-green-600 border-green-300">On Time</Badge>
+                                  )}
+                                </div>
                               </TableCell>
                               <TableCell className="text-right">
                                 {!record.isNonAttendance && (
