@@ -429,7 +429,6 @@ export class DrizzleStorage implements IStorage {
       .where(
         and(
           eq(schema.attendanceRecords.userId, userId),
-          eq(schema.attendanceRecords.context, 'attendance'),
           gte(schema.attendanceRecords.timestamp, startOfDay),
           lte(schema.attendanceRecords.timestamp, endOfDay)
         )
