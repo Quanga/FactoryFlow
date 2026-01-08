@@ -446,6 +446,21 @@ export default function AdminDashboard() {
     },
   });
 
+  const permanentDeleteMutation = useMutation({
+    mutationFn: (id: number) => leaveRequestApi.permanentDelete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leave-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['leave-balances'] });
+      toast({ 
+        title: "Leave Request Deleted", 
+        description: "Leave request has been permanently deleted."
+      });
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Error", description: error.message || "Failed to delete leave request" });
+    },
+  });
+
   const createLeaveBalanceMutation = useMutation({
     mutationFn: (balance: { userId: string; leaveType: string; total: number }) => leaveBalanceApi.create(balance),
     onSuccess: () => {
@@ -2219,6 +2234,19 @@ export default function AdminDashboard() {
                                   </Button>
                                 </>
                               )}
+                              <Button 
+                                variant="ghost" 
+                                size="icon"
+                                onClick={() => {
+                                  if (confirm('Are you sure you want to permanently delete this leave request? This action cannot be undone.')) {
+                                    permanentDeleteMutation.mutate(request.id);
+                                  }
+                                }}
+                                data-testid={`button-delete-${request.id}`}
+                                title="Permanently Delete"
+                              >
+                                <Trash2 className="h-4 w-4 text-red-600" />
+                              </Button>
                             </TableCell>
                           </TableRow>
                         );

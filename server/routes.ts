@@ -827,6 +827,44 @@ export async function registerRoutes(
     }
   });
 
+  // Permanently delete leave request (admin only - for test data cleanup)
+  app.delete("/api/leave-requests/:id/permanent", async (req, res) => {
+    try {
+      const requestId = parseInt(req.params.id);
+      const request = await storage.getLeaveRequest(requestId);
+      
+      if (!request) {
+        return res.status(404).json({ error: "Leave request not found" });
+      }
+      
+      // If the leave was approved, credit back the balance before deleting
+      if (request.status === 'approved') {
+        const startDate = new Date(request.startDate);
+        const endDate = new Date(request.endDate);
+        const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        
+        const balances = await storage.getLeaveBalances(request.userId);
+        const balance = balances.find(b => b.leaveType === request.leaveType);
+        if (balance) {
+          await storage.updateLeaveBalance(balance.id, {
+            taken: Math.max(0, balance.taken - days)
+          });
+        }
+      }
+      
+      const deleted = await storage.deleteLeaveRequest(requestId);
+      
+      if (!deleted) {
+        return res.status(500).json({ error: "Failed to delete leave request" });
+      }
+      
+      return res.json({ message: "Leave request permanently deleted" });
+    } catch (error) {
+      console.error("Permanent delete leave request error:", error);
+      return res.status(500).json({ error: "Failed to delete leave request" });
+    }
+  });
+
   // ========== ATTENDANCE ROUTES ==========
   
   // Get all attendance records (admin) - must be before :userId route

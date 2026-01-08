@@ -208,6 +208,17 @@ export const leaveRequestApi = {
     return res.json();
   },
 
+  async permanentDelete(id: number): Promise<{ message: string }> {
+    const res = await fetch(`${API_BASE}/leave-requests/${id}/permanent`, {
+      method: "DELETE",
+    });
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to delete leave request");
+    }
+    return res.json();
+  },
+
   async getByStatus(status: string | string[]): Promise<LeaveRequest[]> {
     const statusStr = Array.isArray(status) ? status.join(',') : status;
     const res = await fetch(`${API_BASE}/leave-requests/by-status/${statusStr}`);

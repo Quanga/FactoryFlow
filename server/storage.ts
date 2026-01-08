@@ -65,6 +65,7 @@ export interface IStorage {
   getLeaveRequest(id: number): Promise<LeaveRequest | undefined>;
   createLeaveRequest(request: InsertLeaveRequest): Promise<LeaveRequest>;
   updateLeaveRequestStatus(id: number, status: string, adminNotes?: string): Promise<LeaveRequest | undefined>;
+  deleteLeaveRequest(id: number): Promise<boolean>;
   
   // Approval workflow operations
   updateManagerDecision(id: number, approverId: string, decision: 'approved' | 'rejected', notes?: string): Promise<LeaveRequest | undefined>;
@@ -286,6 +287,14 @@ export class DrizzleStorage implements IStorage {
       .where(eq(schema.leaveRequests.id, id))
       .returning();
     return updatedRequest;
+  }
+
+  async deleteLeaveRequest(id: number): Promise<boolean> {
+    const result = await db
+      .delete(schema.leaveRequests)
+      .where(eq(schema.leaveRequests.id, id))
+      .returning();
+    return result.length > 0;
   }
 
   async getLeaveRequestsByStatus(status: string | string[]): Promise<LeaveRequest[]> {
