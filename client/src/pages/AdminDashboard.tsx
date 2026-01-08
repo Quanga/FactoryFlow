@@ -2517,31 +2517,36 @@ export default function AdminDashboard() {
                           pdf.setFont('helvetica', 'normal');
                           
                           pdfConsolidated.forEach((record) => {
-                            if (y > 270) {
-                              pdf.addPage();
-                              y = 20;
-                            }
-                            
                             const issues: string[] = [];
                             if (record.isNonAttendance) {
                               issues.push('No Attendance');
                             } else {
                               if (record.clockInTime && record.clockInTime > clockInCutoffTime) {
-                                issues.push('Late');
+                                issues.push('Late Arrival');
                               }
                               if (record.clockOutTime && record.clockOutTime < clockOutCutoffTime) {
-                                issues.push('Early');
+                                issues.push('Early Departure');
                               }
                               if (!record.clockOutTime && record.clockInTime) {
-                                issues.push('No Out');
+                                issues.push('No Clock Out');
                               }
+                            }
+                            
+                            const hasIssue = issues.length > 0;
+                            if (attendanceInfringementFilter && !hasIssue) {
+                              return;
+                            }
+                            
+                            if (y > 270) {
+                              pdf.addPage();
+                              y = 20;
                             }
                             
                             pdf.text(`${record.employee.firstName} ${record.employee.surname}`, 20, y);
                             pdf.text(format(new Date(record.date), 'dd/MM/yyyy'), 70, y);
                             pdf.text(record.clockInTime || '-', 105, y);
                             pdf.text(record.clockOutTime || '-', 130, y);
-                            pdf.text(issues.length > 0 ? issues.join(', ') : 'OK', 160, y);
+                            pdf.text(hasIssue ? issues.join(', ') : 'On Time', 160, y);
                             y += 6;
                           });
                           
