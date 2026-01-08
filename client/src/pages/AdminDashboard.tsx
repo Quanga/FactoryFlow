@@ -2544,23 +2544,32 @@ export default function AdminDashboard() {
                           y += 8;
                           pdf.setFont('helvetica', 'normal');
                           
+                          const todayStr = format(new Date(), 'yyyy-MM-dd');
+                          
                           pdfConsolidated.forEach((record) => {
-                            const issues: string[] = [];
+                            const statuses: string[] = [];
+                            const isToday = record.date === todayStr;
+                            const isClockedIn = isToday && record.clockInTime && !record.clockOutTime && !record.isNonAttendance;
+                            
+                            if (isClockedIn) {
+                              statuses.push('Clocked In');
+                            }
+                            
                             if (record.isNonAttendance) {
-                              issues.push('No Attendance');
+                              statuses.push('No Attendance');
                             } else {
                               if (record.clockInTime && record.clockInTime > clockInCutoffTime) {
-                                issues.push('Late Arrival');
+                                statuses.push('Late Arrival');
                               }
                               if (record.clockOutTime && record.clockOutTime < clockOutCutoffTime) {
-                                issues.push('Early Departure');
+                                statuses.push('Early Departure');
                               }
                               if (!record.clockOutTime && record.clockInTime) {
-                                issues.push('No Clock Out');
+                                statuses.push('No Clock Out');
                               }
                             }
                             
-                            const hasIssue = issues.length > 0;
+                            const hasIssue = statuses.filter(s => s !== 'Clocked In').length > 0;
                             if (attendanceInfringementFilter && !hasIssue) {
                               return;
                             }
@@ -2570,11 +2579,13 @@ export default function AdminDashboard() {
                               y = 20;
                             }
                             
+                            const statusText = statuses.length > 0 ? statuses.join(', ') : 'On Time';
+                            
                             pdf.text(`${record.employee.firstName} ${record.employee.surname}`, 20, y);
                             pdf.text(format(new Date(record.date), 'dd/MM/yyyy'), 70, y);
                             pdf.text(record.clockInTime || '-', 105, y);
                             pdf.text(record.clockOutTime || '-', 130, y);
-                            pdf.text(hasIssue ? issues.join(', ') : 'On Time', 160, y);
+                            pdf.text(statusText, 160, y);
                             y += 6;
                           });
                           
