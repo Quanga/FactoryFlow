@@ -944,7 +944,18 @@ export async function registerRoutes(
       // Check for late arrival or early departure and send notification
       if (validatedData.context === 'attendance') {
         const recordTime = new Date(newRecord.timestamp);
-        const currentTime = `${recordTime.getHours().toString().padStart(2, '0')}:${recordTime.getMinutes().toString().padStart(2, '0')}`;
+        
+        // Get timezone setting for proper time formatting
+        const timezoneSetting = await storage.getSetting('timezone');
+        const timezone = timezoneSetting?.value || 'Africa/Johannesburg';
+        
+        // Format time in the configured timezone
+        const currentTime = recordTime.toLocaleTimeString('en-ZA', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          hour12: false,
+          timeZone: timezone
+        });
         
         try {
           const user = await storage.getUser(validatedData.userId);
