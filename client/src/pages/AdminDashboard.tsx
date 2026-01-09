@@ -2362,6 +2362,44 @@ export default function AdminDashboard() {
                 <p className="text-muted-foreground">View and manage employee attendance records</p>
               </div>
               
+              {/* Clocked In Summary */}
+              {(() => {
+                const todayStr = format(new Date(), 'yyyy-MM-dd');
+                const eligibleEmployees = users.filter(u => !u.exclude);
+                const todayRecords = attendanceRecords.filter((r: AttendanceRecord) => 
+                  format(new Date(r.timestamp), 'yyyy-MM-dd') === todayStr
+                );
+                
+                const clockedInUsers = new Set<string>();
+                const clockedOutUsers = new Set<string>();
+                
+                todayRecords.forEach((record: AttendanceRecord) => {
+                  if (record.type === 'in') {
+                    clockedInUsers.add(record.userId);
+                  } else if (record.type === 'out') {
+                    clockedOutUsers.add(record.userId);
+                  }
+                });
+                
+                const currentlyClockedIn = Array.from(clockedInUsers).filter(
+                  userId => !clockedOutUsers.has(userId)
+                ).length;
+                
+                return (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
+                    <div className="bg-green-500 text-white rounded-full p-2">
+                      <Clock className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-lg font-semibold text-green-800">
+                        {currentlyClockedIn} of {eligibleEmployees.length} employees clocked in
+                      </p>
+                      <p className="text-sm text-green-600">Currently on site today</p>
+                    </div>
+                  </div>
+                );
+              })()}
+              
               {/* Attendance Sub-tabs */}
               <div className="flex gap-2 border-b pb-2">
                 <button
