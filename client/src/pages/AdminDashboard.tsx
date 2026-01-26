@@ -1461,6 +1461,13 @@ export default function AdminDashboard() {
                 <FileText className="h-4 w-4" /> Leave Requests
               </button>
               <button
+                onClick={() => setLocation('/leave-request')}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors hover:bg-slate-100 text-slate-700"
+                data-testid="nav-apply-leave"
+              >
+                <Calendar className="h-4 w-4" /> Apply for Leave
+              </button>
+              <button
                 onClick={() => setActiveSection('attendance')}
                 className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
                   activeSection === 'attendance' ? 'bg-primary text-white' : 'hover:bg-slate-100 text-slate-700'
