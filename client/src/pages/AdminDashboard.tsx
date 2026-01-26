@@ -2372,7 +2372,7 @@ export default function AdminDashboard() {
               {/* Clocked In Summary */}
               {(() => {
                 const todayStr = format(new Date(), 'yyyy-MM-dd');
-                const eligibleEmployees = users.filter(u => !u.exclude);
+                const eligibleEmployees = users.filter(u => !u.exclude && !u.terminationDate);
                 const todayRecords = attendanceRecords.filter((r: AttendanceRecord) => 
                   format(new Date(r.timestamp), 'yyyy-MM-dd') === todayStr
                 );
@@ -2495,7 +2495,7 @@ export default function AdminDashboard() {
                             return true;
                           });
                           
-                          const eligibleEmployees = users.filter(u => !u.exclude);
+                          const eligibleEmployees = users.filter(u => !u.exclude && !u.terminationDate);
                           const usersWithAttendance = new Set(filteredRecords.map((r: AttendanceRecord) => r.userId));
                           
                           type PdfConsolidated = {
@@ -2711,7 +2711,7 @@ export default function AdminDashboard() {
                     return true;
                   });
                   
-                  const eligibleEmployees = users.filter(u => !u.exclude);
+                  const eligibleEmployees = users.filter(u => !u.exclude && !u.terminationDate);
                   const usersWithAttendance = new Set(filteredRecords.map((r: AttendanceRecord) => r.userId));
                   
                   type ConsolidatedRecord = {
@@ -2956,7 +2956,7 @@ export default function AdminDashboard() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {users.filter(u => !u.exclude).map((employee) => (
+                      {users.filter(u => !u.exclude && !u.terminationDate).map((employee) => (
                         <TableRow key={employee.id} data-testid={`row-manual-${employee.id}`}>
                           <TableCell className="font-mono text-sm">{employee.id}</TableCell>
                           <TableCell className="font-medium">{employee.firstName} {employee.surname}</TableCell>
