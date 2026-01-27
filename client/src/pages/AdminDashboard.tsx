@@ -22,8 +22,10 @@ import { format } from 'date-fns';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/lib/auth-context';
 import WebcamCapture from '@/components/WebcamCapture';
+import MultiAngleFaceCapture from '@/components/MultiAngleFaceCapture';
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { loadFaceModels, extractFaceDescriptorFromBase64, descriptorToJson } from '@/lib/face-recognition';
+import { faceDescriptorApi } from '@/lib/api';
 import jsPDF from 'jspdf';
 
 export default function AdminDashboard() {
@@ -186,6 +188,7 @@ export default function AdminDashboard() {
   const [currentUser, setCurrentUser] = useState<Partial<User>>({});
   const [isEditing, setIsEditing] = useState(false);
   const [isCapturingPhoto, setIsCapturingPhoto] = useState(false);
+  const [isMultiAngleCapture, setIsMultiAngleCapture] = useState(false);
   const [extractingFace, setExtractingFace] = useState(false);
   const [faceExtracted, setFaceExtracted] = useState(false);
 
@@ -1110,6 +1113,26 @@ export default function AdminDashboard() {
     } finally {
       setExtractingFace(false);
     }
+  };
+
+  const handleMultiAngleCaptureComplete = async (
+    photos: Array<{ angle: string; image: string; descriptor: string | null }>,
+    primaryPhoto: string,
+    primaryDescriptor: string
+  ) => {
+    setCurrentUser(prev => ({ 
+      ...prev, 
+      photoUrl: primaryPhoto, 
+      faceDescriptor: primaryDescriptor 
+    }));
+    setIsMultiAngleCapture(false);
+    setFaceExtracted(true);
+    
+    const capturedCount = photos.filter(p => p.descriptor).length;
+    toast({ 
+      title: "Face Registration Complete", 
+      description: `Captured ${capturedCount} face angles for improved recognition accuracy.` 
+    });
   };
 
   const handleDeleteUser = (id: string) => {
@@ -6013,7 +6036,14 @@ export default function AdminDashboard() {
               <div className="grid grid-cols-4 items-start gap-4 pt-2">
                 <Label className="text-right pt-2">Profile Photo</Label>
                 <div className="col-span-3 space-y-3">
-                  {isCapturingPhoto ? (
+                  {isMultiAngleCapture ? (
+                    <div className="border rounded-lg p-4 bg-slate-50">
+                      <MultiAngleFaceCapture 
+                        onComplete={handleMultiAngleCaptureComplete}
+                        onCancel={() => setIsMultiAngleCapture(false)}
+                      />
+                    </div>
+                  ) : isCapturingPhoto ? (
                     <div className="border rounded-lg p-2 bg-slate-50">
                       <WebcamCapture onCapture={handlePhotoCapture} label="Capture Profile Photo" />
                       <Button 
@@ -6037,14 +6067,25 @@ export default function AdminDashboard() {
                           )}
                         </div>
                         <div className="space-y-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => setIsCapturingPhoto(true)}
-                            disabled={extractingFace}
-                          >
-                            <Camera className="mr-2 h-4 w-4" /> Retake Photo
-                          </Button>
+                          <div className="flex gap-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => setIsCapturingPhoto(true)}
+                              disabled={extractingFace}
+                            >
+                              <Camera className="mr-2 h-4 w-4" /> Quick Retake
+                            </Button>
+                            <Button 
+                              variant="default" 
+                              size="sm" 
+                              className="bg-green-600 hover:bg-green-700"
+                              onClick={() => setIsMultiAngleCapture(true)}
+                              disabled={extractingFace}
+                            >
+                              <Camera className="mr-2 h-4 w-4" /> Multi-Angle
+                            </Button>
+                          </div>
                           {faceExtracted && (
                             <div className="flex items-center gap-1 text-xs text-green-600">
                               <CheckCircle2 className="h-3 w-3" />
@@ -6061,13 +6102,26 @@ export default function AdminDashboard() {
                       </div>
                     </div>
                   ) : (
-                    <Button 
-                      variant="outline" 
-                      className="w-full border-dashed py-8"
-                      onClick={() => setIsCapturingPhoto(true)}
-                    >
-                      <Camera className="mr-2 h-5 w-5" /> Take Photo for Facial Rec
-                    </Button>
+                    <div className="space-y-2">
+                      <Button 
+                        variant="outline" 
+                        className="w-full border-dashed py-6 bg-green-50 border-green-300 hover:bg-green-100"
+                        onClick={() => setIsMultiAngleCapture(true)}
+                      >
+                        <Camera className="mr-2 h-5 w-5" /> 
+                        <div className="text-left">
+                          <div className="font-medium">Enhanced Face Registration</div>
+                          <div className="text-xs text-muted-foreground">Captures multiple angles for better recognition</div>
+                        </div>
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        className="w-full text-sm text-muted-foreground"
+                        onClick={() => setIsCapturingPhoto(true)}
+                      >
+                        Quick single photo capture
+                      </Button>
+                    </div>
                   )}
                 </div>
               </div>
