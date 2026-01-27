@@ -446,7 +446,11 @@ export default function AdminDashboard() {
 
   const createUserMutation = useMutation({
     mutationFn: userApi.create,
-    onSuccess: () => {
+    onSuccess: async (createdUser) => {
+      // Save additional face descriptors after user is created
+      if (createdUser?.id && pendingMultiAnglePhotos.length > 0) {
+        await saveAdditionalFaceDescriptors(createdUser.id);
+      }
       queryClient.invalidateQueries({ queryKey: ['users'] });
       toast({ title: "User Created", description: "User has been added successfully." });
       setIsUserDialogOpen(false);
@@ -462,7 +466,11 @@ export default function AdminDashboard() {
 
   const updateUserMutation = useMutation({
     mutationFn: ({ id, ...data }: any) => userApi.update(id, data),
-    onSuccess: () => {
+    onSuccess: async (_, variables) => {
+      // Save additional face descriptors after user is updated
+      if (variables?.id && pendingMultiAnglePhotos.length > 0) {
+        await saveAdditionalFaceDescriptors(variables.id);
+      }
       queryClient.invalidateQueries({ queryKey: ['users'] });
       toast({ title: "User Updated", description: "User has been updated successfully." });
       setIsUserDialogOpen(false);
@@ -1115,6 +1123,8 @@ export default function AdminDashboard() {
     }
   };
 
+  const [pendingMultiAnglePhotos, setPendingMultiAnglePhotos] = useState<Array<{ angle: string; image: string; descriptor: string | null }>>([]);
+  
   const handleMultiAngleCaptureComplete = async (
     photos: Array<{ angle: string; image: string; descriptor: string | null }>,
     primaryPhoto: string,
@@ -1128,11 +1138,36 @@ export default function AdminDashboard() {
     setIsMultiAngleCapture(false);
     setFaceExtracted(true);
     
+    // Store additional photos for saving when user is saved
+    const additionalPhotos = photos.filter(p => p.descriptor && p.angle !== 'center');
+    setPendingMultiAnglePhotos(additionalPhotos);
+    
     const capturedCount = photos.filter(p => p.descriptor).length;
     toast({ 
       title: "Face Registration Complete", 
       description: `Captured ${capturedCount} face angles for improved recognition accuracy.` 
     });
+  };
+  
+  // Function to save additional face descriptors after user is created/updated
+  const saveAdditionalFaceDescriptors = async (userId: string) => {
+    if (pendingMultiAnglePhotos.length === 0) return;
+    
+    for (const photo of pendingMultiAnglePhotos) {
+      if (photo.descriptor) {
+        try {
+          await faceDescriptorApi.create({
+            userId,
+            descriptor: photo.descriptor,
+            label: photo.angle,
+            photoData: photo.image,
+          });
+        } catch (err) {
+          console.error(`Failed to save ${photo.angle} descriptor:`, err);
+        }
+      }
+    }
+    setPendingMultiAnglePhotos([]);
   };
 
   const handleDeleteUser = (id: string) => {
