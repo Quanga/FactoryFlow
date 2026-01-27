@@ -198,8 +198,8 @@ export default function AttendanceKiosk() {
           }
         }
         
-        // Use more lenient threshold (0.5) for better real-world recognition
-        if (bestMatch && isFaceMatch(bestMatch.distance, 0.5)) {
+        // Use more lenient threshold (0.55) for better real-world recognition
+        if (bestMatch && isFaceMatch(bestMatch.distance, 0.55)) {
           setRecognizedWorker({
             id: bestMatch.user.id,
             name: `${bestMatch.user.firstName} ${bestMatch.user.surname}`,

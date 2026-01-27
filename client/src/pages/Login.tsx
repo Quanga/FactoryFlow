@@ -101,8 +101,8 @@ export default function Login() {
         }
       }
       
-      // Use more lenient threshold (0.5) for better real-world recognition
-      if (bestMatch && isFaceMatch(bestMatch.distance, 0.5)) {
+      // Use more lenient threshold (0.55) for better real-world recognition
+      if (bestMatch && isFaceMatch(bestMatch.distance, 0.55)) {
         setFaceStatus('recognized');
         setFaceMessage(`Welcome, ${bestMatch.user.firstName}!`);
         setRecognizedUser(`${bestMatch.user.firstName} ${bestMatch.user.surname}`);
@@ -145,7 +145,9 @@ export default function Login() {
         }, 1000);
         return;
       } else if (bestMatch) {
-        setFaceMessage('Face not recognized - try adjusting position');
+        console.log(`Best match distance: ${bestMatch.distance.toFixed(3)} for ${bestMatch.user.firstName} - threshold: 0.5`);
+        // Show distance for debugging
+        setFaceMessage(`Matching... (${(100 - bestMatch.distance * 100).toFixed(0)}% match)`);
       }
     } catch (err) {
       console.error('Face detection error:', err);
