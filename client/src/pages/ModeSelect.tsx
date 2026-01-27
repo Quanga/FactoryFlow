@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useLocation } from 'wouter';
 import { Card, CardContent } from '@/components/ui/card';
 import { Clock, FileText, LogIn, LogOut, Settings, Camera, Grid3X3 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { settingsApi } from '@/lib/api';
 import aeceLogo from '@assets/AECE_Logo_1765516911038.png';
 
 type AttendanceSubMode = 'clock-in' | 'clock-out';
@@ -11,6 +13,19 @@ export default function ModeSelect() {
   const [, setLocation] = useLocation();
   const [step, setStep] = useState<SelectionStep>('mode');
   const [selectedSubMode, setSelectedSubMode] = useState<AttendanceSubMode>('clock-in');
+  
+  const { data: companyNameSetting } = useQuery({
+    queryKey: ['settings', 'company_name'],
+    queryFn: () => settingsApi.get('company_name'),
+  });
+  
+  const { data: companyLogoSetting } = useQuery({
+    queryKey: ['settings', 'company_logo'],
+    queryFn: () => settingsApi.get('company_logo'),
+  });
+  
+  const companyName = companyNameSetting?.value || 'AECE Checkpoint';
+  const companyLogo = companyLogoSetting?.value || aeceLogo;
 
   const handleSelectAttendanceType = (subMode: AttendanceSubMode) => {
     setSelectedSubMode(subMode);
@@ -44,9 +59,9 @@ export default function ModeSelect() {
     <div className="min-h-screen flex items-center justify-center bg-slate-200">
       <div className="w-full max-w-4xl px-4">
         <div className="text-center mb-8">
-          <img src={aeceLogo} alt="AECE Electronics" className="h-20 mx-auto mb-4" />
+          <img src={companyLogo} alt={companyName} className="h-20 mx-auto mb-4" />
           <h1 className="font-oswald text-4xl font-bold text-slate-800 tracking-wider mb-2">
-            AECE CHECKPOINT
+            {companyName.toUpperCase()}
           </h1>
           <p className="text-slate-600 text-lg">
             {step === 'mode' && 'Select Operating Mode'}

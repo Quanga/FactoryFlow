@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Label } from "@/components/ui/label";
 import { ShieldCheck, Mail, Lock, ArrowRight } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
-import { authApi } from '@/lib/api';
+import { authApi, settingsApi } from '@/lib/api';
+import { useQuery } from '@tanstack/react-query';
 import factoryBg from '@assets/generated_images/modern_clean_industrial_factory_interior_background.png';
 import aeceLogo from '@assets/AECE_Logo_1765516911038.png';
 
@@ -17,6 +18,19 @@ export default function AdminLogin() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  
+  const { data: companyNameSetting } = useQuery({
+    queryKey: ['settings', 'company_name'],
+    queryFn: () => settingsApi.get('company_name'),
+  });
+  
+  const { data: companyLogoSetting } = useQuery({
+    queryKey: ['settings', 'company_logo'],
+    queryFn: () => settingsApi.get('company_logo'),
+  });
+  
+  const companyName = companyNameSetting?.value || 'AECE Checkpoint';
+  const companyLogo = companyLogoSetting?.value || aeceLogo;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,8 +55,8 @@ export default function AdminLogin() {
 
       <Card className="w-full max-w-md z-10 shadow-2xl border-0 bg-white/95 backdrop-blur-xl animate-in zoom-in-95 duration-500">
         <CardHeader className="text-center pb-2">
-          <img src={aeceLogo} alt="AECE Electronics" className="h-14 mx-auto mb-4" />
-          <CardTitle className="text-2xl font-heading tracking-wide text-gray-900">CHECKPOINT ADMIN</CardTitle>
+          <img src={companyLogo} alt={companyName} className="h-14 mx-auto mb-4" />
+          <CardTitle className="text-2xl font-heading tracking-wide text-gray-900">{companyName.toUpperCase()} ADMIN</CardTitle>
           <CardDescription className="text-gray-600">System Configuration & Management</CardDescription>
         </CardHeader>
         <CardContent className="pt-6">

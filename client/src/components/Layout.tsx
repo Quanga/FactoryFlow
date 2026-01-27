@@ -12,6 +12,8 @@ import {
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { useAuth } from '@/lib/auth-context';
+import { useQuery } from '@tanstack/react-query';
+import { settingsApi } from '@/lib/api';
 import aeceLogo from '@assets/AECE_Logo_1765516911038.png';
 
 interface LayoutProps {
@@ -21,6 +23,47 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [location] = useLocation();
   const { user, logout } = useAuth();
+  
+  const { data: companyNameSetting } = useQuery({
+    queryKey: ['settings', 'company_name'],
+    queryFn: () => settingsApi.get('company_name'),
+  });
+  
+  const { data: companyLogoSetting } = useQuery({
+    queryKey: ['settings', 'company_logo'],
+    queryFn: () => settingsApi.get('company_logo'),
+  });
+  
+  const { data: primaryColorSetting } = useQuery({
+    queryKey: ['settings', 'primary_color'],
+    queryFn: () => settingsApi.get('primary_color'),
+  });
+  
+  const { data: accentColorSetting } = useQuery({
+    queryKey: ['settings', 'accent_color'],
+    queryFn: () => settingsApi.get('accent_color'),
+  });
+  
+  const companyName = companyNameSetting?.value || 'AECE Checkpoint';
+  const companyLogo = companyLogoSetting?.value || aeceLogo;
+  
+  React.useEffect(() => {
+    const root = document.documentElement;
+    if (primaryColorSetting?.value) {
+      const hex = primaryColorSetting.value;
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      root.style.setProperty('--primary', `${r} ${g} ${b}`);
+    }
+    if (accentColorSetting?.value) {
+      const hex = accentColorSetting.value;
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      root.style.setProperty('--accent', `${r} ${g} ${b}`);
+    }
+  }, [primaryColorSetting, accentColorSetting]);
 
   const workerNav = [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -37,9 +80,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     <div className="min-h-screen bg-background flex flex-col">
       <header className="h-16 bg-sidebar text-sidebar-foreground flex items-center justify-between px-4 shadow-md z-50">
         <div className="flex items-center gap-3">
-          <img src={aeceLogo} alt="AECE" className="h-8" />
+          <img src={companyLogo} alt={companyName} className="h-8" />
           <span className="font-heading text-xl tracking-wider hidden md:block">
-            {user?.role === 'manager' ? 'AECE CHECKPOINT ADMIN' : 'AECE CHECKPOINT'}
+            {user?.role === 'manager' ? `${companyName.toUpperCase()} ADMIN` : companyName.toUpperCase()}
           </span>
         </div>
 
@@ -65,8 +108,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <SheetContent side="left" className="w-[280px] bg-sidebar text-sidebar-foreground border-r-sidebar-border">
               <div className="flex flex-col h-full py-6">
                 <div className="flex items-center gap-2 mb-8 px-4">
-                  <img src={aeceLogo} alt="AECE" className="h-8" />
-                  <span className="font-heading text-xl text-primary">AECE CHECKPOINT</span>
+                  <img src={companyLogo} alt={companyName} className="h-8" />
+                  <span className="font-heading text-xl text-primary">{companyName.toUpperCase()}</span>
                 </div>
                 <nav className="space-y-2 flex-1">
                   {navItems.map((item) => (

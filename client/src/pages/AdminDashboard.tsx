@@ -15,7 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { userApi, settingsApi, departmentApi, userGroupApi, leaveRequestApi, leaveBalanceApi, attendanceApi, employeeTypeApi, leaveRuleApi, leaveRulePhaseApi, contractHistoryApi, grievanceApi, publicHolidayApi, dashboardApi, backupApi } from '@/lib/api';
 import type { User, Department, UserGroup, LeaveRequest, LeaveBalance, AttendanceRecord, EmployeeType, LeaveRule, LeaveRulePhase, ContractHistory, Grievance, PublicHoliday } from '@shared/schema';
-import { Plus, Pencil, Trash2, Save, Mail, Users, Settings, Camera, Building2, Loader2, CheckCircle2, UserCog, Shield, Calendar, Clock, FileText, Check, X, Search, ChevronDown, ChevronRight, LayoutDashboard, AlertTriangle, LogOut, UserX, Network, MessageSquareWarning, Eye, CalendarDays, TrendingUp, UserCheck, ClipboardList, Home, Download, Upload } from 'lucide-react';
+import { Plus, Pencil, Trash2, Save, Mail, Users, Settings, Camera, Building2, Loader2, CheckCircle2, UserCog, Shield, Calendar, Clock, FileText, Check, X, Search, ChevronDown, ChevronRight, LayoutDashboard, AlertTriangle, LogOut, UserX, Network, MessageSquareWarning, Eye, CalendarDays, TrendingUp, UserCheck, ClipboardList, Home, Download, Upload, Palette } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { NotificationBell } from '@/components/NotificationBell';
 import { format } from 'date-fns';
@@ -72,6 +72,46 @@ export default function AdminDashboard() {
   const { data: timezoneSetting } = useQuery({
     queryKey: ['settings', 'timezone'],
     queryFn: () => settingsApi.get('timezone'),
+  });
+
+  const { data: companyNameSetting } = useQuery({
+    queryKey: ['settings', 'company_name'],
+    queryFn: () => settingsApi.get('company_name'),
+  });
+
+  const { data: companyLogoSetting } = useQuery({
+    queryKey: ['settings', 'company_logo'],
+    queryFn: () => settingsApi.get('company_logo'),
+  });
+
+  const { data: primaryColorSetting } = useQuery({
+    queryKey: ['settings', 'primary_color'],
+    queryFn: () => settingsApi.get('primary_color'),
+  });
+
+  const { data: accentColorSetting } = useQuery({
+    queryKey: ['settings', 'accent_color'],
+    queryFn: () => settingsApi.get('accent_color'),
+  });
+
+  const { data: termEmployeeSetting } = useQuery({
+    queryKey: ['settings', 'term_employee'],
+    queryFn: () => settingsApi.get('term_employee'),
+  });
+
+  const { data: termDepartmentSetting } = useQuery({
+    queryKey: ['settings', 'term_department'],
+    queryFn: () => settingsApi.get('term_department'),
+  });
+
+  const { data: termClockInSetting } = useQuery({
+    queryKey: ['settings', 'term_clock_in'],
+    queryFn: () => settingsApi.get('term_clock_in'),
+  });
+
+  const { data: termClockOutSetting } = useQuery({
+    queryKey: ['settings', 'term_clock_out'],
+    queryFn: () => settingsApi.get('term_clock_out'),
   });
 
   const { data: departments = [] } = useQuery({
@@ -195,7 +235,7 @@ export default function AdminDashboard() {
 
   // Navigation State
   const [activeSection, setActiveSection] = useState<'dashboard' | 'employees' | 'leave-requests' | 'attendance' | 'departments' | 'employee-types' | 'leave-rules' | 'grievances' | 'holidays' | 'leave-calendar' | 'settings'>('dashboard');
-  const [settingsTab, setSettingsTab] = useState<'general' | 'user-groups'>('general');
+  const [settingsTab, setSettingsTab] = useState<'general' | 'user-groups' | 'branding'>('general');
   const [attendanceTab, setAttendanceTab] = useState<'records' | 'manual-entry' | 'trends'>('records');
   const [manualAttendanceDate, setManualAttendanceDate] = useState<string>(() => {
     const now = new Date();
@@ -249,6 +289,15 @@ export default function AdminDashboard() {
   const [lateArrivalMessage, setLateArrivalMessage] = useState('{name} (ID: {id}) clocked in late at {time}.');
   const [earlyDepartureMessage, setEarlyDepartureMessage] = useState('{name} (ID: {id}) left early at {time}.');
   const [timezone, setTimezone] = useState('Africa/Johannesburg');
+  
+  const [companyName, setCompanyName] = useState('AECE Checkpoint');
+  const [companyLogo, setCompanyLogo] = useState('');
+  const [primaryColor, setPrimaryColor] = useState('#1e40af');
+  const [accentColor, setAccentColor] = useState('#3b82f6');
+  const [termEmployee, setTermEmployee] = useState('Employee');
+  const [termDepartment, setTermDepartment] = useState('Department');
+  const [termClockIn, setTermClockIn] = useState('Clock In');
+  const [termClockOut, setTermClockOut] = useState('Clock Out');
 
   useEffect(() => {
     if (emailSetting) {
@@ -291,6 +340,54 @@ export default function AdminDashboard() {
       setTimezone(timezoneSetting.value);
     }
   }, [timezoneSetting]);
+
+  useEffect(() => {
+    if (companyNameSetting) {
+      setCompanyName(companyNameSetting.value);
+    }
+  }, [companyNameSetting]);
+
+  useEffect(() => {
+    if (companyLogoSetting) {
+      setCompanyLogo(companyLogoSetting.value);
+    }
+  }, [companyLogoSetting]);
+
+  useEffect(() => {
+    if (primaryColorSetting) {
+      setPrimaryColor(primaryColorSetting.value);
+    }
+  }, [primaryColorSetting]);
+
+  useEffect(() => {
+    if (accentColorSetting) {
+      setAccentColor(accentColorSetting.value);
+    }
+  }, [accentColorSetting]);
+
+  useEffect(() => {
+    if (termEmployeeSetting) {
+      setTermEmployee(termEmployeeSetting.value);
+    }
+  }, [termEmployeeSetting]);
+
+  useEffect(() => {
+    if (termDepartmentSetting) {
+      setTermDepartment(termDepartmentSetting.value);
+    }
+  }, [termDepartmentSetting]);
+
+  useEffect(() => {
+    if (termClockInSetting) {
+      setTermClockIn(termClockInSetting.value);
+    }
+  }, [termClockInSetting]);
+
+  useEffect(() => {
+    if (termClockOutSetting) {
+      setTermClockOut(termClockOutSetting.value);
+    }
+  }, [termClockOutSetting]);
 
   // Check if admin needs to set up their photo
   useEffect(() => {
@@ -4026,6 +4123,18 @@ export default function AdminDashboard() {
                   <Shield className="inline h-4 w-4 mr-2" />
                   User Groups
                 </button>
+                <button
+                  onClick={() => setSettingsTab('branding')}
+                  className={`px-4 py-2 rounded-t-lg text-sm font-medium transition-colors ${
+                    settingsTab === 'branding' 
+                      ? 'bg-primary text-white' 
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                  data-testid="settings-tab-branding"
+                >
+                  <Palette className="inline h-4 w-4 mr-2" />
+                  Branding
+                </button>
               </div>
               
               {/* General Settings Tab */}
@@ -4521,6 +4630,203 @@ export default function AdminDashboard() {
                     })}
                   </TableBody>
                 </Table>
+              </CardContent>
+            </Card>
+              </>
+              )}
+              
+              {/* Branding Tab */}
+              {settingsTab === 'branding' && (
+              <>
+            <Card>
+              <CardHeader>
+                <CardTitle>Company Branding</CardTitle>
+                <CardDescription>Customize the application appearance for your organization</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6 max-w-xl">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Company Name</Label>
+                    <Input 
+                      value={companyName} 
+                      onChange={(e) => setCompanyName(e.target.value)}
+                      placeholder="Your Company Name"
+                      data-testid="input-company-name"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      This name appears in the header, login page, and throughout the application.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Company Logo (URL or Base64)</Label>
+                    <Input 
+                      value={companyLogo} 
+                      onChange={(e) => setCompanyLogo(e.target.value)}
+                      placeholder="https://example.com/logo.png or paste base64 image"
+                      data-testid="input-company-logo"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Enter a URL to your company logo or paste a base64-encoded image.
+                    </p>
+                    {companyLogo && (
+                      <div className="mt-2 p-4 border rounded-lg bg-slate-50 dark:bg-slate-800">
+                        <p className="text-xs text-muted-foreground mb-2">Preview:</p>
+                        <img 
+                          src={companyLogo} 
+                          alt="Company Logo Preview" 
+                          className="h-12 object-contain"
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Color Scheme</CardTitle>
+                <CardDescription>Customize the application colors to match your brand</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6 max-w-xl">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Primary Color</Label>
+                    <div className="flex gap-2 items-center">
+                      <input 
+                        type="color" 
+                        value={primaryColor}
+                        onChange={(e) => setPrimaryColor(e.target.value)}
+                        className="w-12 h-10 rounded border cursor-pointer"
+                        data-testid="input-primary-color"
+                      />
+                      <Input 
+                        value={primaryColor} 
+                        onChange={(e) => setPrimaryColor(e.target.value)}
+                        className="w-32"
+                        placeholder="#1e40af"
+                      />
+                      <div 
+                        className="w-24 h-10 rounded flex items-center justify-center text-white text-xs font-medium"
+                        style={{ backgroundColor: primaryColor }}
+                      >
+                        Preview
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Main color used for headers, buttons, and navigation.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Accent Color</Label>
+                    <div className="flex gap-2 items-center">
+                      <input 
+                        type="color" 
+                        value={accentColor}
+                        onChange={(e) => setAccentColor(e.target.value)}
+                        className="w-12 h-10 rounded border cursor-pointer"
+                        data-testid="input-accent-color"
+                      />
+                      <Input 
+                        value={accentColor} 
+                        onChange={(e) => setAccentColor(e.target.value)}
+                        className="w-32"
+                        placeholder="#3b82f6"
+                      />
+                      <div 
+                        className="w-24 h-10 rounded flex items-center justify-center text-white text-xs font-medium"
+                        style={{ backgroundColor: accentColor }}
+                      >
+                        Preview
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Secondary color used for links, highlights, and interactive elements.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Terminology</CardTitle>
+                <CardDescription>Customize the terms used in the application to match your organization</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6 max-w-xl">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Term for "Employee"</Label>
+                    <Input 
+                      value={termEmployee} 
+                      onChange={(e) => setTermEmployee(e.target.value)}
+                      placeholder="Employee"
+                      data-testid="input-term-employee"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Term for "Department"</Label>
+                    <Input 
+                      value={termDepartment} 
+                      onChange={(e) => setTermDepartment(e.target.value)}
+                      placeholder="Department"
+                      data-testid="input-term-department"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Term for "Clock In"</Label>
+                    <Input 
+                      value={termClockIn} 
+                      onChange={(e) => setTermClockIn(e.target.value)}
+                      placeholder="Clock In"
+                      data-testid="input-term-clock-in"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Term for "Clock Out"</Label>
+                    <Input 
+                      value={termClockOut} 
+                      onChange={(e) => setTermClockOut(e.target.value)}
+                      placeholder="Clock Out"
+                      data-testid="input-term-clock-out"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  These terms will be used throughout the application. For example, "Worker" instead of "Employee", or "Section" instead of "Department".
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="pt-6">
+                <Button 
+                  onClick={async () => {
+                    try {
+                      await Promise.all([
+                        updateSettingMutation.mutateAsync({ key: 'company_name', value: companyName }),
+                        updateSettingMutation.mutateAsync({ key: 'company_logo', value: companyLogo }),
+                        updateSettingMutation.mutateAsync({ key: 'primary_color', value: primaryColor }),
+                        updateSettingMutation.mutateAsync({ key: 'accent_color', value: accentColor }),
+                        updateSettingMutation.mutateAsync({ key: 'term_employee', value: termEmployee }),
+                        updateSettingMutation.mutateAsync({ key: 'term_department', value: termDepartment }),
+                        updateSettingMutation.mutateAsync({ key: 'term_clock_in', value: termClockIn }),
+                        updateSettingMutation.mutateAsync({ key: 'term_clock_out', value: termClockOut }),
+                      ]);
+                      toast({ title: "Branding Settings Saved", description: "Your customizations have been saved. Refresh the page to see changes." });
+                    } catch (error) {
+                      toast({ variant: "destructive", title: "Error", description: "Failed to save branding settings" });
+                    }
+                  }}
+                  className="w-full"
+                  data-testid="button-save-branding"
+                >
+                  <Save className="mr-2 h-4 w-4" />
+                  Save Branding Settings
+                </Button>
               </CardContent>
             </Card>
               </>

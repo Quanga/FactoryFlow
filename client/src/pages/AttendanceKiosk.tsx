@@ -9,7 +9,8 @@ import {
   User, ArrowLeft, RefreshCw, Clock, Smartphone
 } from 'lucide-react';
 import { loadFaceModels, extractFaceDescriptorFromBase64, compareFaceDescriptors, isFaceMatch } from '@/lib/face-recognition';
-import { userApi, attendanceApi } from '@/lib/api';
+import { userApi, attendanceApi, settingsApi } from '@/lib/api';
+import { useQuery } from '@tanstack/react-query';
 
 const useWakeLock = () => {
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
@@ -97,6 +98,13 @@ export default function AttendanceKiosk() {
   
   useWakeLock();
   const { canInstall, promptInstall } = useInstallPrompt();
+  
+  const { data: companyNameSetting } = useQuery({
+    queryKey: ['settings', 'company_name'],
+    queryFn: () => settingsApi.get('company_name'),
+  });
+  
+  const companyName = companyNameSetting?.value || 'AECE Checkpoint';
   
   const subMode = (sessionStorage.getItem('attendanceSubMode') || 'clock-in') as SubMode;
   const [status, setStatus] = useState<KioskStatus>('ready');
@@ -488,7 +496,7 @@ export default function AttendanceKiosk() {
 
       <div className={`p-4 ${isClockIn ? 'bg-green-800' : 'bg-red-800'} text-center`}>
         <p className="text-white/60 text-sm">
-          AECE Checkpoint • {isClockIn ? 'Morning Entry' : 'Evening Departure'}
+          {companyName} • {isClockIn ? 'Morning Entry' : 'Evening Departure'}
         </p>
       </div>
     </div>

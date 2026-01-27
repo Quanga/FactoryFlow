@@ -7,14 +7,28 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { User, ScanFace, ArrowRight, ShieldCheck, Mail, Lock, Camera, Loader2, CheckCircle2, AlertCircle, Sun, Move, Users, ZoomIn, ZoomOut } from 'lucide-react';
 import { Label } from "@/components/ui/label";
 import { useAuth } from '@/lib/auth-context';
-import { authApi, faceApi, type FaceDescriptorUser } from '@/lib/api';
+import { authApi, faceApi, settingsApi, type FaceDescriptorUser } from '@/lib/api';
 import { loadFaceModels, detectFaceWithFeedback, compareFaceDescriptors, isFaceMatch, jsonToDescriptor, type FaceDetectionStatus } from '@/lib/face-recognition';
+import { useQuery } from '@tanstack/react-query';
 import aeceLogo from '@assets/AECE_Logo_1765516911038.png';
 
 export default function Login() {
   const [, setLocation] = useLocation();
   const { setUser } = useAuth();
   const webcamRef = useRef<Webcam>(null);
+  
+  const { data: companyNameSetting } = useQuery({
+    queryKey: ['settings', 'company_name'],
+    queryFn: () => settingsApi.get('company_name'),
+  });
+  
+  const { data: companyLogoSetting } = useQuery({
+    queryKey: ['settings', 'company_logo'],
+    queryFn: () => settingsApi.get('company_logo'),
+  });
+  
+  const companyName = companyNameSetting?.value || 'AECE Checkpoint';
+  const companyLogo = companyLogoSetting?.value || aeceLogo;
   
   const [loginMode, setLoginMode] = useState<'worker' | 'admin'>('worker');
   const [id, setId] = useState('');
@@ -199,8 +213,8 @@ export default function Login() {
 
       <Card className="w-full max-w-md z-10 shadow-2xl border-0 bg-white/95 backdrop-blur-xl animate-in zoom-in-95 duration-500">
         <CardHeader className="text-center pb-2">
-          <img src={aeceLogo} alt="AECE Electronics" className="h-14 mx-auto mb-4" />
-          <CardTitle className="text-3xl font-heading tracking-wide text-gray-900">AECE CHECKPOINT</CardTitle>
+          <img src={companyLogo} alt={companyName} className="h-14 mx-auto mb-4" />
+          <CardTitle className="text-3xl font-heading tracking-wide text-gray-900">{companyName.toUpperCase()}</CardTitle>
           <CardDescription className="text-gray-600 text-base">
             {loginMode === 'admin' ? 'Admin Portal Access' : 'Worker Portal Access'}
           </CardDescription>
