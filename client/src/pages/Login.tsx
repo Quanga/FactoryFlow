@@ -307,7 +307,7 @@ export default function Login() {
                         placeholder="Enter your Employee ID or National ID" 
                         value={id}
                         onChange={(e) => setId(e.target.value)}
-                        className="pl-10 h-12 text-lg bg-slate-50 border-slate-200 focus:ring-primary focus:border-primary"
+                        className="pl-10 h-12 text-lg bg-white text-gray-900 border-slate-200 focus:ring-primary focus:border-primary"
                         data-testid="input-worker-id"
                       />
                     </div>
@@ -347,7 +347,7 @@ export default function Login() {
                     placeholder="admin@factory.com" 
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10 h-12 text-lg bg-slate-50 border-slate-200 focus:ring-primary focus:border-primary"
+                    className="pl-10 h-12 text-lg bg-white text-gray-900 border-slate-200 focus:ring-primary focus:border-primary"
                     data-testid="input-admin-email"
                   />
                 </div>
@@ -362,7 +362,7 @@ export default function Login() {
                     placeholder="••••••••" 
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 h-12 text-lg bg-slate-50 border-slate-200 focus:ring-primary focus:border-primary"
+                    className="pl-10 h-12 text-lg bg-white text-gray-900 border-slate-200 focus:ring-primary focus:border-primary"
                     data-testid="input-admin-password"
                   />
                 </div>

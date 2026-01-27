@@ -92,7 +92,7 @@ export default function AdminLogin() {
                   placeholder="admin@factory.com" 
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 text-gray-900 bg-white"
                   required
                 />
               </div>
@@ -108,7 +108,7 @@ export default function AdminLogin() {
                   placeholder="••••••••" 
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 text-gray-900 bg-white"
                   required
                 />
               </div>
