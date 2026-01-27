@@ -83,6 +83,12 @@ Preferred communication style: Simple, everyday language.
 - **Notifications**: User notification system for alerts and updates
   - Fields: id, userId, type, title, message, isRead, createdAt
 
+### Backup & Restore System
+- Export: Downloads complete JSON backup of all tables including base64 encoded images
+- Import: Restores data from backup file, skips existing records to avoid duplicates
+- Validate: Checks backup file format and provides record counts before import
+- Note: Backup is best used for full restores to empty databases; partial imports may have ID conflicts
+
 **Data Access Pattern**
 - Storage abstraction layer (`server/storage.ts`) implements `IStorage` interface
 - All database operations go through this interface

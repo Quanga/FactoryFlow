@@ -92,6 +92,8 @@ export interface IStorage {
   // Settings operations
   getSetting(key: string): Promise<Setting | undefined>;
   setSetting(key: string, value: string): Promise<Setting>;
+  getAllSettings(): Promise<Setting[]>;
+  upsertSetting(key: string, value: string): Promise<Setting>;
 
   // Department operations
   getAllDepartments(): Promise<Department[]>;
@@ -126,6 +128,7 @@ export interface IStorage {
 
   // Leave Rule Phase operations
   getLeaveRulePhases(leaveRuleId: number): Promise<LeaveRulePhase[]>;
+  getAllLeaveRulePhases(): Promise<LeaveRulePhase[]>;
   createLeaveRulePhase(phase: InsertLeaveRulePhase): Promise<LeaveRulePhase>;
   updateLeaveRulePhase(id: number, phase: Partial<InsertLeaveRulePhase>): Promise<LeaveRulePhase | undefined>;
   deleteLeaveRulePhase(id: number): Promise<boolean>;
@@ -137,6 +140,7 @@ export interface IStorage {
 
   // Grievance operations
   getGrievances(userId?: string): Promise<Grievance[]>;
+  getAllGrievances(): Promise<Grievance[]>;
   getGrievance(id: number): Promise<Grievance | undefined>;
   createGrievance(grievance: InsertGrievance): Promise<Grievance>;
   updateGrievance(id: number, grievance: Partial<InsertGrievance>): Promise<Grievance | undefined>;
@@ -151,6 +155,7 @@ export interface IStorage {
 
   // Notification operations
   getNotifications(userId: string): Promise<Notification[]>;
+  getAllNotifications(): Promise<Notification[]>;
   getUnreadNotificationCount(userId: string): Promise<number>;
   createNotification(notification: InsertNotification): Promise<Notification>;
   markNotificationRead(id: number): Promise<Notification | undefined>;
@@ -599,6 +604,14 @@ export class DrizzleStorage implements IStorage {
     return newSetting;
   }
 
+  async getAllSettings(): Promise<Setting[]> {
+    return db.select().from(schema.settings);
+  }
+
+  async upsertSetting(key: string, value: string): Promise<Setting> {
+    return this.setSetting(key, value);
+  }
+
   // Department operations
   async getAllDepartments(): Promise<Department[]> {
     return db.select().from(schema.departments).orderBy(schema.departments.name);
@@ -772,6 +785,10 @@ export class DrizzleStorage implements IStorage {
       .orderBy(schema.leaveRulePhases.sequence);
   }
 
+  async getAllLeaveRulePhases(): Promise<LeaveRulePhase[]> {
+    return db.select().from(schema.leaveRulePhases);
+  }
+
   async createLeaveRulePhase(phase: InsertLeaveRulePhase): Promise<LeaveRulePhase> {
     const [newPhase] = await db
       .insert(schema.leaveRulePhases)
@@ -825,6 +842,13 @@ export class DrizzleStorage implements IStorage {
         .where(eq(schema.grievances.userId, userId))
         .orderBy(desc(schema.grievances.createdAt));
     }
+    return db
+      .select()
+      .from(schema.grievances)
+      .orderBy(desc(schema.grievances.createdAt));
+  }
+
+  async getAllGrievances(): Promise<Grievance[]> {
     return db
       .select()
       .from(schema.grievances)
@@ -918,6 +942,10 @@ export class DrizzleStorage implements IStorage {
       .from(schema.notifications)
       .where(eq(schema.notifications.userId, userId))
       .orderBy(desc(schema.notifications.createdAt));
+  }
+
+  async getAllNotifications(): Promise<Notification[]> {
+    return db.select().from(schema.notifications).orderBy(desc(schema.notifications.createdAt));
   }
 
   async getUnreadNotificationCount(userId: string): Promise<number> {

@@ -1903,6 +1903,251 @@ export async function registerRoutes(
     }
   });
 
+  // ===== BACKUP ROUTES =====
+  
+  // Export full database backup
+  app.get("/api/backup/export", async (req, res) => {
+    try {
+      const users = await storage.getAllUsers();
+      const departments = await storage.getAllDepartments();
+      const userGroups = await storage.getAllUserGroups();
+      const employeeTypes = await storage.getAllEmployeeTypes();
+      const leaveBalances = await storage.getAllLeaveBalances();
+      const leaveRequests = await storage.getLeaveRequests();
+      const attendanceRecords = await storage.getAllAttendanceRecords();
+      const leaveRules = await storage.getAllLeaveRules();
+      const leaveRulePhases = await storage.getAllLeaveRulePhases();
+      const settings = await storage.getAllSettings();
+      const grievances = await storage.getAllGrievances();
+      const publicHolidays = await storage.getAllPublicHolidays();
+      const notifications = await storage.getAllNotifications();
+      
+      const backup = {
+        version: "1.0",
+        exportedAt: new Date().toISOString(),
+        data: {
+          departments,
+          userGroups,
+          employeeTypes,
+          users,
+          leaveBalances,
+          leaveRequests,
+          attendanceRecords,
+          leaveRules,
+          leaveRulePhases,
+          settings,
+          grievances,
+          publicHolidays,
+          notifications,
+        }
+      };
+      
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', `attachment; filename="aece-backup-${new Date().toISOString().split('T')[0]}.json"`);
+      return res.json(backup);
+    } catch (error) {
+      console.error("Export backup error:", error);
+      return res.status(500).json({ error: "Failed to export backup" });
+    }
+  });
+  
+  // Import database backup
+  app.post("/api/backup/import", async (req, res) => {
+    try {
+      const { backup, options } = req.body;
+      
+      if (!backup || !backup.data) {
+        return res.status(400).json({ error: "Invalid backup file format" });
+      }
+      
+      const clearExisting = options?.clearExisting ?? false;
+      const importedCounts: Record<string, number> = {};
+      
+      // Import in order of dependencies
+      
+      // 1. Departments
+      if (backup.data.departments?.length) {
+        for (const dept of backup.data.departments) {
+          try {
+            const existing = await storage.getDepartment(dept.id);
+            if (!existing) {
+              await storage.createDepartment({ name: dept.name, description: dept.description });
+            }
+          } catch (e) { /* skip duplicates */ }
+        }
+        importedCounts.departments = backup.data.departments.length;
+      }
+      
+      // 2. User Groups
+      if (backup.data.userGroups?.length) {
+        for (const group of backup.data.userGroups) {
+          try {
+            const existing = await storage.getUserGroup(group.id);
+            if (!existing) {
+              await storage.createUserGroup({ name: group.name, description: group.description, permissions: group.permissions });
+            }
+          } catch (e) { /* skip duplicates */ }
+        }
+        importedCounts.userGroups = backup.data.userGroups.length;
+      }
+      
+      // 3. Employee Types
+      if (backup.data.employeeTypes?.length) {
+        for (const type of backup.data.employeeTypes) {
+          try {
+            const existing = await storage.getEmployeeType(type.id);
+            if (!existing) {
+              await storage.createEmployeeType({ name: type.name, description: type.description });
+            }
+          } catch (e) { /* skip duplicates */ }
+        }
+        importedCounts.employeeTypes = backup.data.employeeTypes.length;
+      }
+      
+      // 4. Users (with photos in base64)
+      if (backup.data.users?.length) {
+        for (const user of backup.data.users) {
+          try {
+            const existing = await storage.getUser(user.id);
+            if (!existing) {
+              await storage.createUser(user);
+            }
+          } catch (e) { /* skip duplicates */ }
+        }
+        importedCounts.users = backup.data.users.length;
+      }
+      
+      // 5. Leave Balances
+      if (backup.data.leaveBalances?.length) {
+        for (const balance of backup.data.leaveBalances) {
+          try {
+            await storage.createLeaveBalance({
+              userId: balance.userId,
+              leaveType: balance.leaveType,
+              total: balance.total,
+              taken: balance.taken,
+              pending: balance.pending,
+            });
+          } catch (e) { /* skip duplicates */ }
+        }
+        importedCounts.leaveBalances = backup.data.leaveBalances.length;
+      }
+      
+      // 6. Leave Requests
+      if (backup.data.leaveRequests?.length) {
+        for (const request of backup.data.leaveRequests) {
+          try {
+            await storage.createLeaveRequest(request);
+          } catch (e) { /* skip duplicates */ }
+        }
+        importedCounts.leaveRequests = backup.data.leaveRequests.length;
+      }
+      
+      // 7. Attendance Records (with photo verification in base64)
+      if (backup.data.attendanceRecords?.length) {
+        for (const record of backup.data.attendanceRecords) {
+          try {
+            await storage.createAttendanceRecord(record);
+          } catch (e) { /* skip duplicates */ }
+        }
+        importedCounts.attendanceRecords = backup.data.attendanceRecords.length;
+      }
+      
+      // 8. Leave Rules and Phases
+      if (backup.data.leaveRules?.length) {
+        for (const rule of backup.data.leaveRules) {
+          try {
+            await storage.createLeaveRule(rule);
+          } catch (e) { /* skip duplicates */ }
+        }
+        importedCounts.leaveRules = backup.data.leaveRules.length;
+      }
+      
+      if (backup.data.leaveRulePhases?.length) {
+        for (const phase of backup.data.leaveRulePhases) {
+          try {
+            await storage.createLeaveRulePhase(phase);
+          } catch (e) { /* skip duplicates */ }
+        }
+        importedCounts.leaveRulePhases = backup.data.leaveRulePhases.length;
+      }
+      
+      // 9. Settings
+      if (backup.data.settings?.length) {
+        for (const setting of backup.data.settings) {
+          try {
+            await storage.upsertSetting(setting.key, setting.value);
+          } catch (e) { /* skip errors */ }
+        }
+        importedCounts.settings = backup.data.settings.length;
+      }
+      
+      // 10. Grievances
+      if (backup.data.grievances?.length) {
+        for (const grievance of backup.data.grievances) {
+          try {
+            await storage.createGrievance(grievance);
+          } catch (e) { /* skip duplicates */ }
+        }
+        importedCounts.grievances = backup.data.grievances.length;
+      }
+      
+      // 11. Public Holidays
+      if (backup.data.publicHolidays?.length) {
+        for (const holiday of backup.data.publicHolidays) {
+          try {
+            await storage.createPublicHoliday(holiday);
+          } catch (e) { /* skip duplicates */ }
+        }
+        importedCounts.publicHolidays = backup.data.publicHolidays.length;
+      }
+      
+      return res.json({ 
+        success: true, 
+        message: "Backup imported successfully",
+        importedCounts 
+      });
+    } catch (error) {
+      console.error("Import backup error:", error);
+      return res.status(500).json({ error: "Failed to import backup" });
+    }
+  });
+  
+  // Get backup info (for validation)
+  app.post("/api/backup/validate", async (req, res) => {
+    try {
+      const { backup } = req.body;
+      
+      if (!backup || !backup.data) {
+        return res.status(400).json({ error: "Invalid backup file format", valid: false });
+      }
+      
+      const info = {
+        valid: true,
+        version: backup.version || "unknown",
+        exportedAt: backup.exportedAt || "unknown",
+        counts: {
+          departments: backup.data.departments?.length || 0,
+          userGroups: backup.data.userGroups?.length || 0,
+          employeeTypes: backup.data.employeeTypes?.length || 0,
+          users: backup.data.users?.length || 0,
+          leaveBalances: backup.data.leaveBalances?.length || 0,
+          leaveRequests: backup.data.leaveRequests?.length || 0,
+          attendanceRecords: backup.data.attendanceRecords?.length || 0,
+          leaveRules: backup.data.leaveRules?.length || 0,
+          settings: backup.data.settings?.length || 0,
+          grievances: backup.data.grievances?.length || 0,
+          publicHolidays: backup.data.publicHolidays?.length || 0,
+        }
+      };
+      
+      return res.json(info);
+    } catch (error) {
+      console.error("Validate backup error:", error);
+      return res.status(400).json({ error: "Invalid backup file", valid: false });
+    }
+  });
+
   // ===== DASHBOARD STATS ROUTE =====
   app.get("/api/dashboard/stats", async (req, res) => {
     try {

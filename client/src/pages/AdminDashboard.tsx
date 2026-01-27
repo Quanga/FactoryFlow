@@ -13,9 +13,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { userApi, settingsApi, departmentApi, userGroupApi, leaveRequestApi, leaveBalanceApi, attendanceApi, employeeTypeApi, leaveRuleApi, leaveRulePhaseApi, contractHistoryApi, grievanceApi, publicHolidayApi, dashboardApi } from '@/lib/api';
+import { userApi, settingsApi, departmentApi, userGroupApi, leaveRequestApi, leaveBalanceApi, attendanceApi, employeeTypeApi, leaveRuleApi, leaveRulePhaseApi, contractHistoryApi, grievanceApi, publicHolidayApi, dashboardApi, backupApi } from '@/lib/api';
 import type { User, Department, UserGroup, LeaveRequest, LeaveBalance, AttendanceRecord, EmployeeType, LeaveRule, LeaveRulePhase, ContractHistory, Grievance, PublicHoliday } from '@shared/schema';
-import { Plus, Pencil, Trash2, Save, Mail, Users, Settings, Camera, Building2, Loader2, CheckCircle2, UserCog, Shield, Calendar, Clock, FileText, Check, X, Search, ChevronDown, ChevronRight, LayoutDashboard, AlertTriangle, LogOut, UserX, Network, MessageSquareWarning, Eye, CalendarDays, TrendingUp, UserCheck, ClipboardList, Home } from 'lucide-react';
+import { Plus, Pencil, Trash2, Save, Mail, Users, Settings, Camera, Building2, Loader2, CheckCircle2, UserCog, Shield, Calendar, Clock, FileText, Check, X, Search, ChevronDown, ChevronRight, LayoutDashboard, AlertTriangle, LogOut, UserX, Network, MessageSquareWarning, Eye, CalendarDays, TrendingUp, UserCheck, ClipboardList, Home, Download, Upload } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { NotificationBell } from '@/components/NotificationBell';
 import { format } from 'date-fns';
@@ -4130,6 +4130,102 @@ export default function AdminDashboard() {
                       <span><code className="bg-white px-1 rounded">{'{date}'}</code> - Date</span>
                     </div>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Backup & Restore</CardTitle>
+                <CardDescription>Export or import your database including all records and images</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-4 p-4 border rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <Download className="h-5 w-5 text-primary" />
+                      <h3 className="font-semibold">Export Backup</h3>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Download a complete backup of all data including employees, departments, leave requests, attendance records, and photos.
+                    </p>
+                    <Button 
+                      onClick={async () => {
+                        try {
+                          toast({ title: "Exporting...", description: "Preparing your backup file" });
+                          const blob = await backupApi.export();
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = `aece-backup-${new Date().toISOString().split('T')[0]}.json`;
+                          document.body.appendChild(a);
+                          a.click();
+                          document.body.removeChild(a);
+                          URL.revokeObjectURL(url);
+                          toast({ title: "Backup Exported", description: "Your backup file has been downloaded" });
+                        } catch (error) {
+                          toast({ variant: "destructive", title: "Export Failed", description: "Could not export backup" });
+                        }
+                      }}
+                      className="w-full"
+                      data-testid="backup-export"
+                    >
+                      <Download className="mr-2 h-4 w-4" /> Download Backup
+                    </Button>
+                  </div>
+                  
+                  <div className="space-y-4 p-4 border rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <Upload className="h-5 w-5 text-primary" />
+                      <h3 className="font-semibold">Import Backup</h3>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Restore data from a previously exported backup file. Existing records will be preserved.
+                    </p>
+                    <div className="space-y-2">
+                      <Input
+                        type="file"
+                        accept=".json"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          
+                          try {
+                            const text = await file.text();
+                            const backup = JSON.parse(text);
+                            
+                            const validation = await backupApi.validate(backup);
+                            if (!validation.valid) {
+                              toast({ variant: "destructive", title: "Invalid Backup", description: "The selected file is not a valid backup" });
+                              return;
+                            }
+                            
+                            const totalRecords = Object.values(validation.counts).reduce((a, b) => a + b, 0);
+                            if (window.confirm(`Import backup from ${validation.exportedAt}?\n\nThis backup contains:\n- ${validation.counts.users || 0} users\n- ${validation.counts.departments || 0} departments\n- ${validation.counts.leaveRequests || 0} leave requests\n- ${validation.counts.attendanceRecords || 0} attendance records\n- ${totalRecords} total records\n\nExisting records will be preserved.`)) {
+                              toast({ title: "Importing...", description: "Restoring your backup" });
+                              const result = await backupApi.import(backup);
+                              
+                              queryClient.invalidateQueries();
+                              toast({ title: "Backup Imported", description: result.message });
+                            }
+                          } catch (error) {
+                            toast({ variant: "destructive", title: "Import Failed", description: "Could not import backup file" });
+                          }
+                          
+                          e.target.value = '';
+                        }}
+                        className="cursor-pointer"
+                        data-testid="backup-import"
+                      />
+                      <p className="text-xs text-muted-foreground">Select a .json backup file</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                  <p className="text-sm text-amber-800 dark:text-amber-200">
+                    <strong>Note:</strong> Backup files include all photos and face data encoded as base64. Large databases may result in large backup files.
+                  </p>
                 </div>
               </CardContent>
             </Card>

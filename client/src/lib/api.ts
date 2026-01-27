@@ -876,3 +876,59 @@ export const dashboardApi = {
     return res.json();
   },
 };
+
+// Backup API
+export type BackupData = {
+  version: string;
+  exportedAt: string;
+  data: {
+    departments: any[];
+    userGroups: any[];
+    employeeTypes: any[];
+    users: any[];
+    leaveBalances: any[];
+    leaveRequests: any[];
+    attendanceRecords: any[];
+    leaveRules: any[];
+    leaveRulePhases: any[];
+    settings: any[];
+    grievances: any[];
+    publicHolidays: any[];
+    notifications: any[];
+  };
+};
+
+export type BackupValidation = {
+  valid: boolean;
+  version: string;
+  exportedAt: string;
+  counts: Record<string, number>;
+};
+
+export const backupApi = {
+  async export(): Promise<Blob> {
+    const res = await fetch(`${API_BASE}/backup/export`);
+    if (!res.ok) throw new Error("Failed to export backup");
+    return res.blob();
+  },
+
+  async validate(backup: BackupData): Promise<BackupValidation> {
+    const res = await fetch(`${API_BASE}/backup/validate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ backup }),
+    });
+    if (!res.ok) throw new Error("Failed to validate backup");
+    return res.json();
+  },
+
+  async import(backup: BackupData, options?: { clearExisting?: boolean }): Promise<{ success: boolean; message: string; importedCounts: Record<string, number> }> {
+    const res = await fetch(`${API_BASE}/backup/import`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ backup, options }),
+    });
+    if (!res.ok) throw new Error("Failed to import backup");
+    return res.json();
+  },
+};
