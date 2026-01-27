@@ -107,20 +107,38 @@ export default function Login() {
       const secondBestMatch = allMatches[1] || null;
       
       // More lenient threshold with strict gap requirement to prevent misidentification
-      // Threshold of 0.7 allows for lighting variations, but requires significant gap from second-best
       const MATCH_THRESHOLD = 0.7;
       const MIN_GAP = 0.1; // Larger gap required to ensure we're matching the right person
       
-      // Check if best match is good enough AND sufficiently better than second-best
-      const hasClearMatch = bestMatch && 
-        bestMatch.distance < MATCH_THRESHOLD &&
-        (!secondBestMatch || (secondBestMatch.distance - bestMatch.distance) >= MIN_GAP);
+      // Prioritize managers - if there's a manager within threshold, prefer them
+      // This helps when face descriptors are similar between users
+      const managerMatches = allMatches.filter(m => m.user.role === 'manager' && m.distance < MATCH_THRESHOLD);
+      const workerMatches = allMatches.filter(m => m.user.role === 'worker' && m.distance < MATCH_THRESHOLD);
       
-      if (bestMatch && secondBestMatch) {
-        console.log(`Best: ${bestMatch.user.firstName} (${bestMatch.distance.toFixed(3)}) | Second: ${secondBestMatch.user.firstName} (${secondBestMatch.distance.toFixed(3)}) | Gap: ${(secondBestMatch.distance - bestMatch.distance).toFixed(3)}`);
+      // If a manager is within threshold, use them (admins get priority)
+      let finalMatch = bestMatch;
+      if (managerMatches.length > 0 && bestMatch?.user.role === 'worker') {
+        // Only switch to manager if their match is reasonably close (within 0.15 of best worker match)
+        if (managerMatches[0].distance - bestMatch.distance < 0.15) {
+          finalMatch = managerMatches[0];
+          console.log(`Prioritizing manager ${finalMatch.user.firstName} over worker ${bestMatch.user.firstName}`);
+        }
+      }
+      
+      const secondMatch = allMatches.find(m => m !== finalMatch) || null;
+      
+      // Check if best match is good enough AND sufficiently better than second-best
+      const hasClearMatch = finalMatch && 
+        finalMatch.distance < MATCH_THRESHOLD &&
+        (!secondMatch || (secondMatch.distance - finalMatch.distance) >= MIN_GAP);
+      
+      if (finalMatch && secondMatch) {
+        console.log(`Best: ${finalMatch.user.firstName} (${finalMatch.distance.toFixed(3)}) | Second: ${secondMatch.user.firstName} (${secondMatch.distance.toFixed(3)}) | Gap: ${(secondMatch.distance - finalMatch.distance).toFixed(3)}`);
       }
       
       if (hasClearMatch) {
+        // Use finalMatch instead of bestMatch
+        const bestMatch = finalMatch;
         setFaceStatus('recognized');
         setFaceMessage(`Welcome, ${bestMatch.user.firstName}!`);
         setRecognizedUser(`${bestMatch.user.firstName} ${bestMatch.user.surname}`);
