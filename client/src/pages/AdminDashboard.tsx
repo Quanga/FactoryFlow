@@ -2963,6 +2963,7 @@ export default function AdminDashboard() {
                           <TableHead>Date</TableHead>
                           <TableHead>Clock In</TableHead>
                           <TableHead>Clock Out</TableHead>
+                          <TableHead>Photos</TableHead>
                           <TableHead>Status</TableHead>
                           <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
@@ -3021,6 +3022,75 @@ export default function AdminDashboard() {
                                 ) : (
                                   <span className="text-muted-foreground">-</span>
                                 )}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex gap-2">
+                                  {record.clockInRecord?.photoUrl ? (
+                                    <Dialog>
+                                      <DialogTrigger asChild>
+                                        <button className="relative group cursor-pointer" title="View clock-in photo" data-testid={`button-view-clockin-photo-${record.odId}`}>
+                                          <img 
+                                            src={record.clockInRecord.photoUrl} 
+                                            alt="Clock-in" 
+                                            className="w-10 h-10 rounded object-cover border-2 border-green-400"
+                                          />
+                                          <span className="absolute -bottom-1 -right-1 bg-green-500 text-white text-[8px] px-1 rounded">IN</span>
+                                        </button>
+                                      </DialogTrigger>
+                                      <DialogContent className="max-w-lg">
+                                        <DialogHeader>
+                                          <DialogTitle>Clock-In Photo - {record.odIemployee.firstName} {record.odIemployee.surname}</DialogTitle>
+                                          <DialogDescription>
+                                            {format(new Date(record.clockInRecord.timestamp), 'dd/MM/yyyy HH:mm:ss')}
+                                          </DialogDescription>
+                                        </DialogHeader>
+                                        <img 
+                                          src={record.clockInRecord.photoUrl} 
+                                          alt="Clock-in verification" 
+                                          className="w-full rounded-lg"
+                                        />
+                                      </DialogContent>
+                                    </Dialog>
+                                  ) : record.clockInRecord ? (
+                                    <div className="w-10 h-10 rounded bg-muted flex items-center justify-center text-muted-foreground text-xs border-2 border-green-200" title="No photo">
+                                      IN
+                                    </div>
+                                  ) : null}
+                                  {record.clockOutRecord?.photoUrl ? (
+                                    <Dialog>
+                                      <DialogTrigger asChild>
+                                        <button className="relative group cursor-pointer" title="View clock-out photo" data-testid={`button-view-clockout-photo-${record.odId}`}>
+                                          <img 
+                                            src={record.clockOutRecord.photoUrl} 
+                                            alt="Clock-out" 
+                                            className="w-10 h-10 rounded object-cover border-2 border-blue-400"
+                                          />
+                                          <span className="absolute -bottom-1 -right-1 bg-blue-500 text-white text-[8px] px-1 rounded">OUT</span>
+                                        </button>
+                                      </DialogTrigger>
+                                      <DialogContent className="max-w-lg">
+                                        <DialogHeader>
+                                          <DialogTitle>Clock-Out Photo - {record.odIemployee.firstName} {record.odIemployee.surname}</DialogTitle>
+                                          <DialogDescription>
+                                            {format(new Date(record.clockOutRecord.timestamp), 'dd/MM/yyyy HH:mm:ss')}
+                                          </DialogDescription>
+                                        </DialogHeader>
+                                        <img 
+                                          src={record.clockOutRecord.photoUrl} 
+                                          alt="Clock-out verification" 
+                                          className="w-full rounded-lg"
+                                        />
+                                      </DialogContent>
+                                    </Dialog>
+                                  ) : record.clockOutRecord ? (
+                                    <div className="w-10 h-10 rounded bg-muted flex items-center justify-center text-muted-foreground text-xs border-2 border-blue-200" title="No photo">
+                                      OUT
+                                    </div>
+                                  ) : null}
+                                  {!record.clockInRecord && !record.clockOutRecord && (
+                                    <span className="text-muted-foreground text-sm">-</span>
+                                  )}
+                                </div>
                               </TableCell>
                               <TableCell>
                                 <div className="flex flex-wrap gap-1">
