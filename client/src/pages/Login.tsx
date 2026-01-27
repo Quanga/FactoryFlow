@@ -106,9 +106,10 @@ export default function Login() {
       const bestMatch = allMatches[0] || null;
       const secondBestMatch = allMatches[1] || null;
       
-      // Stricter matching: threshold of 0.5 and require clear separation from second-best match
-      const MATCH_THRESHOLD = 0.5;
-      const MIN_GAP = 0.08; // Minimum gap between best and second-best match
+      // More lenient threshold with strict gap requirement to prevent misidentification
+      // Threshold of 0.7 allows for lighting variations, but requires significant gap from second-best
+      const MATCH_THRESHOLD = 0.7;
+      const MIN_GAP = 0.1; // Larger gap required to ensure we're matching the right person
       
       // Check if best match is good enough AND sufficiently better than second-best
       const hasClearMatch = bestMatch && 
