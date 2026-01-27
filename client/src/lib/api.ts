@@ -164,6 +164,16 @@ export const leaveBalanceApi = {
     if (!res.ok) throw new Error("Failed to update leave balance");
     return res.json();
   },
+
+  async bulkImport(records: { employeeId: string; leaveType: string; total: number; taken?: number; pending?: number }[]): Promise<{ imported: number; updated: number; errors: string[] }> {
+    const res = await fetch(`${API_BASE}/leave-balances/bulk-import`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ records }),
+    });
+    if (!res.ok) throw new Error("Failed to import leave balances");
+    return res.json();
+  },
 };
 
 // Leave Request API

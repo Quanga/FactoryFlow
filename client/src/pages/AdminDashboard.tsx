@@ -1537,6 +1537,13 @@ export default function AdminDashboard() {
                 <Network className="h-4 w-4" /> Organization Chart
               </button>
               <button
+                onClick={() => setLocation('/admin/leave-calendar')}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors hover:bg-slate-100 text-slate-700"
+                data-testid="nav-leave-calendar"
+              >
+                <CalendarDays className="h-4 w-4" /> Leave Calendar
+              </button>
+              <button
                 onClick={() => setActiveSection('leave-requests')}
                 className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
                   activeSection === 'leave-requests' ? 'bg-primary text-white' : 'hover:bg-slate-100 text-slate-700'
@@ -4227,6 +4234,99 @@ export default function AdminDashboard() {
                     <strong>Note:</strong> Backup files include all photos and face data encoded as base64. Large databases may result in large backup files.
                   </p>
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Bulk Leave Balance Import</CardTitle>
+                <CardDescription>Import leave balances from a CSV file</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    Upload a CSV file with columns: <code className="bg-slate-100 px-1 rounded">employeeId, leaveType, total, taken, pending</code>
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Example: <code className="bg-slate-100 px-1 rounded">EMP001,Annual Leave,15,5,0</code>
+                  </p>
+                </div>
+                <Input
+                  type="file"
+                  accept=".csv"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+
+                    try {
+                      const text = await file.text();
+                      const lines = text.trim().split('\n');
+                      
+                      // Skip header if present
+                      const hasHeader = lines[0].toLowerCase().includes('employeeid') || lines[0].toLowerCase().includes('leavetype');
+                      const dataLines = hasHeader ? lines.slice(1) : lines;
+
+                      const records = dataLines.map(line => {
+                        const [employeeId, leaveType, total, taken, pending] = line.split(',').map(s => s.trim());
+                        return {
+                          employeeId,
+                          leaveType,
+                          total: parseFloat(total) || 0,
+                          taken: parseFloat(taken) || 0,
+                          pending: parseFloat(pending) || 0,
+                        };
+                      }).filter(r => r.employeeId && r.leaveType);
+
+                      if (records.length === 0) {
+                        toast({ variant: "destructive", title: "No Valid Records", description: "No valid records found in the CSV file" });
+                        return;
+                      }
+
+                      if (window.confirm(`Import ${records.length} leave balance records?\n\nThis will update existing balances or create new ones.`)) {
+                        toast({ title: "Importing...", description: `Processing ${records.length} records` });
+                        const result = await leaveBalanceApi.bulkImport(records);
+                        
+                        queryClient.invalidateQueries({ queryKey: ['leave-balances'] });
+                        
+                        let message = `Imported: ${result.imported}, Updated: ${result.updated}`;
+                        if (result.errors.length > 0) {
+                          message += `\nErrors: ${result.errors.length}`;
+                          console.log('Import errors:', result.errors);
+                        }
+                        
+                        toast({ 
+                          title: "Import Complete", 
+                          description: message,
+                          variant: result.errors.length > 0 ? "destructive" : "default"
+                        });
+                      }
+                    } catch (error) {
+                      toast({ variant: "destructive", title: "Import Failed", description: "Could not process CSV file" });
+                    }
+                    
+                    e.target.value = '';
+                  }}
+                  className="cursor-pointer"
+                  data-testid="leave-balance-import"
+                />
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    const template = "employeeId,leaveType,total,taken,pending\nEMP001,Annual Leave,15,5,0\nEMP001,Sick Leave,12,2,0\nEMP002,Annual Leave,20,3,1";
+                    const blob = new Blob([template], { type: 'text/csv' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'leave-balance-template.csv';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                  }}
+                  data-testid="download-leave-template"
+                >
+                  <Download className="mr-2 h-4 w-4" /> Download Template
+                </Button>
               </CardContent>
             </Card>
                 

@@ -20,6 +20,7 @@ import ResetPassword from "@/pages/ResetPassword";
 import EmployeeProfile from "@/pages/EmployeeProfile";
 import OrgChart from "@/pages/OrgChart";
 import Grievances from "@/pages/Grievances";
+import LeaveCalendar from "@/pages/LeaveCalendar";
 
 function Router() {
   return (
@@ -31,6 +32,7 @@ function Router() {
       <Route path="/admin/dashboard" component={AdminDashboard} />
       <Route path="/maintainer/dashboard" component={MaintainerDashboard} />
       <Route path="/admin/org-chart" component={OrgChart} />
+      <Route path="/admin/leave-calendar" component={LeaveCalendar} />
       <Route path="/leave-request" component={LeaveRequest} />
       <Route path="/attendance" component={Attendance} />
       <Route path="/attendance-kiosk" component={AttendanceKiosk} />

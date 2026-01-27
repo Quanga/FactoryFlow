@@ -444,6 +444,72 @@ export async function registerRoutes(
     }
   });
 
+  // Bulk import leave balances from CSV data
+  app.post("/api/leave-balances/bulk-import", async (req, res) => {
+    try {
+      const { records } = req.body;
+      
+      if (!Array.isArray(records) || records.length === 0) {
+        return res.status(400).json({ error: "No records to import" });
+      }
+
+      const results = {
+        imported: 0,
+        updated: 0,
+        errors: [] as string[],
+      };
+
+      for (const record of records) {
+        try {
+          const { employeeId, leaveType, total, taken, pending } = record;
+          
+          if (!employeeId || !leaveType) {
+            results.errors.push(`Missing employeeId or leaveType for record`);
+            continue;
+          }
+
+          // Find user by employee ID
+          const user = await storage.getUser(employeeId);
+          if (!user) {
+            results.errors.push(`Employee not found: ${employeeId}`);
+            continue;
+          }
+
+          // Check if balance already exists for this user and leave type
+          const existingBalances = await storage.getLeaveBalances(user.id);
+          const existingBalance = existingBalances.find(b => b.leaveType === leaveType);
+
+          if (existingBalance) {
+            // Update existing balance
+            await storage.updateLeaveBalance(existingBalance.id, {
+              total: parseFloat(total) || 0,
+              taken: parseFloat(taken) || 0,
+              pending: parseFloat(pending) || 0,
+            });
+            results.updated++;
+          } else {
+            // Create new balance
+            await storage.createLeaveBalance({
+              userId: user.id,
+              leaveType,
+              total: parseFloat(total) || 0,
+              taken: parseFloat(taken) || 0,
+              pending: parseFloat(pending) || 0,
+            });
+            results.imported++;
+          }
+        } catch (err) {
+          results.errors.push(`Error processing record: ${JSON.stringify(record)}`);
+        }
+      }
+
+      return res.json(results);
+    } catch (error) {
+      console.error("Bulk import error:", error);
+      return res.status(500).json({ error: "Failed to import leave balances" });
+    }
+  });
+
   // ========== LEAVE REQUEST ROUTES ==========
   
   // Get all leave requests (or by user)
