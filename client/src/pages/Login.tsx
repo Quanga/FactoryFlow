@@ -106,20 +106,19 @@ export default function Login() {
       const bestMatch = allMatches[0] || null;
       const secondBestMatch = allMatches[1] || null;
       
-      // More lenient threshold with strict gap requirement to prevent misidentification
-      const MATCH_THRESHOLD = 0.7;
-      const MIN_GAP = 0.1; // Larger gap required to ensure we're matching the right person
+      // Face matching configuration
+      const MATCH_THRESHOLD = 0.7; // Distance threshold for valid match
+      const MIN_GAP = 0.1; // Gap required between best and second-best for workers
       
       // Prioritize managers - if there's a manager within threshold, prefer them
       // This helps when face descriptors are similar between users
       const managerMatches = allMatches.filter(m => m.user.role === 'manager' && m.distance < MATCH_THRESHOLD);
-      const workerMatches = allMatches.filter(m => m.user.role === 'worker' && m.distance < MATCH_THRESHOLD);
       
       // If a manager is within threshold, use them (admins get priority)
       let finalMatch = bestMatch;
       if (managerMatches.length > 0 && bestMatch?.user.role === 'worker') {
-        // Only switch to manager if their match is reasonably close (within 0.15 of best worker match)
-        if (managerMatches[0].distance - bestMatch.distance < 0.15) {
+        // Switch to manager if their match is reasonably close (within 0.2 of best worker match)
+        if (managerMatches[0].distance - bestMatch.distance < 0.2) {
           finalMatch = managerMatches[0];
           console.log(`Prioritizing manager ${finalMatch.user.firstName} over worker ${bestMatch.user.firstName}`);
         }
@@ -127,13 +126,15 @@ export default function Login() {
       
       const secondMatch = allMatches.find(m => m !== finalMatch) || null;
       
-      // Check if best match is good enough AND sufficiently better than second-best
+      // For managers: just check threshold (no gap required - they have password backup)
+      // For workers: require gap to prevent misidentification
+      const isManager = finalMatch?.user.role === 'manager';
       const hasClearMatch = finalMatch && 
         finalMatch.distance < MATCH_THRESHOLD &&
-        (!secondMatch || (secondMatch.distance - finalMatch.distance) >= MIN_GAP);
+        (isManager || !secondMatch || (secondMatch.distance - finalMatch.distance) >= MIN_GAP);
       
       if (finalMatch && secondMatch) {
-        console.log(`Best: ${finalMatch.user.firstName} (${finalMatch.distance.toFixed(3)}) | Second: ${secondMatch.user.firstName} (${secondMatch.distance.toFixed(3)}) | Gap: ${(secondMatch.distance - finalMatch.distance).toFixed(3)}`);
+        console.log(`Best: ${finalMatch.user.firstName} (${finalMatch.distance.toFixed(3)}) | Second: ${secondMatch.user.firstName} (${secondMatch.distance.toFixed(3)}) | Gap: ${(secondMatch.distance - finalMatch.distance).toFixed(3)} | IsManager: ${isManager}`);
       }
       
       if (hasClearMatch) {
