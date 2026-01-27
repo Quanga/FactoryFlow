@@ -132,6 +132,7 @@ export const users = pgTable("users", {
   photoUrl: text("photo_url"),
   faceDescriptor: text("face_descriptor"), // JSON array of 128 face embedding values
   exclude: boolean("exclude").default(false), // Exclude from org chart and attendance (for test/dummy users)
+  attendanceRequired: boolean("attendance_required").default(true), // Whether employee needs to clock in/out (false for contractors, consultants, off-site workers)
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

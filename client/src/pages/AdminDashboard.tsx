@@ -2372,7 +2372,7 @@ export default function AdminDashboard() {
               {/* Clocked In Summary */}
               {(() => {
                 const todayStr = format(new Date(), 'yyyy-MM-dd');
-                const eligibleEmployees = users.filter(u => !u.exclude && !u.terminationDate);
+                const eligibleEmployees = users.filter(u => !u.exclude && !u.terminationDate && u.attendanceRequired !== false);
                 const todayRecords = attendanceRecords.filter((r: AttendanceRecord) => 
                   format(new Date(r.timestamp), 'yyyy-MM-dd') === todayStr
                 );
@@ -2495,7 +2495,7 @@ export default function AdminDashboard() {
                             return true;
                           });
                           
-                          const eligibleEmployees = users.filter(u => !u.exclude && !u.terminationDate);
+                          const eligibleEmployees = users.filter(u => !u.exclude && !u.terminationDate && u.attendanceRequired !== false);
                           const usersWithAttendance = new Set(filteredRecords.map((r: AttendanceRecord) => r.userId));
                           
                           type PdfConsolidated = {
@@ -2711,7 +2711,7 @@ export default function AdminDashboard() {
                     return true;
                   });
                   
-                  const eligibleEmployees = users.filter(u => !u.exclude && !u.terminationDate);
+                  const eligibleEmployees = users.filter(u => !u.exclude && !u.terminationDate && u.attendanceRequired !== false);
                   const usersWithAttendance = new Set(filteredRecords.map((r: AttendanceRecord) => r.userId));
                   
                   type ConsolidatedRecord = {
@@ -2956,7 +2956,7 @@ export default function AdminDashboard() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {users.filter(u => !u.exclude && !u.terminationDate).map((employee) => (
+                      {users.filter(u => !u.exclude && !u.terminationDate && u.attendanceRequired !== false).map((employee) => (
                         <TableRow key={employee.id} data-testid={`row-manual-${employee.id}`}>
                           <TableCell className="font-mono text-sm">{employee.id}</TableCell>
                           <TableCell className="font-medium">{employee.firstName} {employee.surname}</TableCell>
@@ -4815,6 +4815,20 @@ export default function AdminDashboard() {
                   />
                   <p className="text-xs text-muted-foreground">
                     Exclude from org chart and attendance (for test/dummy users).
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="attendanceRequired" className="text-right">Attendance Required</Label>
+                <div className="col-span-3 flex items-center gap-3">
+                  <Switch
+                    id="attendanceRequired"
+                    checked={currentUser.attendanceRequired !== false}
+                    onCheckedChange={(checked) => setCurrentUser({...currentUser, attendanceRequired: checked})}
+                    data-testid="switch-attendance-required"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Whether this employee needs to clock in/out. Disable for contractors, consultants, or off-site workers.
                   </p>
                 </div>
               </div>

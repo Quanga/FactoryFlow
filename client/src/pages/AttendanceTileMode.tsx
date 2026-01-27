@@ -73,7 +73,7 @@ export default function AttendanceTileMode() {
           attendanceApi.getAll(today, today)
         ]);
         const activeUsers = usersData.filter(u => 
-          !u.terminationDate && !u.exclude && (u.role === 'worker' || u.role === 'manager')
+          !u.terminationDate && !u.exclude && u.attendanceRequired !== false && (u.role === 'worker' || u.role === 'manager')
         );
         setUsers(activeUsers);
         setDepartments(deptsData);
