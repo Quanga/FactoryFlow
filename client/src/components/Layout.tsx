@@ -34,36 +34,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     queryFn: () => settingsApi.get('company_logo'),
   });
   
-  const { data: primaryColorSetting } = useQuery({
-    queryKey: ['settings', 'primary_color'],
-    queryFn: () => settingsApi.get('primary_color'),
-  });
-  
-  const { data: accentColorSetting } = useQuery({
-    queryKey: ['settings', 'accent_color'],
-    queryFn: () => settingsApi.get('accent_color'),
-  });
-  
   const companyName = companyNameSetting?.value || 'AECE Checkpoint';
   const companyLogo = companyLogoSetting?.value || aeceLogo;
-  
-  React.useEffect(() => {
-    const root = document.documentElement;
-    if (primaryColorSetting?.value) {
-      const hex = primaryColorSetting.value;
-      const r = parseInt(hex.slice(1, 3), 16);
-      const g = parseInt(hex.slice(3, 5), 16);
-      const b = parseInt(hex.slice(5, 7), 16);
-      root.style.setProperty('--primary', `${r} ${g} ${b}`);
-    }
-    if (accentColorSetting?.value) {
-      const hex = accentColorSetting.value;
-      const r = parseInt(hex.slice(1, 3), 16);
-      const g = parseInt(hex.slice(3, 5), 16);
-      const b = parseInt(hex.slice(5, 7), 16);
-      root.style.setProperty('--accent', `${r} ${g} ${b}`);
-    }
-  }, [primaryColorSetting, accentColorSetting]);
 
   const workerNav = [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
