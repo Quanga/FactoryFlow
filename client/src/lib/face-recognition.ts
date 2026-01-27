@@ -144,6 +144,60 @@ export function jsonToDescriptor(json: string): number[] | null {
   }
 }
 
+export interface MultiDescriptorMatch {
+  userId: string;
+  distance: number;
+  isMatch: boolean;
+}
+
+export function findBestMatchFromMultipleDescriptors(
+  queryDescriptor: Float32Array | number[],
+  descriptors: { userId: string; descriptor: string }[],
+  threshold: number = 0.6
+): MultiDescriptorMatch | null {
+  let bestMatch: MultiDescriptorMatch | null = null;
+  
+  for (const item of descriptors) {
+    const storedDescriptor = jsonToDescriptor(item.descriptor);
+    if (!storedDescriptor) continue;
+    
+    const distance = compareFaceDescriptors(queryDescriptor, storedDescriptor);
+    
+    if (bestMatch === null || distance < bestMatch.distance) {
+      bestMatch = {
+        userId: item.userId,
+        distance,
+        isMatch: distance < threshold,
+      };
+    }
+  }
+  
+  return bestMatch;
+}
+
+export function findMatchesForUser(
+  queryDescriptor: Float32Array | number[],
+  userDescriptors: { descriptor: string }[],
+  threshold: number = 0.6
+): { bestDistance: number; isMatch: boolean } {
+  let bestDistance = Infinity;
+  
+  for (const item of userDescriptors) {
+    const storedDescriptor = jsonToDescriptor(item.descriptor);
+    if (!storedDescriptor) continue;
+    
+    const distance = compareFaceDescriptors(queryDescriptor, storedDescriptor);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+    }
+  }
+  
+  return {
+    bestDistance,
+    isMatch: bestDistance < threshold,
+  };
+}
+
 export type FaceDetectionStatus = 
   | 'no_face'
   | 'face_detected'

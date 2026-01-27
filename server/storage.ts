@@ -32,6 +32,8 @@ import type {
   InsertPublicHoliday,
   Notification,
   InsertNotification,
+  FaceDescriptor,
+  InsertFaceDescriptor,
 } from "@shared/schema";
 
 const pool = new Pool({
@@ -161,6 +163,12 @@ export interface IStorage {
   markNotificationRead(id: number): Promise<Notification | undefined>;
   markAllNotificationsRead(userId: string): Promise<void>;
   deleteNotification(id: number): Promise<boolean>;
+
+  // Face Descriptor operations (for multiple face photos per user)
+  getFaceDescriptors(userId: string): Promise<FaceDescriptor[]>;
+  getAllFaceDescriptorsForMatching(): Promise<{ userId: string; descriptor: string }[]>;
+  createFaceDescriptor(data: InsertFaceDescriptor): Promise<FaceDescriptor>;
+  deleteFaceDescriptor(id: number): Promise<boolean>;
 }
 
 export class DrizzleStorage implements IStorage {
@@ -987,6 +995,39 @@ export class DrizzleStorage implements IStorage {
     await db
       .delete(schema.notifications)
       .where(eq(schema.notifications.id, id));
+    return true;
+  }
+
+  // Face Descriptor operations
+  async getFaceDescriptors(userId: string): Promise<FaceDescriptor[]> {
+    return db
+      .select()
+      .from(schema.faceDescriptors)
+      .where(eq(schema.faceDescriptors.userId, userId))
+      .orderBy(desc(schema.faceDescriptors.createdAt));
+  }
+
+  async getAllFaceDescriptorsForMatching(): Promise<{ userId: string; descriptor: string }[]> {
+    return db
+      .select({
+        userId: schema.faceDescriptors.userId,
+        descriptor: schema.faceDescriptors.descriptor,
+      })
+      .from(schema.faceDescriptors);
+  }
+
+  async createFaceDescriptor(data: InsertFaceDescriptor): Promise<FaceDescriptor> {
+    const [newDescriptor] = await db
+      .insert(schema.faceDescriptors)
+      .values(data)
+      .returning();
+    return newDescriptor;
+  }
+
+  async deleteFaceDescriptor(id: number): Promise<boolean> {
+    await db
+      .delete(schema.faceDescriptors)
+      .where(eq(schema.faceDescriptors.id, id));
     return true;
   }
 }

@@ -905,6 +905,46 @@ export type BackupValidation = {
   counts: Record<string, number>;
 };
 
+export type FaceDescriptorRecord = {
+  id: number;
+  userId: string;
+  descriptor: string;
+  photoData: string | null;
+  label: string | null;
+  createdAt: string;
+};
+
+export const faceDescriptorApi = {
+  async getForUser(userId: string): Promise<FaceDescriptorRecord[]> {
+    const res = await fetch(`${API_BASE}/face-descriptors/${userId}`);
+    if (!res.ok) throw new Error("Failed to fetch face descriptors");
+    return res.json();
+  },
+
+  async getAll(): Promise<{ userId: string; descriptor: string }[]> {
+    const res = await fetch(`${API_BASE}/face-descriptors`);
+    if (!res.ok) throw new Error("Failed to fetch face descriptors");
+    return res.json();
+  },
+
+  async create(data: { userId: string; descriptor: string; photoData?: string; label?: string }): Promise<FaceDescriptorRecord> {
+    const res = await fetch(`${API_BASE}/face-descriptors`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error("Failed to create face descriptor");
+    return res.json();
+  },
+
+  async delete(id: number): Promise<void> {
+    const res = await fetch(`${API_BASE}/face-descriptors/${id}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) throw new Error("Failed to delete face descriptor");
+  },
+};
+
 export const backupApi = {
   async export(): Promise<Blob> {
     const res = await fetch(`${API_BASE}/backup/export`);

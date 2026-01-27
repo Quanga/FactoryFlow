@@ -1903,6 +1903,61 @@ export async function registerRoutes(
     }
   });
 
+  // ===== FACE DESCRIPTOR ROUTES =====
+  
+  // Get face descriptors for a user
+  app.get("/api/face-descriptors/:userId", async (req, res) => {
+    try {
+      const descriptors = await storage.getFaceDescriptors(req.params.userId);
+      return res.json(descriptors);
+    } catch (error) {
+      console.error("Get face descriptors error:", error);
+      return res.status(500).json({ error: "Failed to get face descriptors" });
+    }
+  });
+
+  // Get all face descriptors for matching (returns userId + descriptor only)
+  app.get("/api/face-descriptors", async (req, res) => {
+    try {
+      const descriptors = await storage.getAllFaceDescriptorsForMatching();
+      return res.json(descriptors);
+    } catch (error) {
+      console.error("Get all face descriptors error:", error);
+      return res.status(500).json({ error: "Failed to get face descriptors" });
+    }
+  });
+
+  // Add a new face descriptor for a user
+  app.post("/api/face-descriptors", async (req, res) => {
+    try {
+      const { userId, descriptor, photoData, label } = req.body;
+      if (!userId || !descriptor) {
+        return res.status(400).json({ error: "User ID and descriptor are required" });
+      }
+      const newDescriptor = await storage.createFaceDescriptor({
+        userId,
+        descriptor,
+        photoData,
+        label,
+      });
+      return res.json(newDescriptor);
+    } catch (error) {
+      console.error("Create face descriptor error:", error);
+      return res.status(500).json({ error: "Failed to create face descriptor" });
+    }
+  });
+
+  // Delete a face descriptor
+  app.delete("/api/face-descriptors/:id", async (req, res) => {
+    try {
+      await storage.deleteFaceDescriptor(parseInt(req.params.id));
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("Delete face descriptor error:", error);
+      return res.status(500).json({ error: "Failed to delete face descriptor" });
+    }
+  });
+
   // ===== BACKUP ROUTES =====
   
   // Export full database backup

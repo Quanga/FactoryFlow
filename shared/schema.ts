@@ -330,3 +330,20 @@ export const insertNotificationSchema = createInsertSchema(notifications).omit({
 });
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 export type Notification = typeof notifications.$inferSelect;
+
+// Face Descriptors Table (for storing multiple face photos per user to improve recognition)
+export const faceDescriptors = pgTable("face_descriptors", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  descriptor: text("descriptor").notNull(), // JSON array of 128 face embedding values
+  photoData: text("photo_data"), // Base64 encoded photo for reference
+  label: text("label"), // Optional label like "front", "left side", "with glasses"
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertFaceDescriptorSchema = createInsertSchema(faceDescriptors).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertFaceDescriptor = z.infer<typeof insertFaceDescriptorSchema>;
+export type FaceDescriptor = typeof faceDescriptors.$inferSelect;
