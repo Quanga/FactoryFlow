@@ -1,4 +1,4 @@
-import type { User, LeaveBalance, LeaveRequest, AttendanceRecord, Setting, Department, UserGroup, EmployeeType, LeaveRule, LeaveRulePhase, ContractHistory, Grievance, InsertGrievance } from "@shared/schema";
+import type { User, LeaveBalance, LeaveRequest, AttendanceRecord, Setting, Department, UserGroup, EmployeeType, LeaveRule, LeaveRulePhase, ContractHistory, Grievance, InsertGrievance, PublicHoliday, InsertPublicHoliday, Notification, InsertNotification } from "@shared/schema";
 
 const API_BASE = "/api";
 
@@ -762,6 +762,117 @@ export const grievanceApi = {
       const error = await res.json();
       throw new Error(error.error || "Failed to update grievance status");
     }
+    return res.json();
+  },
+};
+
+// Public Holiday API
+export const publicHolidayApi = {
+  async getAll(): Promise<PublicHoliday[]> {
+    const res = await fetch(`${API_BASE}/public-holidays`);
+    if (!res.ok) throw new Error("Failed to fetch public holidays");
+    return res.json();
+  },
+
+  async create(holiday: Partial<InsertPublicHoliday>): Promise<PublicHoliday> {
+    const res = await fetch(`${API_BASE}/public-holidays`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(holiday),
+    });
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.error || "Failed to create public holiday");
+    }
+    return res.json();
+  },
+
+  async update(id: number, holiday: Partial<InsertPublicHoliday>): Promise<PublicHoliday> {
+    const res = await fetch(`${API_BASE}/public-holidays/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(holiday),
+    });
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.error || "Failed to update public holiday");
+    }
+    return res.json();
+  },
+
+  async delete(id: number): Promise<void> {
+    const res = await fetch(`${API_BASE}/public-holidays/${id}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) throw new Error("Failed to delete public holiday");
+  },
+};
+
+// Notification API
+export const notificationApi = {
+  async getAll(userId: string): Promise<Notification[]> {
+    const res = await fetch(`${API_BASE}/notifications?userId=${userId}`);
+    if (!res.ok) throw new Error("Failed to fetch notifications");
+    return res.json();
+  },
+
+  async getUnreadCount(userId: string): Promise<number> {
+    const res = await fetch(`${API_BASE}/notifications/unread-count?userId=${userId}`);
+    if (!res.ok) throw new Error("Failed to fetch unread count");
+    const data = await res.json();
+    return data.count;
+  },
+
+  async create(notification: Partial<InsertNotification>): Promise<Notification> {
+    const res = await fetch(`${API_BASE}/notifications`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(notification),
+    });
+    if (!res.ok) throw new Error("Failed to create notification");
+    return res.json();
+  },
+
+  async markAsRead(id: number): Promise<Notification> {
+    const res = await fetch(`${API_BASE}/notifications/${id}/read`, {
+      method: "PATCH",
+    });
+    if (!res.ok) throw new Error("Failed to mark notification as read");
+    return res.json();
+  },
+
+  async markAllAsRead(userId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/notifications/mark-all-read`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId }),
+    });
+    if (!res.ok) throw new Error("Failed to mark all notifications as read");
+  },
+
+  async delete(id: number): Promise<void> {
+    const res = await fetch(`${API_BASE}/notifications/${id}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) throw new Error("Failed to delete notification");
+  },
+};
+
+// Dashboard Stats API
+export type DashboardStats = {
+  totalEmployees: number;
+  eligibleForAttendance: number;
+  currentlyClockedIn: number;
+  pendingLeaveRequests: number;
+  onLeaveToday: number;
+  upcomingBirthdays: { user: User; date: string }[];
+  upcomingHolidays: PublicHoliday[];
+};
+
+export const dashboardApi = {
+  async getStats(): Promise<DashboardStats> {
+    const res = await fetch(`${API_BASE}/dashboard/stats`);
+    if (!res.ok) throw new Error("Failed to fetch dashboard stats");
     return res.json();
   },
 };

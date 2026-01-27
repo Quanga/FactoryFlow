@@ -28,6 +28,10 @@ import type {
   InsertContractHistory,
   Grievance,
   InsertGrievance,
+  PublicHoliday,
+  InsertPublicHoliday,
+  Notification,
+  InsertNotification,
 } from "@shared/schema";
 
 const pool = new Pool({
@@ -137,6 +141,21 @@ export interface IStorage {
   createGrievance(grievance: InsertGrievance): Promise<Grievance>;
   updateGrievance(id: number, grievance: Partial<InsertGrievance>): Promise<Grievance | undefined>;
   updateGrievanceStatus(id: number, status: string, adminNotes?: string, resolution?: string): Promise<Grievance | undefined>;
+
+  // Public Holiday operations
+  getAllPublicHolidays(): Promise<PublicHoliday[]>;
+  getPublicHoliday(id: number): Promise<PublicHoliday | undefined>;
+  createPublicHoliday(holiday: InsertPublicHoliday): Promise<PublicHoliday>;
+  updatePublicHoliday(id: number, holiday: Partial<InsertPublicHoliday>): Promise<PublicHoliday | undefined>;
+  deletePublicHoliday(id: number): Promise<boolean>;
+
+  // Notification operations
+  getNotifications(userId: string): Promise<Notification[]>;
+  getUnreadNotificationCount(userId: string): Promise<number>;
+  createNotification(notification: InsertNotification): Promise<Notification>;
+  markNotificationRead(id: number): Promise<Notification | undefined>;
+  markAllNotificationsRead(userId: string): Promise<void>;
+  deleteNotification(id: number): Promise<boolean>;
 }
 
 export class DrizzleStorage implements IStorage {
@@ -850,6 +869,97 @@ export class DrizzleStorage implements IStorage {
       .where(eq(schema.grievances.id, id))
       .returning();
     return updated;
+  }
+
+  // Public Holiday operations
+  async getAllPublicHolidays(): Promise<PublicHoliday[]> {
+    return db
+      .select()
+      .from(schema.publicHolidays)
+      .orderBy(schema.publicHolidays.date);
+  }
+
+  async getPublicHoliday(id: number): Promise<PublicHoliday | undefined> {
+    const [holiday] = await db
+      .select()
+      .from(schema.publicHolidays)
+      .where(eq(schema.publicHolidays.id, id));
+    return holiday;
+  }
+
+  async createPublicHoliday(holiday: InsertPublicHoliday): Promise<PublicHoliday> {
+    const [newHoliday] = await db
+      .insert(schema.publicHolidays)
+      .values(holiday)
+      .returning();
+    return newHoliday;
+  }
+
+  async updatePublicHoliday(id: number, holiday: Partial<InsertPublicHoliday>): Promise<PublicHoliday | undefined> {
+    const [updated] = await db
+      .update(schema.publicHolidays)
+      .set(holiday)
+      .where(eq(schema.publicHolidays.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deletePublicHoliday(id: number): Promise<boolean> {
+    const result = await db
+      .delete(schema.publicHolidays)
+      .where(eq(schema.publicHolidays.id, id));
+    return true;
+  }
+
+  // Notification operations
+  async getNotifications(userId: string): Promise<Notification[]> {
+    return db
+      .select()
+      .from(schema.notifications)
+      .where(eq(schema.notifications.userId, userId))
+      .orderBy(desc(schema.notifications.createdAt));
+  }
+
+  async getUnreadNotificationCount(userId: string): Promise<number> {
+    const results = await db
+      .select()
+      .from(schema.notifications)
+      .where(and(
+        eq(schema.notifications.userId, userId),
+        eq(schema.notifications.isRead, false)
+      ));
+    return results.length;
+  }
+
+  async createNotification(notification: InsertNotification): Promise<Notification> {
+    const [newNotification] = await db
+      .insert(schema.notifications)
+      .values(notification)
+      .returning();
+    return newNotification;
+  }
+
+  async markNotificationRead(id: number): Promise<Notification | undefined> {
+    const [updated] = await db
+      .update(schema.notifications)
+      .set({ isRead: true })
+      .where(eq(schema.notifications.id, id))
+      .returning();
+    return updated;
+  }
+
+  async markAllNotificationsRead(userId: string): Promise<void> {
+    await db
+      .update(schema.notifications)
+      .set({ isRead: true })
+      .where(eq(schema.notifications.userId, userId));
+  }
+
+  async deleteNotification(id: number): Promise<boolean> {
+    await db
+      .delete(schema.notifications)
+      .where(eq(schema.notifications.id, id));
+    return true;
   }
 }
 

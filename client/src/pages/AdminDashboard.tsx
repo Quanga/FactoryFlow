@@ -13,9 +13,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { userApi, settingsApi, departmentApi, userGroupApi, leaveRequestApi, leaveBalanceApi, attendanceApi, employeeTypeApi, leaveRuleApi, leaveRulePhaseApi, contractHistoryApi, grievanceApi } from '@/lib/api';
-import type { User, Department, UserGroup, LeaveRequest, LeaveBalance, AttendanceRecord, EmployeeType, LeaveRule, LeaveRulePhase, ContractHistory, Grievance } from '@shared/schema';
-import { Plus, Pencil, Trash2, Save, Mail, Users, Settings, Camera, Building2, Loader2, CheckCircle2, UserCog, Shield, Calendar, Clock, FileText, Check, X, Search, ChevronDown, ChevronRight, LayoutDashboard, AlertTriangle, LogOut, UserX, Network, MessageSquareWarning, Eye } from 'lucide-react';
+import { userApi, settingsApi, departmentApi, userGroupApi, leaveRequestApi, leaveBalanceApi, attendanceApi, employeeTypeApi, leaveRuleApi, leaveRulePhaseApi, contractHistoryApi, grievanceApi, publicHolidayApi, dashboardApi } from '@/lib/api';
+import type { User, Department, UserGroup, LeaveRequest, LeaveBalance, AttendanceRecord, EmployeeType, LeaveRule, LeaveRulePhase, ContractHistory, Grievance, PublicHoliday } from '@shared/schema';
+import { Plus, Pencil, Trash2, Save, Mail, Users, Settings, Camera, Building2, Loader2, CheckCircle2, UserCog, Shield, Calendar, Clock, FileText, Check, X, Search, ChevronDown, ChevronRight, LayoutDashboard, AlertTriangle, LogOut, UserX, Network, MessageSquareWarning, Eye, CalendarDays, TrendingUp, UserCheck, ClipboardList, Home } from 'lucide-react';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { NotificationBell } from '@/components/NotificationBell';
 import { format } from 'date-fns';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/lib/auth-context';
@@ -40,6 +42,11 @@ export default function AdminDashboard() {
   const { data: emailSetting } = useQuery({
     queryKey: ['settings', 'admin_email'],
     queryFn: () => settingsApi.get('admin_email'),
+  });
+
+  const { data: senderEmailSetting } = useQuery({
+    queryKey: ['settings', 'sender_email'],
+    queryFn: () => settingsApi.get('sender_email'),
   });
 
   const { data: clockInCutoffSetting } = useQuery({
@@ -112,6 +119,27 @@ export default function AdminDashboard() {
     queryKey: ['grievances'],
     queryFn: () => grievanceApi.getAll(),
   });
+
+  const { data: dashboardStats } = useQuery({
+    queryKey: ['dashboard-stats'],
+    queryFn: () => dashboardApi.getStats(),
+    refetchInterval: 60000,
+  });
+
+  const { data: publicHolidays = [] } = useQuery({
+    queryKey: ['public-holidays'],
+    queryFn: () => publicHolidayApi.getAll(),
+  });
+
+  // Employee Search State
+  const [employeeSearch, setEmployeeSearch] = useState('');
+  const [employeeDepartmentFilter, setEmployeeDepartmentFilter] = useState<string>('');
+  const [employeeStatusFilter, setEmployeeStatusFilter] = useState<'all' | 'active' | 'terminated'>('active');
+
+  // Public Holiday State
+  const [isHolidayDialogOpen, setIsHolidayDialogOpen] = useState(false);
+  const [currentHoliday, setCurrentHoliday] = useState<Partial<PublicHoliday>>({});
+  const [isEditingHoliday, setIsEditingHoliday] = useState(false);
   
   // User Management State
   const [isUserDialogOpen, setIsUserDialogOpen] = useState(false);
@@ -166,7 +194,7 @@ export default function AdminDashboard() {
   const [expandedLeaveBalanceEmployees, setExpandedLeaveBalanceEmployees] = useState<Set<string>>(new Set());
 
   // Navigation State
-  const [activeSection, setActiveSection] = useState<'dashboard' | 'employees' | 'leave-requests' | 'attendance' | 'departments' | 'employee-types' | 'leave-rules' | 'grievances' | 'settings'>('dashboard');
+  const [activeSection, setActiveSection] = useState<'dashboard' | 'employees' | 'leave-requests' | 'attendance' | 'departments' | 'employee-types' | 'leave-rules' | 'grievances' | 'holidays' | 'leave-calendar' | 'settings'>('dashboard');
   const [settingsTab, setSettingsTab] = useState<'general' | 'user-groups'>('general');
   const [attendanceTab, setAttendanceTab] = useState<'records' | 'manual-entry' | 'trends'>('records');
   const [manualAttendanceDate, setManualAttendanceDate] = useState<string>(() => {
@@ -215,6 +243,7 @@ export default function AdminDashboard() {
 
   // Settings State
   const [emailSettings, setEmailSettings] = useState('');
+  const [senderEmail, setSenderEmail] = useState('');
   const [clockInCutoff, setClockInCutoff] = useState('08:00');
   const [clockOutCutoff, setClockOutCutoff] = useState('17:00');
   const [lateArrivalMessage, setLateArrivalMessage] = useState('{name} (ID: {id}) clocked in late at {time}.');
@@ -226,6 +255,12 @@ export default function AdminDashboard() {
       setEmailSettings(emailSetting.value);
     }
   }, [emailSetting]);
+
+  useEffect(() => {
+    if (senderEmailSetting) {
+      setSenderEmail(senderEmailSetting.value);
+    }
+  }, [senderEmailSetting]);
 
   useEffect(() => {
     if (clockInCutoffSetting) {
@@ -781,6 +816,49 @@ export default function AdminDashboard() {
     },
   });
 
+  // Public Holiday Mutations
+  const createHolidayMutation = useMutation({
+    mutationFn: publicHolidayApi.create,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['public-holidays'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      toast({ title: "Holiday Added", description: "Public holiday has been added successfully." });
+      setIsHolidayDialogOpen(false);
+      setCurrentHoliday({});
+      setIsEditingHoliday(false);
+    },
+    onError: (error: Error) => {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    },
+  });
+
+  const updateHolidayMutation = useMutation({
+    mutationFn: ({ id, ...data }: any) => publicHolidayApi.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['public-holidays'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      toast({ title: "Holiday Updated", description: "Public holiday has been updated successfully." });
+      setIsHolidayDialogOpen(false);
+      setCurrentHoliday({});
+      setIsEditingHoliday(false);
+    },
+    onError: (error: Error) => {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    },
+  });
+
+  const deleteHolidayMutation = useMutation({
+    mutationFn: publicHolidayApi.delete,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['public-holidays'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      toast({ title: "Holiday Deleted", description: "Public holiday has been removed." });
+    },
+    onError: (error: Error) => {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    },
+  });
+
   // Employee Type Mutations
   const createTypeMutation = useMutation({
     mutationFn: employeeTypeApi.create,
@@ -970,6 +1048,7 @@ export default function AdminDashboard() {
 
   const handleSaveSettings = async () => {
     await updateSettingMutation.mutateAsync({ key: 'admin_email', value: emailSettings });
+    await updateSettingMutation.mutateAsync({ key: 'sender_email', value: senderEmail });
     await updateSettingMutation.mutateAsync({ key: 'clock_in_cutoff', value: clockInCutoff });
     await updateSettingMutation.mutateAsync({ key: 'clock_out_cutoff', value: clockOutCutoff });
     await updateSettingMutation.mutateAsync({ key: 'late_arrival_message', value: lateArrivalMessage });
@@ -1424,7 +1503,13 @@ export default function AdminDashboard() {
         {/* Left Navigation Sidebar */}
         <div className="w-64 shrink-0">
           <div className="sticky top-4 space-y-1">
-            <h2 className="text-lg font-heading font-bold text-gray-900 mb-4">AECE Checkpoint</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-heading font-bold text-gray-900 dark:text-gray-100">AECE Checkpoint</h2>
+              <div className="flex items-center gap-2">
+                {user && <NotificationBell userId={user.id} />}
+                <ThemeToggle />
+              </div>
+            </div>
             <nav className="space-y-1">
               <button
                 onClick={() => setActiveSection('dashboard')}
@@ -1502,6 +1587,24 @@ export default function AdminDashboard() {
                 data-testid="nav-leave-rules"
               >
                 <Calendar className="h-4 w-4" /> Leave Rules
+              </button>
+              <button
+                onClick={() => setActiveSection('leave-calendar')}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
+                  activeSection === 'leave-calendar' ? 'bg-primary text-white' : 'hover:bg-slate-100 text-slate-700'
+                }`}
+                data-testid="nav-leave-calendar"
+              >
+                <CalendarDays className="h-4 w-4" /> Leave Calendar
+              </button>
+              <button
+                onClick={() => setActiveSection('holidays')}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
+                  activeSection === 'holidays' ? 'bg-primary text-white' : 'hover:bg-slate-100 text-slate-700'
+                }`}
+                data-testid="nav-holidays"
+              >
+                <CalendarDays className="h-4 w-4" /> Public Holidays
               </button>
               <button
                 onClick={() => setActiveSection('grievances')}
@@ -1773,14 +1876,48 @@ export default function AdminDashboard() {
                 <p className="text-muted-foreground">Manage personnel access, IDs, and leave balances</p>
               </div>
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle>Personnel</CardTitle>
-                  <CardDescription>Manage personnel access, IDs, and leave balances</CardDescription>
+              <CardHeader>
+                <div className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle>Personnel</CardTitle>
+                    <CardDescription>Manage personnel access, IDs, and leave balances</CardDescription>
+                  </div>
+                  <Button onClick={handleOpenCreate} className="btn-industrial bg-primary text-white">
+                    <Plus className="mr-2 h-4 w-4" /> Add Person
+                  </Button>
                 </div>
-                <Button onClick={handleOpenCreate} className="btn-industrial bg-primary text-white">
-                  <Plus className="mr-2 h-4 w-4" /> Add Person
-                </Button>
+                <div className="flex gap-4 mt-4">
+                  <div className="flex-1">
+                    <Input
+                      placeholder="Search by name, ID, email, or mobile..."
+                      value={employeeSearch}
+                      onChange={(e) => setEmployeeSearch(e.target.value)}
+                      className="max-w-sm"
+                      data-testid="employee-search"
+                    />
+                  </div>
+                  <Select value={employeeDepartmentFilter || 'all'} onValueChange={(v) => setEmployeeDepartmentFilter(v === 'all' ? '' : v)}>
+                    <SelectTrigger className="w-40" data-testid="employee-dept-filter">
+                      <SelectValue placeholder="Department" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Departments</SelectItem>
+                      {departments.map((d: Department) => (
+                        <SelectItem key={d.id} value={d.id.toString()}>{d.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={employeeStatusFilter} onValueChange={(v: 'all' | 'active' | 'terminated') => setEmployeeStatusFilter(v)}>
+                    <SelectTrigger className="w-32" data-testid="employee-status-filter">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="terminated">Terminated</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </CardHeader>
               <CardContent>
                 <Table>
@@ -1797,7 +1934,30 @@ export default function AdminDashboard() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {users.filter(u => !u.terminationDate).map((emp) => {
+                    {users
+                      .filter(u => {
+                        if (employeeStatusFilter === 'active') return !u.terminationDate;
+                        if (employeeStatusFilter === 'terminated') return !!u.terminationDate;
+                        return true;
+                      })
+                      .filter(u => {
+                        if (!employeeDepartmentFilter) return true;
+                        return u.departmentId?.toString() === employeeDepartmentFilter;
+                      })
+                      .filter(u => {
+                        if (!employeeSearch) return true;
+                        const search = employeeSearch.toLowerCase();
+                        return (
+                          u.firstName?.toLowerCase().includes(search) ||
+                          u.surname?.toLowerCase().includes(search) ||
+                          u.nickname?.toLowerCase().includes(search) ||
+                          u.id.toLowerCase().includes(search) ||
+                          u.nationalId?.toLowerCase().includes(search) ||
+                          u.email?.toLowerCase().includes(search) ||
+                          u.mobile?.toLowerCase().includes(search)
+                        );
+                      })
+                      .map((emp) => {
                       const empBalances = leaveBalances.filter((b: LeaveBalance) => b.userId === emp.id);
                       const totalAvailable = empBalances.reduce((sum: number, b: LeaveBalance) => sum + (b.total - b.taken - b.pending), 0);
                       const isExpanded = expandedEmployees.has(emp.id);
@@ -3494,6 +3654,267 @@ export default function AdminDashboard() {
             </div>
           )}
 
+          {/* Leave Calendar Section */}
+          {activeSection === 'leave-calendar' && (
+            <div className="space-y-6">
+              <div>
+                <h1 className="text-3xl font-heading font-bold text-slate-900 dark:text-slate-100">Leave Calendar</h1>
+                <p className="text-muted-foreground">Visual overview of employee leave schedules</p>
+              </div>
+              
+              <Card>
+                <CardHeader>
+                  <CardTitle>Monthly Leave Overview</CardTitle>
+                  <CardDescription>See who is on leave and when</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {(() => {
+                    const today = new Date();
+                    const currentMonth = today.getMonth();
+                    const currentYear = today.getFullYear();
+                    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+                    const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+                    
+                    const approvedLeaves = leaveRequests.filter((lr: LeaveRequest) => lr.status === 'approved');
+                    const monthHolidays = publicHolidays.filter((h: PublicHoliday) => {
+                      const hDate = new Date(h.date);
+                      return hDate.getMonth() === currentMonth && hDate.getFullYear() === currentYear;
+                    });
+                    
+                    return (
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-lg font-semibold">
+                            {format(today, 'MMMM yyyy')}
+                          </h3>
+                          <div className="flex gap-4 text-sm">
+                            <span className="flex items-center gap-1">
+                              <div className="w-3 h-3 bg-green-500 rounded"></div> Approved Leave
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <div className="w-3 h-3 bg-red-500 rounded"></div> Public Holiday
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-7 gap-1 text-center text-sm">
+                          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
+                            <div key={d} className="font-semibold py-2 text-muted-foreground">{d}</div>
+                          ))}
+                          
+                          {Array.from({ length: new Date(currentYear, currentMonth, 1).getDay() }).map((_, i) => (
+                            <div key={`empty-${i}`} className="py-2"></div>
+                          ))}
+                          
+                          {days.map(day => {
+                            const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                            const isHoliday = monthHolidays.some((h: PublicHoliday) => h.date === dateStr);
+                            const leavesOnDay = approvedLeaves.filter((lr: LeaveRequest) => 
+                              lr.startDate <= dateStr && lr.endDate >= dateStr
+                            );
+                            const isToday = day === today.getDate();
+                            
+                            return (
+                              <div 
+                                key={day} 
+                                className={`py-2 rounded relative ${isToday ? 'ring-2 ring-primary' : ''} ${isHoliday ? 'bg-red-100 dark:bg-red-900' : leavesOnDay.length > 0 ? 'bg-green-100 dark:bg-green-900' : 'bg-muted/30'}`}
+                                title={isHoliday ? monthHolidays.find((h: PublicHoliday) => h.date === dateStr)?.name : leavesOnDay.length > 0 ? `${leavesOnDay.length} on leave` : undefined}
+                              >
+                                <span className={isToday ? 'font-bold' : ''}>{day}</span>
+                                {leavesOnDay.length > 0 && !isHoliday && (
+                                  <span className="absolute bottom-0 right-0 text-xs bg-green-500 text-white rounded-full w-4 h-4 flex items-center justify-center">
+                                    {leavesOnDay.length}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                        
+                        <div className="mt-6">
+                          <h4 className="font-semibold mb-2">Upcoming Leave This Month</h4>
+                          {approvedLeaves.filter((lr: LeaveRequest) => {
+                            const start = new Date(lr.startDate);
+                            return start.getMonth() === currentMonth && start.getFullYear() === currentYear;
+                          }).length === 0 ? (
+                            <p className="text-muted-foreground text-sm">No approved leave this month</p>
+                          ) : (
+                            <div className="space-y-2">
+                              {approvedLeaves.filter((lr: LeaveRequest) => {
+                                const start = new Date(lr.startDate);
+                                return start.getMonth() === currentMonth && start.getFullYear() === currentYear;
+                              }).map((lr: LeaveRequest) => {
+                                const emp = users.find(u => u.id === lr.userId);
+                                return (
+                                  <div key={lr.id} className="flex items-center justify-between p-2 bg-muted/50 rounded">
+                                    <span className="font-medium">{emp?.firstName} {emp?.surname}</span>
+                                    <span className="text-sm text-muted-foreground">
+                                      {format(new Date(lr.startDate), 'dd/MM')} - {format(new Date(lr.endDate), 'dd/MM')} ({lr.leaveType})
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Public Holidays Section */}
+          {activeSection === 'holidays' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-3xl font-heading font-bold text-slate-900 dark:text-slate-100">Public Holidays</h1>
+                  <p className="text-muted-foreground">Manage public holidays that affect leave calculations</p>
+                </div>
+                <Button onClick={() => { setCurrentHoliday({}); setIsEditingHoliday(false); setIsHolidayDialogOpen(true); }} data-testid="add-holiday">
+                  <Plus className="h-4 w-4 mr-2" /> Add Holiday
+                </Button>
+              </div>
+              
+              <Card>
+                <CardContent className="pt-6">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Description</TableHead>
+                        <TableHead>Recurring</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {publicHolidays.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                            No public holidays configured. Add holidays to exclude them from leave calculations.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        publicHolidays.map((holiday: PublicHoliday) => (
+                          <TableRow key={holiday.id} data-testid={`holiday-row-${holiday.id}`}>
+                            <TableCell className="font-mono">
+                              {format(new Date(holiday.date), 'dd/MM/yyyy')}
+                            </TableCell>
+                            <TableCell className="font-medium">{holiday.name}</TableCell>
+                            <TableCell className="text-muted-foreground">{holiday.description || '-'}</TableCell>
+                            <TableCell>
+                              {holiday.isRecurring ? (
+                                <Badge variant="secondary">Annual</Badge>
+                              ) : (
+                                <Badge variant="outline">One-time</Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => {
+                                    setCurrentHoliday(holiday);
+                                    setIsEditingHoliday(true);
+                                    setIsHolidayDialogOpen(true);
+                                  }}
+                                  data-testid={`edit-holiday-${holiday.id}`}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="text-destructive"
+                                  onClick={() => deleteHolidayMutation.mutate(holiday.id)}
+                                  data-testid={`delete-holiday-${holiday.id}`}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+              
+              {/* Holiday Dialog */}
+              <Dialog open={isHolidayDialogOpen} onOpenChange={setIsHolidayDialogOpen}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>{isEditingHoliday ? 'Edit Holiday' : 'Add Public Holiday'}</DialogTitle>
+                    <DialogDescription>
+                      {isEditingHoliday ? 'Update the holiday details.' : 'Add a new public holiday to the system.'}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Holiday Name</Label>
+                      <Input
+                        value={currentHoliday.name || ''}
+                        onChange={(e) => setCurrentHoliday({ ...currentHoliday, name: e.target.value })}
+                        placeholder="e.g. New Year's Day"
+                        data-testid="holiday-name"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Date</Label>
+                      <Input
+                        type="date"
+                        value={currentHoliday.date || ''}
+                        onChange={(e) => setCurrentHoliday({ ...currentHoliday, date: e.target.value })}
+                        data-testid="holiday-date"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Description (Optional)</Label>
+                      <Input
+                        value={currentHoliday.description || ''}
+                        onChange={(e) => setCurrentHoliday({ ...currentHoliday, description: e.target.value })}
+                        placeholder="Brief description"
+                        data-testid="holiday-description"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={currentHoliday.isRecurring || false}
+                        onCheckedChange={(checked) => setCurrentHoliday({ ...currentHoliday, isRecurring: checked })}
+                        data-testid="holiday-recurring"
+                      />
+                      <Label>Recurring annually (same date each year)</Label>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsHolidayDialogOpen(false)}>Cancel</Button>
+                    <Button
+                      onClick={() => {
+                        if (!currentHoliday.name || !currentHoliday.date) {
+                          toast({ variant: 'destructive', title: 'Error', description: 'Name and date are required' });
+                          return;
+                        }
+                        if (isEditingHoliday && currentHoliday.id) {
+                          updateHolidayMutation.mutate({ id: currentHoliday.id, ...currentHoliday });
+                        } else {
+                          createHolidayMutation.mutate(currentHoliday);
+                        }
+                      }}
+                      data-testid="save-holiday"
+                    >
+                      {isEditingHoliday ? 'Update' : 'Add'} Holiday
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
+          )}
+
           {/* Settings Section */}
           {activeSection === 'settings' && (
             <div className="space-y-4">
@@ -3582,7 +4003,25 @@ export default function AdminDashboard() {
               <CardContent className="space-y-6 max-w-xl">
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label>Notification Email Addresses</Label>
+                    <Label>Sender Email Address (FROM)</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input 
+                        type="email"
+                        value={senderEmail} 
+                        onChange={(e) => setSenderEmail(e.target.value)}
+                        className="pl-9"
+                        placeholder="noreply@yourcompany.com"
+                        data-testid="input-sender-email"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      This email address will appear as the sender for all system notifications.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Notification Recipients (TO)</Label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                       <Textarea 
@@ -3605,7 +4044,7 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between p-4 border rounded-lg bg-slate-50">
+                  <div className="flex items-center justify-between p-4 border rounded-lg bg-slate-50 dark:bg-slate-800">
                     <div className="space-y-0.5">
                       <Label className="text-base">Email Notifications</Label>
                       <p className="text-sm text-muted-foreground">Receive an email when a new request is submitted</p>

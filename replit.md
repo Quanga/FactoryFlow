@@ -77,7 +77,11 @@ Preferred communication style: Simple, everyday language.
 - **Leave Balances**: Tracks leave allowances per user and type
 - **Leave Requests**: Manages leave applications with approval workflow
 - **Attendance Records**: Clock in/out records with photo verification
-- **Settings**: System-wide configuration (e.g., admin email for notifications)
+- **Settings**: System-wide configuration (e.g., admin email for notifications, sender email, timezone)
+- **Public Holidays**: Calendar of public holidays for leave calculation exclusions
+  - Fields: id, name, date, isRecurring (for annual holidays), description
+- **Notifications**: User notification system for alerts and updates
+  - Fields: id, userId, type, title, message, isRead, createdAt
 
 **Data Access Pattern**
 - Storage abstraction layer (`server/storage.ts`) implements `IStorage` interface

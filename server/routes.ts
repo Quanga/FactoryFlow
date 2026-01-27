@@ -1771,5 +1771,195 @@ export async function registerRoutes(
     }
   });
 
+  // ===== PUBLIC HOLIDAYS ROUTES =====
+  
+  // Get all public holidays
+  app.get("/api/public-holidays", async (req, res) => {
+    try {
+      const holidays = await storage.getAllPublicHolidays();
+      return res.json(holidays);
+    } catch (error) {
+      console.error("Get public holidays error:", error);
+      return res.status(500).json({ error: "Failed to get public holidays" });
+    }
+  });
+
+  // Create public holiday
+  app.post("/api/public-holidays", async (req, res) => {
+    try {
+      const holiday = await storage.createPublicHoliday(req.body);
+      return res.status(201).json(holiday);
+    } catch (error) {
+      console.error("Create public holiday error:", error);
+      return res.status(500).json({ error: "Failed to create public holiday" });
+    }
+  });
+
+  // Update public holiday
+  app.patch("/api/public-holidays/:id", async (req, res) => {
+    try {
+      const holiday = await storage.updatePublicHoliday(parseInt(req.params.id), req.body);
+      if (!holiday) {
+        return res.status(404).json({ error: "Public holiday not found" });
+      }
+      return res.json(holiday);
+    } catch (error) {
+      console.error("Update public holiday error:", error);
+      return res.status(500).json({ error: "Failed to update public holiday" });
+    }
+  });
+
+  // Delete public holiday
+  app.delete("/api/public-holidays/:id", async (req, res) => {
+    try {
+      await storage.deletePublicHoliday(parseInt(req.params.id));
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("Delete public holiday error:", error);
+      return res.status(500).json({ error: "Failed to delete public holiday" });
+    }
+  });
+
+  // ===== NOTIFICATION ROUTES =====
+  
+  // Get notifications for user
+  app.get("/api/notifications", async (req, res) => {
+    try {
+      const userId = req.query.userId as string;
+      if (!userId) {
+        return res.status(400).json({ error: "User ID is required" });
+      }
+      const notifications = await storage.getNotifications(userId);
+      return res.json(notifications);
+    } catch (error) {
+      console.error("Get notifications error:", error);
+      return res.status(500).json({ error: "Failed to get notifications" });
+    }
+  });
+
+  // Get unread count
+  app.get("/api/notifications/unread-count", async (req, res) => {
+    try {
+      const userId = req.query.userId as string;
+      if (!userId) {
+        return res.status(400).json({ error: "User ID is required" });
+      }
+      const count = await storage.getUnreadNotificationCount(userId);
+      return res.json({ count });
+    } catch (error) {
+      console.error("Get unread count error:", error);
+      return res.status(500).json({ error: "Failed to get unread count" });
+    }
+  });
+
+  // Create notification
+  app.post("/api/notifications", async (req, res) => {
+    try {
+      const notification = await storage.createNotification(req.body);
+      return res.status(201).json(notification);
+    } catch (error) {
+      console.error("Create notification error:", error);
+      return res.status(500).json({ error: "Failed to create notification" });
+    }
+  });
+
+  // Mark notification as read
+  app.patch("/api/notifications/:id/read", async (req, res) => {
+    try {
+      const notification = await storage.markNotificationRead(parseInt(req.params.id));
+      if (!notification) {
+        return res.status(404).json({ error: "Notification not found" });
+      }
+      return res.json(notification);
+    } catch (error) {
+      console.error("Mark notification read error:", error);
+      return res.status(500).json({ error: "Failed to mark notification as read" });
+    }
+  });
+
+  // Mark all notifications as read
+  app.patch("/api/notifications/mark-all-read", async (req, res) => {
+    try {
+      const userId = req.body.userId as string;
+      if (!userId) {
+        return res.status(400).json({ error: "User ID is required" });
+      }
+      await storage.markAllNotificationsRead(userId);
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("Mark all notifications read error:", error);
+      return res.status(500).json({ error: "Failed to mark all notifications as read" });
+    }
+  });
+
+  // Delete notification
+  app.delete("/api/notifications/:id", async (req, res) => {
+    try {
+      await storage.deleteNotification(parseInt(req.params.id));
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("Delete notification error:", error);
+      return res.status(500).json({ error: "Failed to delete notification" });
+    }
+  });
+
+  // ===== DASHBOARD STATS ROUTE =====
+  app.get("/api/dashboard/stats", async (req, res) => {
+    try {
+      const users = await storage.getAllUsers();
+      const leaveRequests = await storage.getLeaveRequests();
+      const today = new Date();
+      const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0);
+      const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59);
+      const attendanceRecords = await storage.getAllAttendanceRecords(startOfDay, endOfDay);
+      const holidays = await storage.getAllPublicHolidays();
+      
+      // Active employees (not terminated, not excluded)
+      const activeEmployees = users.filter(u => !u.terminationDate && !u.exclude);
+      const eligibleForAttendance = activeEmployees.filter(u => u.attendanceRequired !== false && (u.role === 'worker' || u.role === 'manager'));
+      
+      // Clocked in today
+      const clockedInUsers = new Set<string>();
+      const clockedOutUsers = new Set<string>();
+      attendanceRecords.forEach((r: any) => {
+        if (r.type === 'in') clockedInUsers.add(r.userId);
+        if (r.type === 'out') clockedOutUsers.add(r.userId);
+      });
+      const currentlyClockedIn = Array.from(clockedInUsers).filter(
+        userId => !clockedOutUsers.has(userId)
+      ).length;
+      
+      // Pending leave requests
+      const pendingLeaves = leaveRequests.filter((l: any) => 
+        l.status === 'pending_manager' || l.status === 'pending_hr' || l.status === 'pending_md'
+      );
+      
+      // Today's approved leaves
+      const todayStr = today.toISOString().split('T')[0];
+      const onLeaveToday = leaveRequests.filter((l: any) => 
+        l.status === 'approved' && l.startDate <= todayStr && l.endDate >= todayStr
+      );
+      
+      // Upcoming birthdays (next 30 days) - based on user birth dates if available
+      const upcomingBirthdays: { user: any; date: string }[] = [];
+      
+      // Next public holiday
+      const upcomingHolidays = holidays.filter((h: any) => h.date >= todayStr).slice(0, 3);
+      
+      return res.json({
+        totalEmployees: activeEmployees.length,
+        eligibleForAttendance: eligibleForAttendance.length,
+        currentlyClockedIn,
+        pendingLeaveRequests: pendingLeaves.length,
+        onLeaveToday: onLeaveToday.length,
+        upcomingBirthdays,
+        upcomingHolidays,
+      });
+    } catch (error) {
+      console.error("Get dashboard stats error:", error);
+      return res.status(500).json({ error: "Failed to get dashboard stats" });
+    }
+  });
+
   return httpServer;
 }

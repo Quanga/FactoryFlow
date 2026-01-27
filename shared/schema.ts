@@ -294,3 +294,39 @@ export const insertGrievanceSchema = createInsertSchema(grievances).omit({
 });
 export type InsertGrievance = z.infer<typeof insertGrievanceSchema>;
 export type Grievance = typeof grievances.$inferSelect;
+
+// Public Holidays Table
+export const publicHolidays = pgTable("public_holidays", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  date: text("date").notNull(), // YYYY-MM-DD format
+  isRecurring: boolean("is_recurring").default(false), // True for annual holidays
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertPublicHolidaySchema = createInsertSchema(publicHolidays).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertPublicHoliday = z.infer<typeof insertPublicHolidaySchema>;
+export type PublicHoliday = typeof publicHolidays.$inferSelect;
+
+// Notifications Table
+export const notifications = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  type: text("type").notNull(), // 'leave_status', 'leave_request', 'attendance', 'system'
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  relatedId: integer("related_id"), // ID of related leave request, attendance, etc.
+  isRead: boolean("is_read").default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertNotificationSchema = createInsertSchema(notifications).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+export type Notification = typeof notifications.$inferSelect;
