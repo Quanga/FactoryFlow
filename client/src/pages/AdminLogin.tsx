@@ -4,9 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { ShieldCheck, Mail, Lock, ArrowRight } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { ShieldCheck, Mail, Lock, ArrowRight, Loader2, CheckCircle } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
-import { authApi, settingsApi } from '@/lib/api';
+import { authApi, settingsApi, passwordResetApi } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import factoryBg from '@assets/generated_images/modern_clean_industrial_factory_interior_background.png';
 import aeceLogo from '@assets/AECE_Logo_1765516911038.png';
@@ -18,6 +19,10 @@ export default function AdminLogin() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
   
   const { data: companyNameSetting } = useQuery({
     queryKey: ['settings', 'company_name'],
@@ -45,6 +50,22 @@ export default function AdminLogin() {
       setError('Invalid credentials. Try admin@factory.com / admin123');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetEmail) return;
+    
+    setResetLoading(true);
+    try {
+      await passwordResetApi.requestReset(resetEmail);
+      setResetSent(true);
+    } catch (err) {
+      // Still show success to prevent email enumeration
+      setResetSent(true);
+    } finally {
+      setResetLoading(false);
     }
   };
 
@@ -106,16 +127,9 @@ export default function AdminLogin() {
               variant="link" 
               className="text-blue-600"
               onClick={() => {
-                const email = prompt("Enter your email address to receive a password reset link:");
-                if (email) {
-                  import('@/lib/api').then(({ passwordResetApi }) => {
-                    passwordResetApi.requestReset(email).then(() => {
-                      alert("If an account exists with that email, a reset link has been sent.");
-                    }).catch(() => {
-                      alert("If an account exists with that email, a reset link has been sent.");
-                    });
-                  });
-                }
+                setShowForgotPassword(true);
+                setResetSent(false);
+                setResetEmail('');
               }}
               data-testid="button-forgot-password"
             >
@@ -129,6 +143,76 @@ export default function AdminLogin() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={showForgotPassword} onOpenChange={setShowForgotPassword}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+            <DialogDescription>
+              Enter your email address and we'll send you a link to reset your password.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {resetSent ? (
+            <div className="text-center py-6">
+              <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
+              <p className="text-lg font-medium text-gray-900">Check your email</p>
+              <p className="text-sm text-gray-600 mt-2">
+                If an account exists with that email, a password reset link has been sent.
+              </p>
+              <Button 
+                className="mt-4" 
+                onClick={() => setShowForgotPassword(false)}
+              >
+                Back to Login
+              </Button>
+            </div>
+          ) : (
+            <form onSubmit={handleForgotPassword} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="reset-email">Email Address</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                  <Input
+                    id="reset-email"
+                    type="email"
+                    placeholder="Enter your email"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    className="pl-10"
+                    required
+                    data-testid="input-reset-email"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  className="flex-1"
+                  onClick={() => setShowForgotPassword(false)}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  type="submit" 
+                  className="flex-1"
+                  disabled={resetLoading || !resetEmail}
+                >
+                  {resetLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    'Send Reset Link'
+                  )}
+                </Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
