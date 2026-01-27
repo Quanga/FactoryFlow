@@ -94,13 +94,15 @@ export default function Login() {
         const storedDescriptor = jsonToDescriptor(user.faceDescriptor);
         if (storedDescriptor) {
           const distance = compareFaceDescriptors(result.descriptor, storedDescriptor);
+          console.log(`Face match check: ${user.firstName} ${user.surname} - distance: ${distance.toFixed(3)}`);
           if (!bestMatch || distance < bestMatch.distance) {
             bestMatch = { user, distance };
           }
         }
       }
       
-      if (bestMatch && isFaceMatch(bestMatch.distance)) {
+      // Use more lenient threshold (0.5) for better real-world recognition
+      if (bestMatch && isFaceMatch(bestMatch.distance, 0.5)) {
         setFaceStatus('recognized');
         setFaceMessage(`Welcome, ${bestMatch.user.firstName}!`);
         setRecognizedUser(`${bestMatch.user.firstName} ${bestMatch.user.surname}`);
