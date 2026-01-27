@@ -54,7 +54,10 @@ export async function registerRoutes(
         return res.status(401).json({ error: "User not found" });
       }
 
-      if (!user.faceDescriptor) {
+      // Check for face descriptors in both the user record and face_descriptors table
+      const additionalDescriptors = await storage.getFaceDescriptors(id);
+      
+      if (!user.faceDescriptor && additionalDescriptors.length === 0) {
         return res.status(401).json({ error: "No face registered for this user" });
       }
 
@@ -280,16 +283,47 @@ export async function registerRoutes(
     try {
       const includeAdmins = req.query.includeAdmins === 'true';
       const users = await storage.getAllUsers();
+      const allFaceDescriptors = await storage.getAllFaceDescriptorsForMatching();
+      
+      // Build a map of userId to their additional descriptors
+      const additionalDescriptorsMap = new Map<string, string[]>();
+      for (const fd of allFaceDescriptors) {
+        if (!additionalDescriptorsMap.has(fd.userId)) {
+          additionalDescriptorsMap.set(fd.userId, []);
+        }
+        additionalDescriptorsMap.get(fd.userId)!.push(fd.descriptor);
+      }
+      
+      // Filter users who have at least one face descriptor (in user record or face_descriptors table)
       const usersWithFaces = users
-        .filter(u => u.faceDescriptor && !u.terminationDate && !u.exclude && u.attendanceRequired !== false && (u.role === 'worker' || (includeAdmins && u.role === 'manager')))
-        .map(u => ({
-          id: u.id,
-          firstName: u.firstName,
-          surname: u.surname,
-          email: u.email,
-          role: u.role,
-          faceDescriptor: u.faceDescriptor,
-        }));
+        .filter(u => (u.faceDescriptor || additionalDescriptorsMap.has(u.id)) && !u.terminationDate && !u.exclude && u.attendanceRequired !== false && (u.role === 'worker' || (includeAdmins && u.role === 'manager')))
+        .flatMap(u => {
+          const results = [];
+          // Include the main face descriptor
+          if (u.faceDescriptor) {
+            results.push({
+              id: u.id,
+              firstName: u.firstName,
+              surname: u.surname,
+              email: u.email,
+              role: u.role,
+              faceDescriptor: u.faceDescriptor,
+            });
+          }
+          // Include additional descriptors from face_descriptors table
+          const additionalDescs = additionalDescriptorsMap.get(u.id) || [];
+          for (const desc of additionalDescs) {
+            results.push({
+              id: u.id,
+              firstName: u.firstName,
+              surname: u.surname,
+              email: u.email,
+              role: u.role,
+              faceDescriptor: desc,
+            });
+          }
+          return results;
+        });
       return res.json(usersWithFaces);
     } catch (error) {
       console.error("Get face descriptors error:", error);
