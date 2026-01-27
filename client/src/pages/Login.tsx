@@ -88,21 +88,38 @@ export default function Login() {
         return;
       }
       
-      let bestMatch: { user: FaceDescriptorUser; distance: number } | null = null;
+      // Collect all matches with their distances
+      const allMatches: { user: FaceDescriptorUser; distance: number }[] = [];
       
       for (const user of faceUsers) {
         const storedDescriptor = jsonToDescriptor(user.faceDescriptor);
         if (storedDescriptor) {
           const distance = compareFaceDescriptors(result.descriptor, storedDescriptor);
           console.log(`Face match check: ${user.firstName} ${user.surname} - distance: ${distance.toFixed(3)}`);
-          if (!bestMatch || distance < bestMatch.distance) {
-            bestMatch = { user, distance };
-          }
+          allMatches.push({ user, distance });
         }
       }
       
-      // Use more lenient threshold (0.65) for better real-world recognition with lighting variations
-      if (bestMatch && isFaceMatch(bestMatch.distance, 0.65)) {
+      // Sort by distance (best match first)
+      allMatches.sort((a, b) => a.distance - b.distance);
+      
+      const bestMatch = allMatches[0] || null;
+      const secondBestMatch = allMatches[1] || null;
+      
+      // Stricter matching: threshold of 0.5 and require clear separation from second-best match
+      const MATCH_THRESHOLD = 0.5;
+      const MIN_GAP = 0.08; // Minimum gap between best and second-best match
+      
+      // Check if best match is good enough AND sufficiently better than second-best
+      const hasClearMatch = bestMatch && 
+        bestMatch.distance < MATCH_THRESHOLD &&
+        (!secondBestMatch || (secondBestMatch.distance - bestMatch.distance) >= MIN_GAP);
+      
+      if (bestMatch && secondBestMatch) {
+        console.log(`Best: ${bestMatch.user.firstName} (${bestMatch.distance.toFixed(3)}) | Second: ${secondBestMatch.user.firstName} (${secondBestMatch.distance.toFixed(3)}) | Gap: ${(secondBestMatch.distance - bestMatch.distance).toFixed(3)}`);
+      }
+      
+      if (hasClearMatch) {
         setFaceStatus('recognized');
         setFaceMessage(`Welcome, ${bestMatch.user.firstName}!`);
         setRecognizedUser(`${bestMatch.user.firstName} ${bestMatch.user.surname}`);
@@ -145,12 +162,20 @@ export default function Login() {
         }, 1000);
         return;
       } else if (bestMatch) {
-        console.log(`Best match distance: ${bestMatch.distance.toFixed(3)} for ${bestMatch.user.firstName} - threshold: 0.55`);
-        // Convert distance to similarity percentage (0.0 = 100%, 0.6 = ~50%, 1.2 = 0%)
-        // More intuitive: lower distance = higher similarity
-        const maxDistance = 1.2; // Maximum expected distance
+        // Convert distance to similarity percentage (0.0 = 100%, 0.5 = ~58%, 1.2 = 0%)
+        const maxDistance = 1.2;
         const similarity = Math.max(0, Math.min(100, ((maxDistance - bestMatch.distance) / maxDistance) * 100));
-        setFaceMessage(`Matching... (${similarity.toFixed(0)}% match)`);
+        
+        // Check why it didn't match
+        if (bestMatch.distance >= MATCH_THRESHOLD) {
+          console.log(`No match: distance ${bestMatch.distance.toFixed(3)} exceeds threshold ${MATCH_THRESHOLD}`);
+          setFaceMessage(`Scanning... (${similarity.toFixed(0)}% - needs ${Math.ceil((1 - MATCH_THRESHOLD/maxDistance) * 100)}%)`);
+        } else if (secondBestMatch && (secondBestMatch.distance - bestMatch.distance) < MIN_GAP) {
+          console.log(`Ambiguous match: gap ${(secondBestMatch.distance - bestMatch.distance).toFixed(3)} too small`);
+          setFaceMessage(`Multiple possible matches - move closer`);
+        } else {
+          setFaceMessage(`Matching... (${similarity.toFixed(0)}% match)`);
+        }
       }
     } catch (err) {
       console.error('Face detection error:', err);
