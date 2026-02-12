@@ -2139,7 +2139,7 @@ export async function registerRoutes(
           try {
             const existing = await storage.getUserGroup(group.id);
             if (!existing) {
-              await storage.createUserGroup({ name: group.name, description: group.description, permissions: group.permissions });
+              await storage.createUserGroup({ name: group.name, description: group.description });
             }
           } catch (e) { /* skip duplicates */ }
         }

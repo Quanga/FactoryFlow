@@ -2104,7 +2104,7 @@ export default function AdminDashboard() {
                       })
                       .filter(u => {
                         if (!employeeDepartmentFilter) return true;
-                        return u.departmentId?.toString() === employeeDepartmentFilter;
+                        return u.department?.toString() === employeeDepartmentFilter;
                       })
                       .filter(u => {
                         if (!employeeSearch) return true;
