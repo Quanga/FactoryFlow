@@ -10,12 +10,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { attendanceApi, userApi, departmentApi, settingsApi } from '@/lib/api';
-import type { User, AttendanceRecord, Department } from '@shared/schema';
+import { attendanceApi, userApi, departmentApi, settingsApi, publicHolidayApi } from '@/lib/api';
+import type { User, AttendanceRecord, Department, PublicHoliday } from '@shared/schema';
 import {
   ArrowLeft, Download, Clock, AlertTriangle, TrendingUp,
   Users, Calendar, Search, ChevronDown, ChevronRight,
-  CheckCircle2, XCircle, BarChart3, Filter
+  CheckCircle2, XCircle, BarChart3, Filter, Star, Sun
 } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, eachDayOfInterval, isWeekend, differenceInMinutes, parseISO } from 'date-fns';
 import jsPDF from 'jspdf';
@@ -48,6 +48,8 @@ interface DailyRecord {
   isLate: boolean;
   isEarlyDeparture: boolean;
   infringementReason: string | null;
+  isHoliday?: boolean;
+  holidayName?: string;
 }
 
 interface Anomaly {
@@ -188,6 +190,24 @@ export default function AttendanceReports() {
     queryFn: () => attendanceApi.getAll(start.toISOString().split('T')[0], end.toISOString().split('T')[0]),
   });
 
+  const { data: allPublicHolidays = [] } = useQuery({
+    queryKey: ['public-holidays'],
+    queryFn: publicHolidayApi.getAll,
+  });
+
+  const holidaysInRange = useMemo(() => {
+    return allPublicHolidays.filter(h => {
+      const hDate = h.date;
+      const startStr = format(start, 'yyyy-MM-dd');
+      const endStr = format(end, 'yyyy-MM-dd');
+      return hDate >= startStr && hDate <= endStr;
+    });
+  }, [allPublicHolidays, start, end]);
+
+  const holidayDateSet = useMemo(() => {
+    return new Set(holidaysInRange.map(h => h.date));
+  }, [holidaysInRange]);
+
   const activeUsers = useMemo(() => {
     return users.filter(u => !u.terminationDate && !u.exclude && (u.role === 'worker' || u.role === 'manager'));
   }, [users]);
@@ -197,7 +217,8 @@ export default function AttendanceReports() {
 
     const workingDays = eachDayOfInterval({ start, end }).filter(d => {
       const now = new Date();
-      return !isWeekend(d) && d <= now;
+      const dateKey = format(d, 'yyyy-MM-dd');
+      return !isWeekend(d) && d <= now && !holidayDateSet.has(dateKey);
     });
     const totalWorkingDays = workingDays.length;
 
@@ -285,7 +306,31 @@ export default function AttendanceReports() {
         });
       });
 
-      const totalDaysWorked = dailyRecords.filter(r => r.clockIn !== null).length;
+      const allDaysInRange = eachDayOfInterval({ start, end }).filter(d => {
+        const now = new Date();
+        return !isWeekend(d) && d <= now;
+      });
+      allDaysInRange.forEach(day => {
+        const dateKey = format(day, 'yyyy-MM-dd');
+        if (holidayDateSet.has(dateKey)) {
+          const holiday = holidaysInRange.find(h => h.date === dateKey);
+          dailyRecords.push({
+            date: dateKey,
+            clockIn: null,
+            clockOut: null,
+            hoursWorked: 0,
+            isLate: false,
+            isEarlyDeparture: false,
+            infringementReason: null,
+            isHoliday: true,
+            holidayName: holiday?.name || 'Public Holiday',
+          });
+        }
+      });
+
+      dailyRecords.sort((a, b) => a.date.localeCompare(b.date));
+
+      const totalDaysWorked = dailyRecords.filter(r => r.clockIn !== null && !r.isHoliday).length;
       const missedDays = totalWorkingDays - totalDaysWorked;
       const attendanceRate = totalWorkingDays > 0 ? (totalDaysWorked / totalWorkingDays) * 100 : 0;
 
@@ -320,7 +365,7 @@ export default function AttendanceReports() {
     });
 
     return results;
-  }, [activeUsers, attendanceRecords, start, end, clockInCutoff, clockOutCutoff]);
+  }, [activeUsers, attendanceRecords, start, end, clockInCutoff, clockOutCutoff, holidayDateSet, holidaysInRange]);
 
   const filteredSummaries = useMemo(() => {
     let result = summaries;
@@ -380,8 +425,22 @@ export default function AttendanceReports() {
       pdf.text(`Employees: ${overallStats.total}  |  Avg Attendance: ${overallStats.avgAttendance.toFixed(1)}%  |  Total Late: ${overallStats.totalLate}  |  Total Early Departures: ${overallStats.totalEarly}  |  Anomalies: ${overallStats.employeesWithAnomalies}`, 14, 50);
     }
 
-    const headers = ['Name', 'Dept', 'Days Worked', 'Attendance %', 'Late', 'Early', 'Avg In', 'Avg Out', 'Hours', 'Anomalies'];
     let y = 60;
+
+    if (holidaysInRange.length > 0) {
+      pdf.setFontSize(11);
+      pdf.text('Public & Religious Holidays (excluded from attendance)', 14, y);
+      y += 6;
+      pdf.setFontSize(8);
+      holidaysInRange.sort((a, b) => a.date.localeCompare(b.date)).forEach(h => {
+        const typeLabel = h.type === 'religious' ? '[Religious]' : '[Public]';
+        pdf.text(`${h.date}  ${typeLabel}  ${h.name}`, 14, y);
+        y += 4;
+      });
+      y += 4;
+    }
+
+    const headers = ['Name', 'Dept', 'Days Worked', 'Attendance %', 'Late', 'Early', 'Avg In', 'Avg Out', 'Hours', 'Anomalies'];
     pdf.setFontSize(8);
     pdf.setFont('helvetica', 'bold');
     const colX = [14, 60, 110, 130, 155, 170, 185, 200, 215, 235];
@@ -538,6 +597,58 @@ export default function AttendanceReports() {
               </CardContent>
             </Card>
           </div>
+        )}
+
+        {holidaysInRange.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-indigo-500" />
+                Public & Religious Holidays in Period
+              </CardTitle>
+              <CardDescription>
+                {holidaysInRange.length} holiday{holidaysInRange.length !== 1 ? 's' : ''} — these days are excluded from attendance calculations
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {holidaysInRange
+                  .sort((a, b) => a.date.localeCompare(b.date))
+                  .map((holiday) => (
+                  <div
+                    key={holiday.id}
+                    className="flex items-start gap-3 p-3 rounded-lg border bg-muted/30"
+                    data-testid={`holiday-card-${holiday.id}`}
+                  >
+                    <div className={`mt-0.5 rounded-full p-1.5 ${holiday.type === 'religious' ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400' : 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'}`}>
+                      {holiday.type === 'religious' ? <Star className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate" data-testid={`holiday-name-${holiday.id}`}>
+                        {holiday.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {format(new Date(holiday.date + 'T00:00:00'), 'EEEE, dd MMMM yyyy')}
+                      </p>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${holiday.type === 'religious' ? 'border-purple-300 text-purple-600 dark:border-purple-700 dark:text-purple-400' : 'border-blue-300 text-blue-600 dark:border-blue-700 dark:text-blue-400'}`}>
+                          {holiday.type === 'religious' ? 'Religious' : 'Public'}
+                        </Badge>
+                        {holiday.isRecurring && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-green-300 text-green-600 dark:border-green-700 dark:text-green-400">
+                            Annual
+                          </Badge>
+                        )}
+                      </div>
+                      {holiday.description && (
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{holiday.description}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         <Card>
@@ -733,48 +844,69 @@ export default function AttendanceReports() {
                               </TableHeader>
                               <TableBody>
                                 {summary.dailyRecords.map((record) => (
-                                  <TableRow key={record.date} data-testid={`row-daily-${summary.userId}-${record.date}`}>
-                                    <TableCell className="text-sm">{format(new Date(record.date), 'dd/MM')}</TableCell>
-                                    <TableCell className="text-sm">{format(new Date(record.date), 'EEE')}</TableCell>
-                                    <TableCell>
-                                      {record.clockIn ? (
-                                        <span className={record.isLate ? 'text-orange-600 font-medium' : ''}>
-                                          {record.clockIn}
-                                        </span>
-                                      ) : (
-                                        <span className="text-red-500">--:--</span>
-                                      )}
-                                    </TableCell>
-                                    <TableCell>
-                                      {record.clockOut ? (
-                                        <span className={record.isEarlyDeparture ? 'text-amber-600 font-medium' : ''}>
-                                          {record.clockOut}
-                                        </span>
-                                      ) : record.clockIn ? (
-                                        <span className="text-muted-foreground">--:--</span>
-                                      ) : (
-                                        <span className="text-red-500">--:--</span>
-                                      )}
-                                    </TableCell>
-                                    <TableCell className="text-sm">{record.hoursWorked > 0 ? record.hoursWorked.toFixed(1) : '-'}</TableCell>
-                                    <TableCell>
-                                      {!record.clockIn ? (
-                                        <Badge variant="destructive" className="text-xs">Absent</Badge>
-                                      ) : record.isLate && record.isEarlyDeparture ? (
-                                        <Badge variant="destructive" className="text-xs">Late + Early</Badge>
-                                      ) : record.isLate ? (
-                                        <Badge className="bg-orange-500 text-xs">Late</Badge>
-                                      ) : record.isEarlyDeparture ? (
-                                        <Badge className="bg-amber-500 text-xs">Early</Badge>
-                                      ) : !record.clockOut && record.clockIn ? (
-                                        <Badge variant="secondary" className="text-xs">No Clock-out</Badge>
-                                      ) : (
-                                        <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs">On Time</Badge>
-                                      )}
-                                    </TableCell>
-                                    <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">
-                                      {record.infringementReason || '-'}
-                                    </TableCell>
+                                  <TableRow
+                                    key={record.date}
+                                    data-testid={`row-daily-${summary.userId}-${record.date}`}
+                                    className={record.isHoliday ? 'bg-indigo-50/50 dark:bg-indigo-950/20' : ''}
+                                  >
+                                    <TableCell className="text-sm">{format(new Date(record.date + 'T00:00:00'), 'dd/MM')}</TableCell>
+                                    <TableCell className="text-sm">{format(new Date(record.date + 'T00:00:00'), 'EEE')}</TableCell>
+                                    {record.isHoliday ? (
+                                      <>
+                                        <TableCell colSpan={3} className="text-sm text-indigo-600 dark:text-indigo-400 font-medium">
+                                          <div className="flex items-center gap-1.5">
+                                            <Calendar className="h-3.5 w-3.5" />
+                                            {record.holidayName}
+                                          </div>
+                                        </TableCell>
+                                        <TableCell>
+                                          <Badge variant="outline" className="text-xs border-indigo-300 text-indigo-600 dark:border-indigo-700 dark:text-indigo-400">Holiday</Badge>
+                                        </TableCell>
+                                        <TableCell className="text-xs text-muted-foreground">-</TableCell>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <TableCell>
+                                          {record.clockIn ? (
+                                            <span className={record.isLate ? 'text-orange-600 font-medium' : ''}>
+                                              {record.clockIn}
+                                            </span>
+                                          ) : (
+                                            <span className="text-red-500">--:--</span>
+                                          )}
+                                        </TableCell>
+                                        <TableCell>
+                                          {record.clockOut ? (
+                                            <span className={record.isEarlyDeparture ? 'text-amber-600 font-medium' : ''}>
+                                              {record.clockOut}
+                                            </span>
+                                          ) : record.clockIn ? (
+                                            <span className="text-muted-foreground">--:--</span>
+                                          ) : (
+                                            <span className="text-red-500">--:--</span>
+                                          )}
+                                        </TableCell>
+                                        <TableCell className="text-sm">{record.hoursWorked > 0 ? record.hoursWorked.toFixed(1) : '-'}</TableCell>
+                                        <TableCell>
+                                          {!record.clockIn ? (
+                                            <Badge variant="destructive" className="text-xs">Absent</Badge>
+                                          ) : record.isLate && record.isEarlyDeparture ? (
+                                            <Badge variant="destructive" className="text-xs">Late + Early</Badge>
+                                          ) : record.isLate ? (
+                                            <Badge className="bg-orange-500 text-xs">Late</Badge>
+                                          ) : record.isEarlyDeparture ? (
+                                            <Badge className="bg-amber-500 text-xs">Early</Badge>
+                                          ) : !record.clockOut && record.clockIn ? (
+                                            <Badge variant="secondary" className="text-xs">No Clock-out</Badge>
+                                          ) : (
+                                            <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs">On Time</Badge>
+                                          )}
+                                        </TableCell>
+                                        <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">
+                                          {record.infringementReason || '-'}
+                                        </TableCell>
+                                      </>
+                                    )}
                                   </TableRow>
                                 ))}
                               </TableBody>

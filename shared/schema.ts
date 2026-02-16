@@ -303,6 +303,7 @@ export const publicHolidays = pgTable("public_holidays", {
   name: text("name").notNull(),
   date: text("date").notNull(), // YYYY-MM-DD format
   isRecurring: boolean("is_recurring").default(false), // True for annual holidays
+  type: text("type").default("public"), // 'public' or 'religious'
   description: text("description"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
