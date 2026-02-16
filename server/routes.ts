@@ -296,7 +296,7 @@ export async function registerRoutes(
       
       // Filter users who have at least one face descriptor (in user record or face_descriptors table)
       const usersWithFaces = users
-        .filter(u => (u.faceDescriptor || additionalDescriptorsMap.has(u.id)) && !u.terminationDate && !u.exclude && u.attendanceRequired !== false && (u.role === 'worker' || (includeAdmins && u.role === 'manager')))
+        .filter(u => (u.faceDescriptor || additionalDescriptorsMap.has(u.id)) && !u.terminationDate && !u.exclude && (u.role === 'worker' ? u.attendanceRequired !== false : true) && (u.role === 'worker' || (includeAdmins && u.role === 'manager')))
         .flatMap(u => {
           const results = [];
           // Include the main face descriptor

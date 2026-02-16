@@ -45,6 +45,8 @@ export default function Login() {
   const [faceStatus, setFaceStatus] = useState<'loading' | 'scanning' | 'recognized' | 'not_found'>('loading');
   const [faceMessage, setFaceMessage] = useState<string>('');
   const [detectionStatus, setDetectionStatus] = useState<FaceDetectionStatus | null>(null);
+  const [matchPercentage, setMatchPercentage] = useState<number | null>(null);
+  const [matchName, setMatchName] = useState<string | null>(null);
 
   useEffect(() => {
     if (loginMode === 'worker') {
@@ -84,6 +86,8 @@ export default function Login() {
       setFaceMessage(result.message);
       
       if (result.status !== 'face_detected' || !result.descriptor) {
+        setMatchPercentage(null);
+        setMatchName(null);
         setDetecting(false);
         return;
       }
@@ -138,8 +142,11 @@ export default function Login() {
       }
       
       if (hasClearMatch) {
-        // Use finalMatch instead of bestMatch
         const bestMatch = finalMatch;
+        const maxDist = 1.2;
+        const pct = Math.max(0, Math.min(100, ((maxDist - bestMatch.distance) / maxDist) * 100));
+        setMatchPercentage(pct);
+        setMatchName(`${bestMatch.user.firstName} ${bestMatch.user.surname}`);
         setFaceStatus('recognized');
         setFaceMessage(`Welcome, ${bestMatch.user.firstName}!`);
         setRecognizedUser(`${bestMatch.user.firstName} ${bestMatch.user.surname}`);
@@ -182,20 +189,23 @@ export default function Login() {
         }, 1000);
         return;
       } else if (bestMatch) {
-        // Convert distance to similarity percentage (0.0 = 100%, 0.5 = ~58%, 1.2 = 0%)
         const maxDistance = 1.2;
         const similarity = Math.max(0, Math.min(100, ((maxDistance - bestMatch.distance) / maxDistance) * 100));
+        setMatchPercentage(similarity);
+        setMatchName(`${bestMatch.user.firstName} ${bestMatch.user.surname}`);
         
-        // Check why it didn't match
         if (bestMatch.distance >= MATCH_THRESHOLD) {
           console.log(`No match: distance ${bestMatch.distance.toFixed(3)} exceeds threshold ${MATCH_THRESHOLD}`);
-          setFaceMessage(`Scanning... (${similarity.toFixed(0)}% - needs ${Math.ceil((1 - MATCH_THRESHOLD/maxDistance) * 100)}%)`);
+          setFaceMessage(`Scanning... (${similarity.toFixed(0)}% match)`);
         } else if (secondBestMatch && (secondBestMatch.distance - bestMatch.distance) < MIN_GAP) {
           console.log(`Ambiguous match: gap ${(secondBestMatch.distance - bestMatch.distance).toFixed(3)} too small`);
           setFaceMessage(`Multiple possible matches - move closer`);
         } else {
           setFaceMessage(`Matching... (${similarity.toFixed(0)}% match)`);
         }
+      } else {
+        setMatchPercentage(null);
+        setMatchName(null);
       }
     } catch (err) {
       console.error('Face detection error:', err);
@@ -295,6 +305,21 @@ export default function Login() {
                       } transition-colors`} />
                     </div>
                     
+                    {matchPercentage !== null && faceStatus === 'scanning' && (
+                      <div className="absolute top-3 right-3 bg-black/70 rounded-lg px-3 py-2 text-white text-center" data-testid="match-percentage-badge">
+                        <div className={`text-2xl font-bold ${matchPercentage >= 42 ? 'text-green-400' : matchPercentage >= 25 ? 'text-amber-400' : 'text-red-400'}`}>
+                          {matchPercentage.toFixed(0)}%
+                        </div>
+                        <div className="text-xs text-gray-300 truncate max-w-[120px]">{matchName || 'Closest match'}</div>
+                      </div>
+                    )}
+                    {faceStatus === 'recognized' && matchPercentage !== null && (
+                      <div className="absolute top-3 right-3 bg-green-600/90 rounded-lg px-3 py-2 text-white text-center" data-testid="match-percentage-success">
+                        <div className="text-2xl font-bold">{matchPercentage.toFixed(0)}%</div>
+                        <div className="text-xs truncate max-w-[120px]">{matchName || 'Matched'}</div>
+                      </div>
+                    )}
+
                     <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
                       <div className="flex items-center justify-center gap-2 text-white" data-testid="face-feedback">
                         {faceStatus === 'loading' && (
