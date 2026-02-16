@@ -1724,6 +1724,13 @@ export default function AdminDashboard() {
                 <Clock className="h-4 w-4" /> Attendance
               </button>
               <button
+                onClick={() => setLocation('/admin/reports')}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors hover:bg-slate-100 text-slate-700"
+                data-testid="nav-reports"
+              >
+                <TrendingUp className="h-4 w-4" /> Attendance Reports
+              </button>
+              <button
                 onClick={() => setActiveSection('departments')}
                 className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
                   activeSection === 'departments' ? 'bg-primary text-white' : 'hover:bg-slate-100 text-slate-700'

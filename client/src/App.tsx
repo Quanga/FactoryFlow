@@ -23,6 +23,7 @@ import EmployeeProfile from "@/pages/EmployeeProfile";
 import OrgChart from "@/pages/OrgChart";
 import Grievances from "@/pages/Grievances";
 import LeaveCalendar from "@/pages/LeaveCalendar";
+import AttendanceReports from "@/pages/AttendanceReports";
 
 function hexToHsl(hex: string): string {
   const r = parseInt(hex.slice(1, 3), 16) / 255;
@@ -90,6 +91,7 @@ function Router() {
       <Route path="/reset-password" component={ResetPassword} />
       <Route path="/profile" component={EmployeeProfile} />
       <Route path="/grievances" component={Grievances} />
+      <Route path="/admin/reports" component={AttendanceReports} />
       <Route component={NotFound} />
     </Switch>
   );
