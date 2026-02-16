@@ -4,7 +4,7 @@ let modelsLoaded = false;
 let modelsLoading = false;
 
 const TINY_OPTIONS = new faceapi.TinyFaceDetectorOptions({ 
-  inputSize: 416,
+  inputSize: 608,
   scoreThreshold: 0.3
 });
 
@@ -55,14 +55,16 @@ export async function detectFace(input: HTMLVideoElement | HTMLImageElement | HT
     await loadFaceModels();
   }
 
+  const processed = preprocessImage(input);
+
   let detection = await faceapi
-    .detectSingleFace(input, TINY_OPTIONS)
+    .detectSingleFace(processed, TINY_OPTIONS)
     .withFaceLandmarks()
     .withFaceDescriptor();
 
   if (!detection) {
     detection = await faceapi
-      .detectSingleFace(input, SSD_OPTIONS)
+      .detectSingleFace(processed, SSD_OPTIONS)
       .withFaceLandmarks()
       .withFaceDescriptor();
   }
@@ -216,6 +218,49 @@ export interface FaceDetectionResult {
   confidence?: number;
 }
 
+function preprocessImage(input: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  const w = 'videoWidth' in input ? input.videoWidth : input.width;
+  const h = 'videoHeight' in input ? input.videoHeight : input.height;
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d')!;
+  ctx.drawImage(input, 0, 0, w, h);
+  
+  const imageData = ctx.getImageData(0, 0, w, h);
+  const data = imageData.data;
+  
+  let sum = 0;
+  let count = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+    sum += gray;
+    count++;
+  }
+  const mean = sum / count;
+  
+  let varianceSum = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+    varianceSum += (gray - mean) ** 2;
+  }
+  const stdDev = Math.sqrt(varianceSum / count);
+  
+  const targetMean = 128;
+  const targetStdDev = 64;
+  const scale = stdDev > 0 ? targetStdDev / stdDev : 1;
+  
+  for (let i = 0; i < data.length; i += 4) {
+    for (let c = 0; c < 3; c++) {
+      const val = (data[i + c] - mean) * scale + targetMean;
+      data[i + c] = Math.max(0, Math.min(255, val));
+    }
+  }
+  
+  ctx.putImageData(imageData, 0, 0);
+  return canvas;
+}
+
 export async function detectFaceWithFeedback(
   input: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement
 ): Promise<FaceDetectionResult> {
@@ -223,15 +268,17 @@ export async function detectFaceWithFeedback(
     await loadFaceModels();
   }
 
+  const processed = preprocessImage(input);
+
   try {
     let detections = await faceapi
-      .detectAllFaces(input, TINY_OPTIONS)
+      .detectAllFaces(processed, TINY_OPTIONS)
       .withFaceLandmarks()
       .withFaceDescriptors();
 
     if (detections.length === 0) {
       detections = await faceapi
-        .detectAllFaces(input, SSD_OPTIONS)
+        .detectAllFaces(processed, SSD_OPTIONS)
         .withFaceLandmarks()
         .withFaceDescriptors();
     }
@@ -255,8 +302,8 @@ export async function detectFaceWithFeedback(
     const detection = detections[0];
     const box = detection.detection.box;
     
-    const inputWidth = 'videoWidth' in input ? input.videoWidth : input.width;
-    const inputHeight = 'videoHeight' in input ? input.videoHeight : input.height;
+    const inputWidth = processed.width;
+    const inputHeight = processed.height;
     
     const faceWidth = box.width;
     const faceHeight = box.height;

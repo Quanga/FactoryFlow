@@ -47,6 +47,7 @@ export default function Login() {
   const [detectionStatus, setDetectionStatus] = useState<FaceDetectionStatus | null>(null);
   const [matchPercentage, setMatchPercentage] = useState<number | null>(null);
   const [matchName, setMatchName] = useState<string | null>(null);
+  const recentDescriptors = useRef<Float32Array[]>([]);
 
   useEffect(() => {
     if (loginMode === 'worker') {
@@ -86,19 +87,35 @@ export default function Login() {
       setFaceMessage(result.message);
       
       if (result.status !== 'face_detected' || !result.descriptor) {
+        recentDescriptors.current = [];
         setMatchPercentage(null);
         setMatchName(null);
         setDetecting(false);
         return;
       }
       
-      // Collect all matches with their distances
+      recentDescriptors.current.push(result.descriptor);
+      if (recentDescriptors.current.length > 5) {
+        recentDescriptors.current.shift();
+      }
+      
+      const avgDescriptor = new Float32Array(128);
+      for (let i = 0; i < 128; i++) {
+        let sum = 0;
+        for (const desc of recentDescriptors.current) {
+          sum += desc[i];
+        }
+        avgDescriptor[i] = sum / recentDescriptors.current.length;
+      }
+      
+      const queryDescriptor = recentDescriptors.current.length >= 2 ? avgDescriptor : result.descriptor;
+      
       const allMatches: { user: FaceDescriptorUser; distance: number }[] = [];
       
       for (const user of faceUsers) {
         const storedDescriptor = jsonToDescriptor(user.faceDescriptor);
         if (storedDescriptor) {
-          const distance = compareFaceDescriptors(result.descriptor, storedDescriptor);
+          const distance = compareFaceDescriptors(queryDescriptor, storedDescriptor);
           console.log(`Face match check: ${user.firstName} ${user.surname} - distance: ${distance.toFixed(3)}`);
           allMatches.push({ user, distance });
         }
@@ -291,7 +308,7 @@ export default function Login() {
                       ref={webcamRef}
                       audio={false}
                       screenshotFormat="image/jpeg"
-                      videoConstraints={{ facingMode: 'user', width: 640, height: 480 }}
+                      videoConstraints={{ facingMode: 'user', width: 1280, height: 720 }}
                       className="w-full h-full object-cover"
                     />
                     
