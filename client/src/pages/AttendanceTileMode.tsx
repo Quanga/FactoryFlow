@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useLocation } from 'wouter';
+import Webcam from 'react-webcam';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -49,6 +50,21 @@ export default function AttendanceTileMode() {
   const [selectedDepartment, setSelectedDepartment] = useState<string>('all');
   const [currentTime, setCurrentTime] = useState(new Date());
   const [infringementData, setInfringementData] = useState<{ recordId: number; type: 'late_arrival' | 'early_departure'; employeeName: string } | null>(null);
+  const [webcamReady, setWebcamReady] = useState(false);
+  const webcamRef = useRef<Webcam>(null);
+
+  const capturePhoto = useCallback((): string | null => {
+    if (webcamRef.current && webcamReady) {
+      try {
+        const imageSrc = webcamRef.current.getScreenshot({ width: 640, height: 480 });
+        return imageSrc;
+      } catch (e) {
+        console.warn('Webcam capture failed:', e);
+        return null;
+      }
+    }
+    return null;
+  }, [webcamReady]);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -151,10 +167,12 @@ export default function AttendanceTileMode() {
     try {
       const now = new Date();
       
+      const capturedPhoto = capturePhoto();
+
       const record = await attendanceApi.create({
         userId: selectedUser.id,
         type: subMode === 'clock-in' ? 'in' : 'out',
-        photoUrl: selectedUser.photoUrl || null,
+        photoUrl: capturedPhoto || selectedUser.photoUrl || null,
         method: 'tile',
         context: 'attendance'
       });
@@ -303,6 +321,16 @@ export default function AttendanceTileMode() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 sm:p-6">
+      <Webcam
+        ref={webcamRef}
+        audio={false}
+        screenshotFormat="image/jpeg"
+        screenshotQuality={0.6}
+        videoConstraints={{ width: 640, height: 480, facingMode: 'user' }}
+        onUserMedia={() => setWebcamReady(true)}
+        onUserMediaError={() => setWebcamReady(false)}
+        style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none', overflow: 'hidden' }}
+      />
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-4">
