@@ -217,6 +217,8 @@ export const attendanceRecords = pgTable("attendance_records", {
   photoUrl: text("photo_url"),
   method: text("method").default("face"), // 'face' or 'id'
   context: text("context").default("attendance"), // 'attendance' (kiosk) or 'manual'
+  isInfringement: text("is_infringement"),
+  infringementReason: text("infringement_reason"),
 });
 
 export const insertAttendanceRecordSchema = createInsertSchema(attendanceRecords).omit({
