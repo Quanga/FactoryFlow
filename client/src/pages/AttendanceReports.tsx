@@ -209,7 +209,7 @@ export default function AttendanceReports() {
   }, [holidaysInRange]);
 
   const activeUsers = useMemo(() => {
-    return users.filter(u => !u.terminationDate && !u.exclude && (u.role === 'worker' || u.role === 'manager'));
+    return users.filter(u => !u.terminationDate && !u.exclude && u.attendanceRequired !== false && (u.role === 'worker' || u.role === 'manager'));
   }, [users]);
 
   const summaries = useMemo(() => {
