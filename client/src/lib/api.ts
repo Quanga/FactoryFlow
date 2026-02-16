@@ -376,7 +376,7 @@ export const attendanceApi = {
     return res.json();
   },
 
-  async update(id: number, data: { timestamp?: string; type?: string }): Promise<AttendanceRecord> {
+  async update(id: number, data: { timestamp?: string; type?: string; isInfringement?: string | null; infringementReason?: string | null }): Promise<AttendanceRecord> {
     const res = await fetch(`${API_BASE}/attendance/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },

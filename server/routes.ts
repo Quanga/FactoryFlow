@@ -1187,9 +1187,9 @@ export async function registerRoutes(
   app.patch("/api/attendance/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const { timestamp, type } = req.body;
+      const { timestamp, type, isInfringement, infringementReason } = req.body;
       
-      const updateData: { timestamp?: Date; type?: string } = {};
+      const updateData: { timestamp?: Date; type?: string; isInfringement?: string | null; infringementReason?: string | null } = {};
       if (timestamp) {
         const parsedTime = new Date(timestamp);
         if (isNaN(parsedTime.getTime())) {
@@ -1199,6 +1199,12 @@ export async function registerRoutes(
       }
       if (type && (type === 'in' || type === 'out')) {
         updateData.type = type;
+      }
+      if (isInfringement !== undefined) {
+        updateData.isInfringement = isInfringement;
+      }
+      if (infringementReason !== undefined) {
+        updateData.infringementReason = infringementReason;
       }
       
       const updated = await storage.updateAttendanceRecord(parseInt(id), updateData);

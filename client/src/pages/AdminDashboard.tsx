@@ -254,6 +254,8 @@ export default function AdminDashboard() {
   const [editAttendanceTime, setEditAttendanceTime] = useState('');
   const [editAttendanceDate, setEditAttendanceDate] = useState('');
   const [editAttendanceType, setEditAttendanceType] = useState<'in' | 'out'>('in');
+  const [editInfringementType, setEditInfringementType] = useState<string>('none');
+  const [editInfringementReason, setEditInfringementReason] = useState('');
 
   // Employee Types Management State
   const [isTypeDialogOpen, setIsTypeDialogOpen] = useState(false);
@@ -649,7 +651,7 @@ export default function AdminDashboard() {
   });
 
   const updateAttendanceMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: { timestamp?: string; type?: string } }) => attendanceApi.update(id, data),
+    mutationFn: ({ id, data }: { id: number; data: { timestamp?: string; type?: string; isInfringement?: string | null; infringementReason?: string | null } }) => attendanceApi.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['attendance'] });
       setEditingAttendance(null);
@@ -677,6 +679,8 @@ export default function AdminDashboard() {
     setEditAttendanceDate(format(timestamp, 'yyyy-MM-dd'));
     setEditAttendanceTime(format(timestamp, 'HH:mm'));
     setEditAttendanceType(record.type as 'in' | 'out');
+    setEditInfringementType(record.isInfringement || 'none');
+    setEditInfringementReason(record.infringementReason || '');
   };
 
   const handleSaveAttendanceEdit = () => {
@@ -689,6 +693,8 @@ export default function AdminDashboard() {
       data: {
         timestamp: newTimestamp.toISOString(),
         type: editAttendanceType,
+        isInfringement: editInfringementType === 'none' ? null : editInfringementType,
+        infringementReason: editInfringementType === 'none' ? null : editInfringementReason,
       },
     });
   };
@@ -3255,18 +3261,25 @@ export default function AdminDashboard() {
                                 </div>
                               </TableCell>
                               <TableCell>
-                                <div className="flex flex-wrap gap-1">
-                                  {isClockedIn && (
-                                    <Badge className="bg-green-500 hover:bg-green-600 text-white text-xs">Clocked In</Badge>
-                                  )}
-                                  {hasIssue ? (
-                                    <>
-                                      {issues.map((issue, idx) => (
-                                        <Badge key={idx} variant="destructive" className="text-xs">{issue}</Badge>
-                                      ))}
-                                    </>
-                                  ) : (
-                                    !isClockedIn && <Badge variant="outline" className="text-green-600 border-green-300">On Time</Badge>
+                                <div className="space-y-1">
+                                  <div className="flex flex-wrap gap-1">
+                                    {isClockedIn && (
+                                      <Badge className="bg-green-500 hover:bg-green-600 text-white text-xs">Clocked In</Badge>
+                                    )}
+                                    {hasIssue ? (
+                                      <>
+                                        {issues.map((issue, idx) => (
+                                          <Badge key={idx} variant="destructive" className="text-xs">{issue}</Badge>
+                                        ))}
+                                      </>
+                                    ) : (
+                                      !isClockedIn && <Badge variant="outline" className="text-green-600 border-green-300">On Time</Badge>
+                                    )}
+                                  </div>
+                                  {(record.clockInRecord?.infringementReason || record.clockOutRecord?.infringementReason) && (
+                                    <p className="text-xs text-muted-foreground italic truncate max-w-[200px]" title={record.clockInRecord?.infringementReason || record.clockOutRecord?.infringementReason || ''}>
+                                      Reason: {record.clockInRecord?.infringementReason || record.clockOutRecord?.infringementReason}
+                                    </p>
                                   )}
                                 </div>
                               </TableCell>
@@ -6807,6 +6820,36 @@ export default function AdminDashboard() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="editInfringementType">Infringement</Label>
+                  <Select value={editInfringementType} onValueChange={(v) => setEditInfringementType(v)}>
+                    <SelectTrigger id="editInfringementType" data-testid="select-edit-infringement-type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No Infringement</SelectItem>
+                      <SelectItem value="late_arrival">Late Arrival</SelectItem>
+                      <SelectItem value="early_departure">Early Departure</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {editInfringementType !== 'none' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="editInfringementReason">
+                      Reason for {editInfringementType === 'late_arrival' ? 'Late Arrival' : 'Early Departure'}
+                    </Label>
+                    <textarea
+                      id="editInfringementReason"
+                      className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      placeholder="Enter the reason..."
+                      value={editInfringementReason}
+                      onChange={(e) => setEditInfringementReason(e.target.value)}
+                      data-testid="textarea-edit-infringement-reason"
+                    />
+                  </div>
+                )}
                 
                 <div className="flex justify-end gap-2 pt-4">
                   <Button variant="outline" onClick={() => setEditingAttendance(null)}>
