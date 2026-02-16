@@ -10,6 +10,7 @@ import {
 import { userApi, attendanceApi, departmentApi } from '@/lib/api';
 import defaultAvatarUrl from '@/assets/default-avatar.jpg';
 import type { User as UserType, Department, AttendanceRecord } from '@shared/schema';
+import InfringementReasonDialog from '@/components/InfringementReasonDialog';
 
 type SubMode = 'clock-in' | 'clock-out';
 type TileStatus = 'mode-select' | 'selecting' | 'confirm' | 'recording' | 'success' | 'error';
@@ -47,6 +48,7 @@ export default function AttendanceTileMode() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState<string>('all');
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [infringementData, setInfringementData] = useState<{ recordId: number; type: 'late_arrival' | 'early_departure'; employeeName: string } | null>(null);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -149,7 +151,7 @@ export default function AttendanceTileMode() {
     try {
       const now = new Date();
       
-      await attendanceApi.create({
+      const record = await attendanceApi.create({
         userId: selectedUser.id,
         type: subMode === 'clock-in' ? 'in' : 'out',
         photoUrl: selectedUser.photoUrl || null,
@@ -170,14 +172,21 @@ export default function AttendanceTileMode() {
       );
       setStatus('success');
       
-      // Refresh attendance data to update tile colors
       loadAttendance();
       
-      setTimeout(() => {
-        setStatus('selecting');
-        setSelectedUser(null);
-        setSuccessMessage('');
-      }, 3000);
+      if (record.isInfringement) {
+        setInfringementData({
+          recordId: record.id,
+          type: record.isInfringement as 'late_arrival' | 'early_departure',
+          employeeName: `${selectedUser.firstName} ${selectedUser.surname}`,
+        });
+      } else {
+        setTimeout(() => {
+          setStatus('selecting');
+          setSelectedUser(null);
+          setSuccessMessage('');
+        }, 3000);
+      }
       
     } catch (err) {
       console.error('Failed to record attendance:', err);
@@ -579,6 +588,19 @@ export default function AttendanceTileMode() {
           </div>
         )}
       </div>
+
+      <InfringementReasonDialog
+        open={!!infringementData}
+        onClose={() => {
+          setInfringementData(null);
+          setStatus('selecting');
+          setSelectedUser(null);
+          setSuccessMessage('');
+        }}
+        recordId={infringementData?.recordId ?? 0}
+        infringementType={infringementData?.type ?? 'late_arrival'}
+        employeeName={infringementData?.employeeName}
+      />
     </div>
   );
 }

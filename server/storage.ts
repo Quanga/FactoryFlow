@@ -88,7 +88,7 @@ export interface IStorage {
   createAttendanceRecord(record: InsertAttendanceRecord): Promise<AttendanceRecord>;
   createBulkAttendanceRecords(records: { userId: string; type: string; timestamp: Date; method?: string; context?: string }[]): Promise<AttendanceRecord[]>;
   createSystemAutoClockOut(userId: string, timestamp: Date): Promise<AttendanceRecord>;
-  updateAttendanceRecord(id: number, data: { timestamp?: Date; type?: string }): Promise<AttendanceRecord | undefined>;
+  updateAttendanceRecord(id: number, data: { timestamp?: Date; type?: string; isInfringement?: string | null; infringementReason?: string | null }): Promise<AttendanceRecord | undefined>;
   deleteAttendanceRecord(id: number): Promise<boolean>;
   
   // Settings operations
@@ -561,10 +561,12 @@ export class DrizzleStorage implements IStorage {
     return newRecord;
   }
 
-  async updateAttendanceRecord(id: number, data: { timestamp?: Date; type?: string }): Promise<AttendanceRecord | undefined> {
+  async updateAttendanceRecord(id: number, data: { timestamp?: Date; type?: string; isInfringement?: string | null; infringementReason?: string | null }): Promise<AttendanceRecord | undefined> {
     const updateData: Record<string, unknown> = {};
     if (data.timestamp !== undefined) updateData.timestamp = data.timestamp;
     if (data.type !== undefined) updateData.type = data.type;
+    if (data.isInfringement !== undefined) updateData.isInfringement = data.isInfringement;
+    if (data.infringementReason !== undefined) updateData.infringementReason = data.infringementReason;
     
     if (Object.keys(updateData).length === 0) return undefined;
     

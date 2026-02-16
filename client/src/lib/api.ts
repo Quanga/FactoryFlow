@@ -363,6 +363,19 @@ export const attendanceApi = {
     return res.json();
   },
 
+  async updateInfringementReason(id: number, infringementReason: string): Promise<AttendanceRecord> {
+    const res = await fetch(`${API_BASE}/attendance/${id}/infringement-reason`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ infringementReason }),
+    });
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to update infringement reason");
+    }
+    return res.json();
+  },
+
   async update(id: number, data: { timestamp?: string; type?: string }): Promise<AttendanceRecord> {
     const res = await fetch(`${API_BASE}/attendance/${id}`, {
       method: "PATCH",

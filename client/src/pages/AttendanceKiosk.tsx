@@ -11,6 +11,7 @@ import {
 import { loadFaceModels, extractFaceDescriptorFromBase64, compareFaceDescriptors, isFaceMatch } from '@/lib/face-recognition';
 import { userApi, attendanceApi, settingsApi } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
+import InfringementReasonDialog from '@/components/InfringementReasonDialog';
 
 const useWakeLock = () => {
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
@@ -116,6 +117,7 @@ export default function AttendanceKiosk() {
   const [faceUsers, setFaceUsers] = useState<Array<{ user: any; descriptor: Float32Array }>>([]);
   const [successMessage, setSuccessMessage] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [infringementData, setInfringementData] = useState<{ recordId: number; type: 'late_arrival' | 'early_departure'; employeeName: string } | null>(null);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -148,7 +150,7 @@ export default function AttendanceKiosk() {
         photoUrl = webcamRef.current.getScreenshot();
       }
       
-      await attendanceApi.create({
+      const record = await attendanceApi.create({
         userId,
         type: subMode === 'clock-in' ? 'in' : 'out',
         photoUrl,
@@ -159,9 +161,18 @@ export default function AttendanceKiosk() {
       setStatus('success');
       setSuccessMessage(subMode === 'clock-in' ? 'Clocked In Successfully!' : 'Clocked Out Successfully!');
       
-      setTimeout(() => {
-        resetKiosk();
-      }, 3000);
+      if (record.isInfringement) {
+        const workerName = recognizedWorker?.name || '';
+        setInfringementData({
+          recordId: record.id,
+          type: record.isInfringement as 'late_arrival' | 'early_departure',
+          employeeName: workerName,
+        });
+      } else {
+        setTimeout(() => {
+          resetKiosk();
+        }, 3000);
+      }
     } catch (err: any) {
       setStatus('error');
       setError(err.message || 'Failed to record attendance');
@@ -500,6 +511,17 @@ export default function AttendanceKiosk() {
           {companyName} • {isClockIn ? 'Morning Entry' : 'Evening Departure'}
         </p>
       </div>
+
+      <InfringementReasonDialog
+        open={!!infringementData}
+        onClose={() => {
+          setInfringementData(null);
+          resetKiosk();
+        }}
+        recordId={infringementData?.recordId ?? 0}
+        infringementType={infringementData?.type ?? 'late_arrival'}
+        employeeName={infringementData?.employeeName}
+      />
     </div>
   );
 }

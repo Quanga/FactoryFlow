@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/auth-context';
 import { attendanceApi } from '@/lib/api';
 import { format } from 'date-fns';
 import { Clock, MapPin, CheckCircle } from 'lucide-react';
+import InfringementReasonDialog from '@/components/InfringementReasonDialog';
 
 export default function Attendance() {
   const { user } = useAuth();
@@ -15,6 +16,7 @@ export default function Attendance() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [status, setStatus] = useState<'idle' | 'success'>('idle');
   const [lastAction, setLastAction] = useState('');
+  const [infringementData, setInfringementData] = useState<{ recordId: number; type: 'late_arrival' | 'early_departure'; employeeName: string } | null>(null);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -27,34 +29,35 @@ export default function Attendance() {
     enabled: !!user,
   });
 
-  const createRecordMutation = useMutation({
-    mutationFn: attendanceApi.create,
-    onSuccess: () => {
+  const handleClockAction = async (type: 'in' | 'out', imageSrc: string) => {
+    if (!user) return;
+    try {
+      const record = await attendanceApi.create({
+        userId: user.id,
+        type,
+        photoUrl: imageSrc,
+        context: 'attendance',
+      });
       queryClient.invalidateQueries({ queryKey: ['attendance'] });
       setStatus('success');
-      setTimeout(() => setStatus('idle'), 3000);
-    },
-  });
+      setLastAction(type === 'in' ? 'Clocked In' : 'Clocked Out');
 
-  const handleClockIn = (imageSrc: string) => {
-    if (!user) return;
-    createRecordMutation.mutate({
-      userId: user.id,
-      type: 'in',
-      photoUrl: imageSrc,
-    });
-    setLastAction('Clocked In');
+      if (record.isInfringement) {
+        setInfringementData({
+          recordId: record.id,
+          type: record.isInfringement as 'late_arrival' | 'early_departure',
+          employeeName: `${user.firstName} ${user.surname}`,
+        });
+      } else {
+        setTimeout(() => setStatus('idle'), 3000);
+      }
+    } catch (err) {
+      console.error('Clock action failed:', err);
+    }
   };
 
-  const handleClockOut = (imageSrc: string) => {
-    if (!user) return;
-    createRecordMutation.mutate({
-      userId: user.id,
-      type: 'out',
-      photoUrl: imageSrc,
-    });
-    setLastAction('Clocked Out');
-  };
+  const handleClockIn = (imageSrc: string) => handleClockAction('in', imageSrc);
+  const handleClockOut = (imageSrc: string) => handleClockAction('out', imageSrc);
 
   return (
     <Layout>
@@ -151,6 +154,17 @@ export default function Attendance() {
           </div>
         )}
       </div>
+
+      <InfringementReasonDialog
+        open={!!infringementData}
+        onClose={() => {
+          setInfringementData(null);
+          setTimeout(() => setStatus('idle'), 1000);
+        }}
+        recordId={infringementData?.recordId ?? 0}
+        infringementType={infringementData?.type ?? 'late_arrival'}
+        employeeName={infringementData?.employeeName}
+      />
     </Layout>
   );
 }

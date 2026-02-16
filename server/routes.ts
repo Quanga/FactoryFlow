@@ -1036,7 +1036,7 @@ export async function registerRoutes(
         }
       }
       
-      const newRecord = await storage.createAttendanceRecord({
+      let newRecord = await storage.createAttendanceRecord({
         ...validatedData,
         timestamp: new Date(),
       });
@@ -1085,6 +1085,11 @@ export async function registerRoutes(
             }
             
             if (isInfringement) {
+              await storage.updateAttendanceRecord(newRecord.id, {
+                isInfringement: infringementType,
+              });
+              newRecord = { ...newRecord, isInfringement: infringementType };
+
               // Get custom message template
               const messageSettingKey = infringementType === 'late_arrival' ? 'late_arrival_message' : 'early_departure_message';
               const messageSetting = await storage.getSetting(messageSettingKey);
@@ -1204,6 +1209,27 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Update attendance record error:", error);
       return res.status(500).json({ error: "Failed to update attendance record" });
+    }
+  });
+
+  // Update infringement reason (for worker popup)
+  app.patch("/api/attendance/:id/infringement-reason", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { infringementReason } = req.body;
+      
+      if (!infringementReason || typeof infringementReason !== 'string') {
+        return res.status(400).json({ error: "Infringement reason is required" });
+      }
+      
+      const updated = await storage.updateAttendanceRecord(parseInt(id), { infringementReason });
+      if (!updated) {
+        return res.status(404).json({ error: "Attendance record not found" });
+      }
+      return res.json(updated);
+    } catch (error) {
+      console.error("Update infringement reason error:", error);
+      return res.status(500).json({ error: "Failed to update infringement reason" });
     }
   });
 
