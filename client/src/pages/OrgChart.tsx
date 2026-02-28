@@ -18,6 +18,7 @@ interface WorkerData {
   id: string;
   name: string;
   photoUrl: string | null;
+  isManager?: boolean;
 }
 
 interface AttendanceProps {
@@ -151,8 +152,11 @@ function DepartmentGroupNode({ data, x, y, showAttendance, clockedInUserIds }: {
                     alt={worker.name} 
                     className="w-6 h-6 rounded-full object-cover shrink-0" 
                   />
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0 flex items-center gap-1.5">
                     <p className="text-xs font-medium truncate">{worker.name}</p>
+                    {worker.isManager && (
+                      <Badge variant="default" className="text-[8px] px-1 py-0 h-3.5 shrink-0">Mgr</Badge>
+                    )}
                   </div>
                 </div>
               );
@@ -420,8 +424,31 @@ export default function OrgChart() {
           workerText.setAttribute('fill', '#334155');
           workerText.setAttribute('font-size', '12');
           workerText.setAttribute('font-family', 'Arial, sans-serif');
-          workerText.textContent = worker.name.length > 18 ? worker.name.substring(0, 16) + '...' : worker.name;
+          const displayName = worker.name.length > 16 ? worker.name.substring(0, 14) + '...' : worker.name;
+          workerText.textContent = worker.isManager ? displayName : (worker.name.length > 18 ? worker.name.substring(0, 16) + '...' : worker.name);
           nodeGroup.appendChild(workerText);
+          
+          if (worker.isManager) {
+            const mgrBadge = document.createElementNS(svgNs, 'rect');
+            const badgeX = NODE_WIDTH - 36;
+            mgrBadge.setAttribute('x', String(badgeX));
+            mgrBadge.setAttribute('y', String(workerY - 10));
+            mgrBadge.setAttribute('width', '28');
+            mgrBadge.setAttribute('height', '14');
+            mgrBadge.setAttribute('rx', '3');
+            mgrBadge.setAttribute('fill', '#3b82f6');
+            nodeGroup.appendChild(mgrBadge);
+            
+            const mgrText = document.createElementNS(svgNs, 'text');
+            mgrText.setAttribute('x', String(badgeX + 14));
+            mgrText.setAttribute('y', String(workerY - 1));
+            mgrText.setAttribute('text-anchor', 'middle');
+            mgrText.setAttribute('fill', '#ffffff');
+            mgrText.setAttribute('font-size', '8');
+            mgrText.setAttribute('font-family', 'Arial, sans-serif');
+            mgrText.textContent = 'Mgr';
+            nodeGroup.appendChild(mgrText);
+          }
         });
       }
       
@@ -573,10 +600,70 @@ export default function OrgChart() {
       const managerReports = directReports.filter(u => u.role === 'manager');
       const workerReports = directReports.filter(u => u.role === 'worker');
       
-      const managerChildren = managerReports
+      const managersByDept = new Map<string, User[]>();
+      managerReports.forEach(m => {
+        const dept = m.department || 'Unassigned';
+        if (!managersByDept.has(dept)) managersByDept.set(dept, []);
+        managersByDept.get(dept)!.push(m);
+      });
+      
+      const soloManagers: User[] = [];
+      const groupedManagerDepts = new Map<string, User[]>();
+      
+      managersByDept.forEach((managers, dept) => {
+        if (managers.length > 1) {
+          groupedManagerDepts.set(dept, managers);
+        } else {
+          soloManagers.push(managers[0]);
+        }
+      });
+      
+      const managerChildren = soloManagers
         .sort((a, b) => (a.department || '').localeCompare(b.department || ''))
         .map(u => buildSubtree(u.id, new Set(visited)))
         .filter((n): n is TreeNode => n !== null);
+      
+      const groupedManagerChildren: TreeNode[] = Array.from(groupedManagerDepts.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([dept, managers]) => {
+          const allSubWorkers: WorkerData[] = [];
+          const managerEntries: WorkerData[] = managers
+            .sort((a, b) => `${a.firstName} ${a.surname}`.localeCompare(`${b.firstName} ${b.surname}`))
+            .map(m => {
+              visited.add(m.id);
+              const mReports = activeUsers.filter(u => u.managerId === m.id && u.role === 'worker');
+              mReports.forEach(w => {
+                allSubWorkers.push({
+                  id: w.id,
+                  name: `${w.firstName} ${w.surname}`,
+                  photoUrl: w.photoUrl,
+                });
+              });
+              return {
+                id: m.id,
+                name: `${m.firstName} ${m.surname}`,
+                photoUrl: m.photoUrl,
+                isManager: true,
+              };
+            });
+          
+          const allPeople = [...managerEntries, ...allSubWorkers];
+          const nodeHeight = DEPT_HEADER_HEIGHT + allPeople.length * WORKER_ROW_HEIGHT + 4;
+          
+          return {
+            data: {
+              id: `dept-group-${userId}-${dept}`,
+              name: dept,
+              role: 'worker',
+              department: dept,
+              photoUrl: null,
+              kind: 'department-group' as const,
+              workers: allPeople,
+              nodeHeight,
+            },
+            children: [],
+          };
+        });
       
       const workersByDept = new Map<string, User[]>();
       workerReports.forEach(w => {
@@ -608,7 +695,7 @@ export default function OrgChart() {
           };
         });
       
-      const children = [...managerChildren, ...deptGroupChildren];
+      const children = [...managerChildren, ...groupedManagerChildren, ...deptGroupChildren];
       
       return {
         data: {
