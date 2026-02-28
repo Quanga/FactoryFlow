@@ -80,7 +80,7 @@ function ManagerNode({ data, x, y, showAttendance, clockedInUserIds }: { data: O
         >
           {/* Department header at top */}
           <div 
-            className="px-2 py-0.5 text-white text-[9px] font-medium truncate"
+            className="px-2 py-0.5 text-white text-[10px] font-medium truncate"
             style={{ backgroundColor: deptColor }}
           >
             {data.department || 'No Department'}
@@ -102,9 +102,8 @@ function ManagerNode({ data, x, y, showAttendance, clockedInUserIds }: { data: O
               </div>
             )}
             <div className="flex-1 min-w-0 overflow-hidden">
-              <p className="font-medium text-xs truncate leading-tight">{data.name}</p>
-              <p className="text-[10px] text-muted-foreground truncate">{data.id}</p>
-              <Badge variant="default" className="text-[9px] px-1 py-0 h-4 mt-1">Manager</Badge>
+              <p className="font-semibold text-sm truncate leading-tight">{data.name}</p>
+              <Badge variant="default" className="text-[10px] px-1.5 py-0 h-4 mt-1">Manager</Badge>
             </div>
           </div>
         </div>
@@ -153,8 +152,7 @@ function DepartmentGroupNode({ data, x, y, showAttendance, clockedInUserIds }: {
                     className="w-6 h-6 rounded-full object-cover shrink-0" 
                   />
                   <div className="flex-1 min-w-0">
-                    <p className="text-[11px] font-medium truncate">{worker.name}</p>
-                    <p className="text-[9px] text-muted-foreground truncate">{worker.id}</p>
+                    <p className="text-xs font-medium truncate">{worker.name}</p>
                   </div>
                 </div>
               );
@@ -321,10 +319,10 @@ export default function OrgChart() {
         // Department text
         const deptText = document.createElementNS(svgNs, 'text');
         deptText.setAttribute('x', String(NODE_WIDTH / 2));
-        deptText.setAttribute('y', '11');
+        deptText.setAttribute('y', '12');
         deptText.setAttribute('text-anchor', 'middle');
         deptText.setAttribute('fill', '#ffffff');
-        deptText.setAttribute('font-size', '9');
+        deptText.setAttribute('font-size', '11');
         deptText.setAttribute('font-family', 'Arial, sans-serif');
         deptText.textContent = d.department || 'No Department';
         nodeGroup.appendChild(deptText);
@@ -332,42 +330,31 @@ export default function OrgChart() {
         // Name text
         const nameText = document.createElementNS(svgNs, 'text');
         nameText.setAttribute('x', String(NODE_WIDTH / 2));
-        nameText.setAttribute('y', '35');
+        nameText.setAttribute('y', '40');
         nameText.setAttribute('text-anchor', 'middle');
         nameText.setAttribute('fill', '#1e293b');
-        nameText.setAttribute('font-size', '11');
+        nameText.setAttribute('font-size', '13');
         nameText.setAttribute('font-weight', 'bold');
         nameText.setAttribute('font-family', 'Arial, sans-serif');
         nameText.textContent = d.name.length > 22 ? d.name.substring(0, 20) + '...' : d.name;
         nodeGroup.appendChild(nameText);
         
-        // ID text
-        const idText = document.createElementNS(svgNs, 'text');
-        idText.setAttribute('x', String(NODE_WIDTH / 2));
-        idText.setAttribute('y', '48');
-        idText.setAttribute('text-anchor', 'middle');
-        idText.setAttribute('fill', '#64748b');
-        idText.setAttribute('font-size', '9');
-        idText.setAttribute('font-family', 'Arial, sans-serif');
-        idText.textContent = d.id;
-        nodeGroup.appendChild(idText);
-        
         // Manager badge
         const badgeRect = document.createElementNS(svgNs, 'rect');
-        badgeRect.setAttribute('x', String((NODE_WIDTH - 50) / 2));
-        badgeRect.setAttribute('y', '58');
-        badgeRect.setAttribute('width', '50');
-        badgeRect.setAttribute('height', '16');
+        badgeRect.setAttribute('x', String((NODE_WIDTH - 56) / 2));
+        badgeRect.setAttribute('y', '50');
+        badgeRect.setAttribute('width', '56');
+        badgeRect.setAttribute('height', '18');
         badgeRect.setAttribute('rx', '4');
         badgeRect.setAttribute('fill', '#3b82f6');
         nodeGroup.appendChild(badgeRect);
         
         const badgeText = document.createElementNS(svgNs, 'text');
         badgeText.setAttribute('x', String(NODE_WIDTH / 2));
-        badgeText.setAttribute('y', '69');
+        badgeText.setAttribute('y', '63');
         badgeText.setAttribute('text-anchor', 'middle');
         badgeText.setAttribute('fill', '#ffffff');
-        badgeText.setAttribute('font-size', '9');
+        badgeText.setAttribute('font-size', '11');
         badgeText.setAttribute('font-family', 'Arial, sans-serif');
         badgeText.textContent = 'Manager';
         nodeGroup.appendChild(badgeText);
@@ -407,7 +394,7 @@ export default function OrgChart() {
         deptText.setAttribute('x', '8');
         deptText.setAttribute('y', '18');
         deptText.setAttribute('fill', '#ffffff');
-        deptText.setAttribute('font-size', '10');
+        deptText.setAttribute('font-size', '12');
         deptText.setAttribute('font-weight', 'bold');
         deptText.setAttribute('font-family', 'Arial, sans-serif');
         deptText.textContent = `${d.department || 'Unassigned'} (${workers.length})`;
@@ -431,7 +418,7 @@ export default function OrgChart() {
           workerText.setAttribute('x', '32');
           workerText.setAttribute('y', String(workerY));
           workerText.setAttribute('fill', '#334155');
-          workerText.setAttribute('font-size', '10');
+          workerText.setAttribute('font-size', '12');
           workerText.setAttribute('font-family', 'Arial, sans-serif');
           workerText.textContent = worker.name.length > 18 ? worker.name.substring(0, 16) + '...' : worker.name;
           nodeGroup.appendChild(workerText);
