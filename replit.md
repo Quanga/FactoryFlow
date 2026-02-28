@@ -68,9 +68,10 @@ Preferred communication style: Simple, everyday language.
 
 **Schema Design**
 - **Users**: Stores both workers and managers with role-based differentiation
-  - Fields: id, firstName, surname, nickname, email, mobile, homeAddress, gender, role, departmentId, userGroupId (for admins), faceDescriptor, password (hashed, for admins)
+  - Fields: id, firstName, surname, nickname, email, mobile, homeAddress, gender, role, departmentId, userGroupId (for admins), faceDescriptor, password (hashed, for admins), managerId, secondManagerId
   - Workers: ID-based authentication (no email/password required), assigned to departments
   - Managers: Email/password authentication, assigned to user groups
+  - Dual manager support: Workers can report to two managers via managerId and secondManagerId (for shared department oversight)
 - **User Groups**: Organizational units for admin/manager users (similar to departments for workers)
   - Fields: id, name, description
 - **Departments**: Organizational units for worker categorization

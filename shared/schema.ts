@@ -129,6 +129,7 @@ export const users = pgTable("users", {
   contractEndDate: text("contract_end_date"), // End date for contractors/temps (null for permanent)
   terminationDate: text("termination_date"), // Date when employee was terminated (null if active)
   managerId: text("manager_id"), // ID of the employee's direct manager
+  secondManagerId: text("second_manager_id"), // ID of a second manager (for shared reporting)
   photoUrl: text("photo_url"),
   faceDescriptor: text("face_descriptor"), // JSON array of 128 face embedding values
   exclude: boolean("exclude").default(false), // Exclude from org chart and attendance (for test/dummy users)

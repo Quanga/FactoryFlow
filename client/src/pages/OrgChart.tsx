@@ -626,19 +626,11 @@ export default function OrgChart() {
       const groupedManagerChildren: TreeNode[] = Array.from(groupedManagerDepts.entries())
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([dept, managers]) => {
-          const allSubWorkers: WorkerData[] = [];
+          const managerIds = new Set(managers.map(m => m.id));
           const managerEntries: WorkerData[] = managers
             .sort((a, b) => `${a.firstName} ${a.surname}`.localeCompare(`${b.firstName} ${b.surname}`))
             .map(m => {
               visited.add(m.id);
-              const mReports = activeUsers.filter(u => u.managerId === m.id && u.role === 'worker');
-              mReports.forEach(w => {
-                allSubWorkers.push({
-                  id: w.id,
-                  name: `${w.firstName} ${w.surname}`,
-                  photoUrl: w.photoUrl,
-                });
-              });
               return {
                 id: m.id,
                 name: `${m.firstName} ${m.surname}`,
@@ -647,8 +639,37 @@ export default function OrgChart() {
               };
             });
           
-          const allPeople = [...managerEntries, ...allSubWorkers];
-          const nodeHeight = DEPT_HEADER_HEIGHT + allPeople.length * WORKER_ROW_HEIGHT + 4;
+          const mgrNodeHeight = DEPT_HEADER_HEIGHT + managerEntries.length * WORKER_ROW_HEIGHT + 4;
+          
+          const sharedWorkers = activeUsers.filter(u => 
+            u.role === 'worker' && 
+            (managerIds.has(u.managerId || '') || managerIds.has(u.secondManagerId || ''))
+          );
+          
+          const workerChildren: TreeNode[] = [];
+          if (sharedWorkers.length > 0) {
+            const workerEntries: WorkerData[] = sharedWorkers
+              .sort((a, b) => `${a.firstName} ${a.surname}`.localeCompare(`${b.firstName} ${b.surname}`))
+              .map(w => ({
+                id: w.id,
+                name: `${w.firstName} ${w.surname}`,
+                photoUrl: w.photoUrl,
+              }));
+            const wNodeHeight = DEPT_HEADER_HEIGHT + workerEntries.length * WORKER_ROW_HEIGHT + 4;
+            workerChildren.push({
+              data: {
+                id: `dept-workers-${userId}-${dept}`,
+                name: `${dept} Workers`,
+                role: 'worker',
+                department: dept,
+                photoUrl: null,
+                kind: 'department-group' as const,
+                workers: workerEntries,
+                nodeHeight: wNodeHeight,
+              },
+              children: [],
+            });
+          }
           
           return {
             data: {
@@ -658,10 +679,10 @@ export default function OrgChart() {
               department: dept,
               photoUrl: null,
               kind: 'department-group' as const,
-              workers: allPeople,
-              nodeHeight,
+              workers: managerEntries,
+              nodeHeight: mgrNodeHeight,
             },
-            children: [],
+            children: workerChildren,
           };
         });
       

@@ -2231,6 +2231,17 @@ export default function AdminDashboard() {
                                         </p>
                                       </div>
                                     )}
+                                    {emp.secondManagerId && (
+                                      <div>
+                                        <p className="text-xs text-muted-foreground">2nd Manager</p>
+                                        <p className="font-medium">
+                                          {(() => {
+                                            const manager = users.find(u => u.id === emp.secondManagerId);
+                                            return manager ? `${manager.firstName} ${manager.surname}` : '-';
+                                          })()}
+                                        </p>
+                                      </div>
+                                    )}
                                     {(() => {
                                       const empType = employeeTypes.find(t => t.id === emp.employeeTypeId);
                                       if (empType && empType.isPermanent === 'no') {
@@ -5890,6 +5901,32 @@ export default function AdminDashboard() {
                   </Select>
                   <p className="text-xs text-muted-foreground mt-1">
                     Select the direct manager for this employee. Only users with "Manager" position type are shown.
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="secondManager" className="text-right">2nd Manager</Label>
+                <div className="col-span-3">
+                  <Select 
+                    value={currentUser.secondManagerId || 'none'} 
+                    onValueChange={(value) => setCurrentUser({...currentUser, secondManagerId: value === 'none' ? undefined : value})}
+                  >
+                    <SelectTrigger data-testid="select-second-manager">
+                      <SelectValue placeholder="Select a second manager (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No Second Manager</SelectItem>
+                      {users
+                        .filter(u => u.id !== currentUser.id && u.role === 'manager' && u.id !== currentUser.managerId)
+                        .map((mgr) => (
+                          <SelectItem key={mgr.id} value={mgr.id} data-testid={`option-second-manager-${mgr.id}`}>
+                            {mgr.firstName} {mgr.surname} {mgr.department ? `(${mgr.department})` : ''}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Optional second manager for shared reporting (e.g. worker reports to two department managers).
                   </p>
                 </div>
               </div>
