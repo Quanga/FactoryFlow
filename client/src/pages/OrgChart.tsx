@@ -38,7 +38,7 @@ interface OrgNodeData {
   nodeHeight: number;
 }
 
-const NODE_WIDTH = 180;
+const NODE_WIDTH = 210;
 const MANAGER_NODE_HEIGHT = 90;
 const WORKER_ROW_HEIGHT = 36;
 const DEPT_HEADER_HEIGHT = 28;
