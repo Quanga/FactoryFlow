@@ -153,7 +153,7 @@ function DepartmentGroupNode({ data, x, y, showAttendance, clockedInUserIds }: {
                     className="w-6 h-6 rounded-full object-cover shrink-0" 
                   />
                   <div className="flex-1 min-w-0 flex items-center gap-1.5">
-                    <p className="text-xs font-medium truncate">{worker.name}</p>
+                    <p className="text-sm font-semibold truncate">{worker.name}</p>
                     {worker.isManager && (
                       <Badge variant="default" className="text-[8px] px-1 py-0 h-3.5 shrink-0">Mgr</Badge>
                     )}
@@ -422,7 +422,8 @@ export default function OrgChart() {
           workerText.setAttribute('x', '32');
           workerText.setAttribute('y', String(workerY));
           workerText.setAttribute('fill', '#334155');
-          workerText.setAttribute('font-size', '12');
+          workerText.setAttribute('font-size', '13');
+          workerText.setAttribute('font-weight', 'bold');
           workerText.setAttribute('font-family', 'Arial, sans-serif');
           const displayName = worker.name.length > 16 ? worker.name.substring(0, 14) + '...' : worker.name;
           workerText.textContent = worker.isManager ? displayName : (worker.name.length > 18 ? worker.name.substring(0, 16) + '...' : worker.name);
