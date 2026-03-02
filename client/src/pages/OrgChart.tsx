@@ -43,7 +43,7 @@ const MANAGER_NODE_HEIGHT = 90;
 const WORKER_ROW_HEIGHT = 36;
 const DEPT_HEADER_HEIGHT = 28;
 const VERTICAL_GAP = 6;
-const HORIZONTAL_GAP = 20;
+const HORIZONTAL_GAP = 8;
 
 const DEPARTMENT_COLORS: Record<string, string> = {
   'Administration': '#2563eb',
@@ -81,7 +81,7 @@ function ManagerNode({ data, x, y, showAttendance, clockedInUserIds }: { data: O
         >
           {/* Department header at top */}
           <div 
-            className="px-2 py-0.5 text-white text-[10px] font-medium truncate"
+            className="px-2 py-0.5 text-white text-[11px] font-medium truncate"
             style={{ backgroundColor: deptColor }}
           >
             {data.department || 'No Department'}
@@ -103,7 +103,7 @@ function ManagerNode({ data, x, y, showAttendance, clockedInUserIds }: { data: O
               </div>
             )}
             <div className="flex-1 min-w-0 overflow-hidden">
-              <p className="font-semibold text-sm truncate leading-tight">{data.name}</p>
+              <p className="font-semibold text-[15px] truncate leading-tight">{data.name}</p>
               <Badge variant="default" className="text-[10px] px-1.5 py-0 h-4 mt-1">Manager</Badge>
             </div>
           </div>
@@ -126,7 +126,7 @@ function DepartmentGroupNode({ data, x, y, showAttendance, clockedInUserIds }: {
           style={{ borderColor: deptColor }}
         >
           <div 
-            className="px-2 py-1.5 text-white text-[10px] font-semibold flex items-center gap-1"
+            className="px-2 py-1.5 text-white text-[11px] font-semibold flex items-center gap-1"
             style={{ backgroundColor: deptColor }}
           >
             <Building2 className="h-3 w-3 shrink-0" />
@@ -153,7 +153,7 @@ function DepartmentGroupNode({ data, x, y, showAttendance, clockedInUserIds }: {
                     className="w-6 h-6 rounded-full object-cover shrink-0" 
                   />
                   <div className="flex-1 min-w-0 flex items-center gap-1.5">
-                    <p className="text-sm font-semibold truncate">{worker.name}</p>
+                    <p className="text-[15px] font-semibold truncate">{worker.name}</p>
                     {worker.isManager && (
                       <Badge variant="default" className="text-[8px] px-1 py-0 h-3.5 shrink-0">Mgr</Badge>
                     )}
@@ -326,7 +326,7 @@ export default function OrgChart() {
         deptText.setAttribute('y', '12');
         deptText.setAttribute('text-anchor', 'middle');
         deptText.setAttribute('fill', '#ffffff');
-        deptText.setAttribute('font-size', '11');
+        deptText.setAttribute('font-size', '12');
         deptText.setAttribute('font-family', 'Arial, sans-serif');
         deptText.textContent = d.department || 'No Department';
         nodeGroup.appendChild(deptText);
@@ -337,7 +337,7 @@ export default function OrgChart() {
         nameText.setAttribute('y', '40');
         nameText.setAttribute('text-anchor', 'middle');
         nameText.setAttribute('fill', '#1e293b');
-        nameText.setAttribute('font-size', '13');
+        nameText.setAttribute('font-size', '14');
         nameText.setAttribute('font-weight', 'bold');
         nameText.setAttribute('font-family', 'Arial, sans-serif');
         nameText.textContent = d.name.length > 22 ? d.name.substring(0, 20) + '...' : d.name;
@@ -358,7 +358,7 @@ export default function OrgChart() {
         badgeText.setAttribute('y', '63');
         badgeText.setAttribute('text-anchor', 'middle');
         badgeText.setAttribute('fill', '#ffffff');
-        badgeText.setAttribute('font-size', '11');
+        badgeText.setAttribute('font-size', '12');
         badgeText.setAttribute('font-family', 'Arial, sans-serif');
         badgeText.textContent = 'Manager';
         nodeGroup.appendChild(badgeText);
@@ -398,7 +398,7 @@ export default function OrgChart() {
         deptText.setAttribute('x', '8');
         deptText.setAttribute('y', '18');
         deptText.setAttribute('fill', '#ffffff');
-        deptText.setAttribute('font-size', '12');
+        deptText.setAttribute('font-size', '13');
         deptText.setAttribute('font-weight', 'bold');
         deptText.setAttribute('font-family', 'Arial, sans-serif');
         deptText.textContent = `${d.department || 'Unassigned'} (${workers.length})`;
@@ -422,7 +422,7 @@ export default function OrgChart() {
           workerText.setAttribute('x', '32');
           workerText.setAttribute('y', String(workerY));
           workerText.setAttribute('fill', '#334155');
-          workerText.setAttribute('font-size', '13');
+          workerText.setAttribute('font-size', '14');
           workerText.setAttribute('font-weight', 'bold');
           workerText.setAttribute('font-family', 'Arial, sans-serif');
           const displayName = worker.name.length > 16 ? worker.name.substring(0, 14) + '...' : worker.name;
