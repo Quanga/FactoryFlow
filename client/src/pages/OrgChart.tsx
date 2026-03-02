@@ -776,7 +776,10 @@ export default function OrgChart() {
     
     const treeLayout = d3.tree<TreeNode>()
       .nodeSize([NODE_WIDTH + HORIZONTAL_GAP, (maxNodeHeight + VERTICAL_GAP) / 2])
-      .separation((a, b) => a.parent === b.parent ? 1 : 1.2);
+      .separation((a, b) => {
+        if (a.parent === b.parent) return 1;
+        return 1;
+      });
     
     const tree = treeLayout(h);
     
