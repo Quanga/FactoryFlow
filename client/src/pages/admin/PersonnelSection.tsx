@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { userApi, departmentApi, userGroupApi, leaveBalanceApi, employeeTypeApi, contractHistoryApi, faceDescriptorApi, orgPositionApi } from '@/lib/api';
 import type { User, Department, UserGroup, LeaveBalance, EmployeeType, OrgPosition } from '@shared/schema';
-import { Plus, Pencil, Trash2, Mail, Camera, Loader2, CheckCircle2, UserCog, Shield, Check, X, Search, UserX, Network } from 'lucide-react';
+import { Plus, Pencil, Trash2, Mail, Camera, Loader2, CheckCircle2, UserCog, Shield, Check, X, Search, UserX, Network, ChevronDown, ChevronRight } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/lib/auth-context';
 import WebcamCapture from '@/components/WebcamCapture';
@@ -57,6 +57,14 @@ export default function PersonnelSection() {
   const [employeeSearch, setEmployeeSearch] = useState('');
   const [employeeDepartmentFilter, setEmployeeDepartmentFilter] = useState<string>('');
   const [employeeStatusFilter, setEmployeeStatusFilter] = useState<'all' | 'active' | 'terminated'>('active');
+  const [expandedEmployees, setExpandedEmployees] = useState<Set<string>>(new Set());
+  const toggleEmployeeExpanded = (id: string) => {
+    setExpandedEmployees(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
 
   // User Management State
   const [isUserDialogOpen, setIsUserDialogOpen] = useState(false);
@@ -158,6 +166,21 @@ export default function PersonnelSection() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       toast({ title: "User Deleted", description: "User has been removed from the system." });
+    },
+  });
+
+  const updateLeaveBalanceMutation = useMutation({
+    mutationFn: ({ id, total }: { id: number; total: number }) => leaveBalanceApi.update(id, { total }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leaveBalances'] });
+    },
+  });
+
+  const createLeaveBalanceMutation = useMutation({
+    mutationFn: (data: { userId: string; leaveType: string; total: number }) => leaveBalanceApi.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leaveBalances'] });
+      toast({ title: "Leave Allocated", description: "Leave balance has been created." });
     },
   });
 
@@ -479,131 +502,233 @@ export default function PersonnelSection() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredUsers.map((u) => (
-                <TableRow key={u.id}>
-                  <TableCell>
-                    <div className="w-8 h-8 rounded-full overflow-hidden bg-slate-100 border flex items-center justify-center">
-                      {u.photoUrl ? (
-                        <img src={u.photoUrl} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="text-[10px] text-slate-400 font-bold uppercase">
-                          {u.firstName[0]}{u.surname[0]}
+              {filteredUsers.map((emp) => {
+                const empBalances = leaveBalances.filter((b: LeaveBalance) => b.userId === emp.id);
+                const totalAvailable = empBalances.reduce((sum: number, b: LeaveBalance) => sum + (b.total - b.taken - b.pending), 0);
+                const isExpanded = expandedEmployees.has(emp.id);
+                return (
+                  <React.Fragment key={emp.id}>
+                    <TableRow className="cursor-pointer hover:bg-slate-50" onClick={() => toggleEmployeeExpanded(emp.id)}>
+                      <TableCell className="w-8">
+                        {isExpanded ? (
+                          <ChevronDown className="h-4 w-4 text-slate-400" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 text-slate-400" />
+                        )}
+                      </TableCell>
+                      <TableCell className="font-mono font-medium">{emp.id}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-full overflow-hidden bg-slate-100">
+                            <img src={emp.photoUrl || 'https://github.com/shadcn.png'} alt={`${emp.firstName} ${emp.surname}`} className="h-full w-full object-cover" />
+                          </div>
+                          {emp.firstName} {emp.surname}
                         </div>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="font-mono">{u.id}</TableCell>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <span className="font-medium">{u.firstName} {u.surname}</span>
-                      <span className="text-xs text-muted-foreground">{u.email || '-'}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>{u.department || '-'}</TableCell>
-                  <TableCell>{getEmploymentDuration(u.startDate)}</TableCell>
-                  <TableCell>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="h-7 text-xs flex items-center gap-1.5"
-                      onClick={() => {
-                        setSelectedEmployeeForBalance(u);
-                        setIsBalanceDialogOpen(true);
-                      }}
-                      data-testid={`button-view-balance-${u.id}`}
-                    >
-                      View Balances
-                    </Button>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={u.role === 'manager' ? 'default' : 'secondary'} className="capitalize">
-                      {u.role}
-                      {u.userGroupId && <UserCog className="ml-1 h-3 w-3 inline" />}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      {u.role === 'worker' && (
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8 text-blue-600"
-                          title="Manage Contract"
-                          onClick={() => {
-                            setContractActionUser(u);
-                            setContractAction('extend');
-                            setContractNewEndDate(u.contractEndDate || '');
-                            setContractNewTypeId(u.employeeTypeId);
-                            setContractReason('');
-                            setIsContractDialogOpen(true);
-                          }}
-                          data-testid={`button-manage-contract-${u.id}`}
-                        >
-                          <Network className="h-4 w-4" />
+                      </TableCell>
+                      <TableCell>{emp.department || '-'}</TableCell>
+                      <TableCell>
+                        <span className="text-sm" title={emp.startDate ? `Started: ${formatDateForDisplay(emp.startDate)}` : 'Start date not set'}>
+                          {getEmploymentDuration(emp.startDate)}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        {empBalances.length > 0 ? (
+                          <Badge variant={totalAvailable > 5 ? 'default' : totalAvailable > 0 ? 'secondary' : 'destructive'}>
+                            {totalAvailable} days available
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">Not set</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={emp.role === 'manager' ? 'default' : 'secondary'}>
+                          {emp.role}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                        <Button variant="ghost" size="icon" onClick={() => handleOpenEdit(emp)} title="Edit" data-testid={`button-edit-${emp.id}`}>
+                          <Pencil className="h-4 w-4 text-slate-500" />
                         </Button>
-                      )}
-                      {u.userGroupId && (
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8 text-amber-600"
-                          title="Resend Credentials"
-                          onClick={() => handleResendCredentials(u.id)}
-                          data-testid={`button-resend-${u.id}`}
-                        >
-                          <Mail className="h-4 w-4" />
+                        {!emp.terminationDate ? (
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => {
+                              setTerminationUser(emp);
+                              setTerminationDate(new Date().toISOString().split('T')[0]);
+                              setIsTerminationDialogOpen(true);
+                            }}
+                            title="Terminate"
+                            data-testid={`button-terminate-${emp.id}`}
+                          >
+                            <UserX className="h-4 w-4 text-amber-600" />
+                          </Button>
+                        ) : (
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => {
+                              updateUserMutation.mutate({ ...emp, terminationDate: null });
+                              toast({ title: "Personnel Reactivated", description: `${emp.firstName} is now active again.` });
+                            }}
+                            title="Reactivate"
+                            data-testid={`button-reactivate-${emp.id}`}
+                          >
+                            <CheckCircle2 className="h-4 w-4 text-green-600" />
+                          </Button>
+                        )}
+                        <Button variant="ghost" size="icon" onClick={() => handleDeleteUser(emp.id)} title="Delete" data-testid={`button-delete-${emp.id}`}>
+                          <Trash2 className="h-4 w-4 text-red-500" />
                         </Button>
-                      )}
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-8 w-8"
-                        onClick={() => handleOpenEdit(u)}
-                        data-testid={`button-edit-${u.id}`}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      {!u.terminationDate ? (
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8 text-amber-600"
-                          onClick={() => {
-                            setTerminationUser(u);
-                            setTerminationDate(new Date().toISOString().split('T')[0]);
-                            setIsTerminationDialogOpen(true);
-                          }}
-                          data-testid={`button-terminate-${u.id}`}
-                        >
-                          <UserX className="h-4 w-4" />
-                        </Button>
-                      ) : (
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8 text-green-600"
-                          onClick={() => {
-                            updateUserMutation.mutate({ ...u, terminationDate: null });
-                            toast({ title: "Personnel Reactivated", description: `${u.firstName} is now active again.` });
-                          }}
-                          data-testid={`button-reactivate-${u.id}`}
-                        >
-                          <CheckCircle2 className="h-4 w-4" />
-                        </Button>
-                      )}
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-8 w-8 text-destructive"
-                        onClick={() => handleDeleteUser(u.id)}
-                        data-testid={`button-delete-${u.id}`}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+                      </TableCell>
+                    </TableRow>
+                    {isExpanded && (
+                      <TableRow key={`${emp.id}-expanded`} className="bg-slate-50">
+                        <TableCell colSpan={8} className="py-4">
+                          <div className="pl-8 space-y-4">
+                            <div className="flex flex-wrap gap-8 p-3 bg-white rounded-lg border mb-4">
+                              <div>
+                                <p className="text-xs text-muted-foreground">Start Date</p>
+                                <p className="font-medium">{emp.startDate ? formatDateForDisplay(emp.startDate) : 'Not set'}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-muted-foreground">Employment Duration</p>
+                                <p className="font-medium">{getEmploymentDuration(emp.startDate)}</p>
+                              </div>
+                              {emp.employeeTypeId && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground">Employee Type</p>
+                                  <p className="font-medium">{employeeTypes.find(t => t.id === emp.employeeTypeId)?.name || '-'}</p>
+                                </div>
+                              )}
+                              {emp.managerId && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground">Manager</p>
+                                  <p className="font-medium">
+                                    {(() => {
+                                      const manager = users.find(u => u.id === emp.managerId);
+                                      return manager ? `${manager.firstName} ${manager.surname}` : '-';
+                                    })()}
+                                  </p>
+                                </div>
+                              )}
+                              {emp.secondManagerId && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground">2nd Manager</p>
+                                  <p className="font-medium">
+                                    {(() => {
+                                      const manager = users.find(u => u.id === emp.secondManagerId);
+                                      return manager ? `${manager.firstName} ${manager.surname}` : '-';
+                                    })()}
+                                  </p>
+                                </div>
+                              )}
+                              {emp.terminationDate && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground">Termination Date</p>
+                                  <p className="font-medium text-red-600">{formatDateForDisplay(emp.terminationDate)}</p>
+                                </div>
+                              )}
+                              {(() => {
+                                const empType = employeeTypes.find(t => t.id === emp.employeeTypeId);
+                                if (empType && empType.isPermanent === 'no') {
+                                  const isExpired = emp.contractEndDate && new Date(emp.contractEndDate) < new Date();
+                                  return (
+                                    <>
+                                      <div>
+                                        <p className="text-xs text-muted-foreground">Contract End Date</p>
+                                        <p className={`font-medium ${isExpired ? 'text-red-600' : ''}`}>
+                                          {emp.contractEndDate ? formatDateForDisplay(emp.contractEndDate) : 'Not set'}
+                                          {isExpired && <span className="ml-2 text-red-600 text-xs">(Expired)</span>}
+                                        </p>
+                                      </div>
+                                      <div className="flex items-end">
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setContractActionUser(emp);
+                                            setContractAction('extend');
+                                            setContractNewEndDate('');
+                                            setContractNewTypeId(null);
+                                            setContractReason('');
+                                            setIsContractDialogOpen(true);
+                                          }}
+                                          data-testid={`button-manage-contract-${emp.id}`}
+                                        >
+                                          Extend / Convert
+                                        </Button>
+                                      </div>
+                                    </>
+                                  );
+                                }
+                                return null;
+                              })()}
+                            </div>
+
+                            <p className="text-sm font-medium text-slate-700">Leave Balance Details</p>
+                            <div className="grid grid-cols-4 gap-4">
+                              {['Annual Leave', 'Sick Leave', 'Family Responsibility', 'Study Leave'].map(leaveType => {
+                                const balance = empBalances.find((b: LeaveBalance) => b.leaveType === leaveType);
+                                const available = balance ? balance.total - balance.taken - balance.pending : 0;
+                                return (
+                                  <div key={leaveType} className="p-3 bg-white rounded-lg border">
+                                    <p className="text-xs text-muted-foreground mb-1">{leaveType}</p>
+                                    {balance ? (
+                                      <>
+                                        <div className="flex items-center gap-2 mb-2">
+                                          <Badge variant={available > 0 ? 'default' : 'destructive'} className="text-lg">
+                                            {available}
+                                          </Badge>
+                                          <span className="text-xs text-muted-foreground">available</span>
+                                        </div>
+                                        <div className="text-xs text-muted-foreground space-y-1">
+                                          <div className="flex justify-between">
+                                            <span>Total:</span>
+                                            <Input 
+                                              type="number"
+                                              value={balance.total}
+                                              onChange={(e) => {
+                                                const newTotal = parseInt(e.target.value) || 0;
+                                                updateLeaveBalanceMutation.mutate({ id: balance.id, total: newTotal });
+                                              }}
+                                              className="w-16 h-6 text-xs text-right"
+                                              min={0}
+                                            />
+                                          </div>
+                                          <div className="flex justify-between"><span>Taken:</span><span>{balance.taken}</span></div>
+                                          <div className="flex justify-between"><span>Pending:</span><span>{balance.pending}</span></div>
+                                        </div>
+                                      </>
+                                    ) : (
+                                      <div className="space-y-2">
+                                        <p className="text-xs text-muted-foreground">Not allocated</p>
+                                        <Button 
+                                          size="sm" 
+                                          variant="outline"
+                                          className="w-full text-xs"
+                                          onClick={() => createLeaveBalanceMutation.mutate({ 
+                                            userId: emp.id, 
+                                            leaveType, 
+                                            total: leaveType === 'Annual Leave' ? 21 : leaveType === 'Sick Leave' ? 30 : 3 
+                                          })}
+                                        >
+                                          <Plus className="h-3 w-3 mr-1" /> Allocate
+                                        </Button>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </React.Fragment>
+                );
+              })}
               {filteredUsers.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
