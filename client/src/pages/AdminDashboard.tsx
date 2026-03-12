@@ -6090,7 +6090,16 @@ export default function AdminDashboard() {
                 <div className="col-span-3">
                   <Select 
                     value={currentUser.department || ''} 
-                    onValueChange={(value) => setCurrentUser({...currentUser, department: value})}
+                    onValueChange={(value) => {
+                      const updates: any = { department: value };
+                      if (currentUser.orgPositionId) {
+                        const currentPos = orgPositions.find(p => p.id === currentUser.orgPositionId);
+                        if (currentPos && currentPos.department !== value) {
+                          updates.orgPositionId = undefined;
+                        }
+                      }
+                      setCurrentUser({...currentUser, ...updates});
+                    }}
                   >
                     <SelectTrigger data-testid="select-department">
                       <SelectValue placeholder="Select a department" />
@@ -6183,26 +6192,46 @@ export default function AdminDashboard() {
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="orgPosition" className="text-right">Position</Label>
                 <div className="col-span-3">
-                  <Select 
-                    value={currentUser.orgPositionId ? String(currentUser.orgPositionId) : 'none'} 
-                    onValueChange={(value) => setCurrentUser({...currentUser, orgPositionId: value === 'none' ? undefined : Number(value)})}
-                  >
-                    <SelectTrigger data-testid="select-org-position">
-                      <SelectValue placeholder="Select a position (optional)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">No Position</SelectItem>
-                      {orgPositions
-                        .sort((a, b) => a.title.localeCompare(b.title))
-                        .map((pos) => (
-                          <SelectItem key={pos.id} value={String(pos.id)} data-testid={`option-position-${pos.id}`}>
-                            {pos.title}{pos.department ? ` (${pos.department})` : ''}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+                  {(() => {
+                    const filteredPositions = currentUser.department
+                      ? orgPositions.filter(p => p.department === currentUser.department)
+                      : orgPositions;
+                    return (
+                      <Select 
+                        value={currentUser.orgPositionId ? String(currentUser.orgPositionId) : 'none'} 
+                        onValueChange={(value) => {
+                          if (value === 'none') {
+                            setCurrentUser({...currentUser, orgPositionId: undefined});
+                          } else {
+                            const selectedPos = orgPositions.find(p => p.id === Number(value));
+                            const updates: any = { orgPositionId: Number(value) };
+                            if (selectedPos?.department && selectedPos.department !== currentUser.department) {
+                              updates.department = selectedPos.department;
+                            }
+                            setCurrentUser({...currentUser, ...updates});
+                          }
+                        }}
+                      >
+                        <SelectTrigger data-testid="select-org-position">
+                          <SelectValue placeholder="Select a position (optional)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No Position</SelectItem>
+                          {filteredPositions
+                            .sort((a, b) => a.title.localeCompare(b.title))
+                            .map((pos) => (
+                              <SelectItem key={pos.id} value={String(pos.id)} data-testid={`option-position-${pos.id}`}>
+                                {pos.title}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    );
+                  })()}
                   <p className="text-xs text-muted-foreground mt-1">
-                    The org chart position for this employee. Positions are defined under Org Positions.
+                    {currentUser.department 
+                      ? `Showing positions for ${currentUser.department}. Change department to see other positions.`
+                      : 'Select a department first to filter positions, or choose from all positions.'}
                   </p>
                 </div>
               </div>
