@@ -565,7 +565,7 @@ export const employeeTypeApi = {
     return res.json();
   },
 
-  async create(type: { name: string; description?: string; leaveLabel?: string; hasLeaveEntitlement?: string; isDefault?: string }): Promise<EmployeeType> {
+  async create(type: { name: string; description?: string; leaveLabel?: string; hasLeaveEntitlement?: string; isDefault?: string; isPermanent?: string }): Promise<EmployeeType> {
     const res = await fetch(`${API_BASE}/employee-types`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

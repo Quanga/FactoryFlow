@@ -1,0 +1,749 @@
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { format } from 'date-fns';
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from '@/lib/auth-context';
+import { leaveRequestApi, leaveBalanceApi, userApi } from '@/lib/api';
+import type { LeaveRequest, LeaveBalance } from '@shared/schema';
+import { FileText, Check, X, Trash2, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
+import { formatLeaveStatus, canTakeAction } from './utils';
+
+export default function LeaveRequestsSection() {
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  // State
+  const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
+  const [selectedLeaveRequest, setSelectedLeaveRequest] = useState<LeaveRequest | null>(null);
+  const [adminNotes, setAdminNotes] = useState('');
+  const [expandedLeaveBalanceEmployees, setExpandedLeaveBalanceEmployees] = useState<Set<string>>(new Set());
+
+  // Queries
+  const { data: leaveRequests = [] } = useQuery({
+    queryKey: ['leave-requests'],
+    queryFn: () => leaveRequestApi.getAll(),
+  });
+
+  const { data: leaveBalances = [] } = useQuery({
+    queryKey: ['leave-balances'],
+    queryFn: () => leaveBalanceApi.getAll(),
+  });
+
+  const { data: users = [] } = useQuery({
+    queryKey: ['users'],
+    queryFn: userApi.getAll,
+  });
+
+  // Mutations
+  const managerDecisionMutation = useMutation({
+    mutationFn: ({ id, decision, notes }: { id: number; decision: 'approved' | 'rejected'; notes?: string }) => 
+      leaveRequestApi.managerDecision(id, user?.id || '', decision, notes),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['leave-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['leave-balances'] });
+      setAdminNotes('');
+      setIsReviewDialogOpen(false);
+      toast({ 
+        title: variables.decision === 'approved' ? "Request Approved" : "Request Rejected", 
+        description: variables.decision === 'approved' 
+          ? "Leave request has been approved and forwarded to HR for review." 
+          : "Leave request has been rejected and the employee will be notified."
+      });
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Error", description: error.message || "Failed to process decision" });
+    },
+  });
+
+  const hrDecisionMutation = useMutation({
+    mutationFn: ({ id, decision, notes }: { id: number; decision: 'approved' | 'rejected'; notes?: string }) => 
+      leaveRequestApi.hrDecision(id, user?.id || '', decision, notes),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['leave-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['leave-balances'] });
+      setAdminNotes('');
+      setIsReviewDialogOpen(false);
+      toast({ 
+        title: variables.decision === 'approved' ? "Request Approved" : "Request Rejected", 
+        description: variables.decision === 'approved' 
+          ? "Leave request has been approved and forwarded to MD for final approval." 
+          : "Leave request has been rejected and the employee will be notified."
+      });
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Error", description: error.message || "Failed to process decision" });
+    },
+  });
+
+  const mdDecisionMutation = useMutation({
+    mutationFn: ({ id, decision, notes, bypassHR }: { id: number; decision: 'approved' | 'rejected'; notes?: string; bypassHR?: boolean }) => 
+      leaveRequestApi.mdDecision(id, user?.id || '', decision, notes, bypassHR),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['leave-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['leave-balances'] });
+      setAdminNotes('');
+      setIsReviewDialogOpen(false);
+      toast({ 
+        title: variables.decision === 'approved' ? "Request Approved" : "Request Rejected", 
+        description: variables.decision === 'approved' 
+          ? "Leave request has been fully approved and the employee will be notified." 
+          : "Leave request has been rejected and the employee will be notified."
+      });
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Error", description: error.message || "Failed to process decision" });
+    },
+  });
+
+  const adminCancelMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: number; reason?: string }) => 
+      leaveRequestApi.adminCancel(id, user?.id || '', reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leave-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['leave-balances'] });
+      setAdminNotes('');
+      setIsReviewDialogOpen(false);
+      toast({ title: "Leave Request Cancelled", description: "The request has been cancelled and leave balance adjusted." });
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Error", description: error.message || "Failed to cancel request" });
+    },
+  });
+
+  const permanentDeleteMutation = useMutation({
+    mutationFn: leaveRequestApi.permanentDelete,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leave-requests'] });
+      toast({ title: "Request Deleted", description: "The leave request has been permanently deleted." });
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Error", description: error.message || "Failed to delete request" });
+    },
+  });
+
+  const toggleLeaveBalanceEmployeeExpanded = (userId: string) => {
+    setExpandedLeaveBalanceEmployees(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(userId)) {
+        newSet.delete(userId);
+      } else {
+        newSet.add(userId);
+      }
+      return newSet;
+    });
+  };
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h1 className="text-3xl font-heading font-bold text-slate-900">Leave Requests</h1>
+        <p className="text-muted-foreground">Review and approve/reject employee leave requests</p>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Leave Requests</CardTitle>
+          <CardDescription>Review and approve/reject employee leave requests</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {leaveRequests.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No leave requests found.
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Employee</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Dates</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {leaveRequests.map((request: LeaveRequest) => {
+                  const employee = users.find(u => u.id === request.userId);
+                  const statusInfo = formatLeaveStatus(request.status);
+                  const actionInfo = canTakeAction(request);
+                  return (
+                    <TableRow key={request.id} data-testid={`row-leave-request-${request.id}`}>
+                      <TableCell className="font-medium">
+                        {employee ? `${employee.firstName} ${employee.surname}` : request.userId}
+                      </TableCell>
+                      <TableCell className="capitalize">{request.leaveType.replace('_', ' ')}</TableCell>
+                      <TableCell>
+                        {format(new Date(request.startDate), 'MMM d')} - {format(new Date(request.endDate), 'MMM d, yyyy')}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={statusInfo.variant}>
+                          {statusInfo.label}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => {
+                            setSelectedLeaveRequest(request);
+                            setAdminNotes('');
+                            setIsReviewDialogOpen(true);
+                          }}
+                          data-testid={`button-review-${request.id}`}
+                          title="Review"
+                        >
+                          <FileText className="h-4 w-4 text-blue-500" />
+                        </Button>
+                        {actionInfo.canAct && (
+                          <>
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              onClick={() => {
+                                if (actionInfo.role === 'manager') {
+                                  managerDecisionMutation.mutate({ id: request.id, decision: 'approved' });
+                                } else if (actionInfo.role === 'hr') {
+                                  hrDecisionMutation.mutate({ id: request.id, decision: 'approved' });
+                                } else if (actionInfo.role === 'md') {
+                                  mdDecisionMutation.mutate({ id: request.id, decision: 'approved' });
+                                }
+                              }}
+                              data-testid={`button-approve-${request.id}`}
+                              title={`Approve (${actionInfo.stage})`}
+                            >
+                              <Check className="h-4 w-4 text-green-500" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              onClick={() => {
+                                if (actionInfo.role === 'manager') {
+                                  managerDecisionMutation.mutate({ id: request.id, decision: 'rejected' });
+                                } else if (actionInfo.role === 'hr') {
+                                  hrDecisionMutation.mutate({ id: request.id, decision: 'rejected' });
+                                } else if (actionInfo.role === 'md') {
+                                  mdDecisionMutation.mutate({ id: request.id, decision: 'rejected' });
+                                }
+                              }}
+                              data-testid={`button-reject-${request.id}`}
+                              title="Reject"
+                            >
+                              <X className="h-4 w-4 text-red-500" />
+                            </Button>
+                          </>
+                        )}
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => {
+                            if (confirm('Are you sure you want to permanently delete this leave request? This action cannot be undone.')) {
+                              permanentDeleteMutation.mutate(request.id);
+                            }
+                          }}
+                          data-testid={`button-delete-${request.id}`}
+                          title="Permanently Delete"
+                        >
+                          <Trash2 className="h-4 w-4 text-red-600" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Leave Balances</CardTitle>
+          <CardDescription>View and manage employee leave balances - click employee name to expand</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {leaveBalances.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No leave balances found.
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-8"></TableHead>
+                  <TableHead>Employee</TableHead>
+                  <TableHead>Total Days</TableHead>
+                  <TableHead>Taken</TableHead>
+                  <TableHead>Pending</TableHead>
+                  <TableHead>Available</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(() => {
+                  const employeeBalances = new Map<string, LeaveBalance[]>();
+                  leaveBalances.forEach((balance: LeaveBalance) => {
+                    const existing = employeeBalances.get(balance.userId) || [];
+                    existing.push(balance);
+                    employeeBalances.set(balance.userId, existing);
+                  });
+                  
+                  return Array.from(employeeBalances.entries()).map(([userId, balances]) => {
+                    const employee = users.find(u => u.id === userId);
+                    const isExpanded = expandedLeaveBalanceEmployees.has(userId);
+                    const totalDays = balances.reduce((sum, b) => sum + b.total, 0);
+                    const totalTaken = balances.reduce((sum, b) => sum + b.taken, 0);
+                    const totalPending = balances.reduce((sum, b) => sum + b.pending, 0);
+                    const totalAvailable = totalDays - totalTaken - totalPending;
+                    
+                    return (
+                      <React.Fragment key={userId}>
+                        <TableRow 
+                          className="cursor-pointer hover:bg-slate-50"
+                          onClick={() => toggleLeaveBalanceEmployeeExpanded(userId)}
+                          data-testid={`row-balance-employee-${userId}`}
+                        >
+                          <TableCell>
+                            {isExpanded ? (
+                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                            )}
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {employee ? `${employee.firstName} ${employee.surname}` : userId}
+                          </TableCell>
+                          <TableCell>{totalDays}</TableCell>
+                          <TableCell>{totalTaken}</TableCell>
+                          <TableCell>{totalPending}</TableCell>
+                          <TableCell>
+                            <Badge variant={totalAvailable > 0 ? 'default' : 'destructive'}>
+                              {totalAvailable}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                        
+                        {isExpanded && balances.map((balance) => {
+                          const available = balance.total - balance.taken - balance.pending;
+                          return (
+                            <TableRow key={balance.id} className="bg-slate-50/50" data-testid={`row-balance-detail-${balance.id}`}>
+                              <TableCell></TableCell>
+                              <TableCell className="pl-8 text-muted-foreground capitalize">
+                                {balance.leaveType.replace('_', ' ')}
+                              </TableCell>
+                              <TableCell>{balance.total}</TableCell>
+                              <TableCell>{balance.taken}</TableCell>
+                              <TableCell>{balance.pending}</TableCell>
+                              <TableCell>
+                                <Badge variant={available > 0 ? 'outline' : 'destructive'} className="text-xs">
+                                  {available}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </React.Fragment>
+                    );
+                  });
+                })()}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={isReviewDialogOpen} onOpenChange={setIsReviewDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Leave Request Details</DialogTitle>
+          </DialogHeader>
+          {selectedLeaveRequest && (() => {
+            const employee = users.find(u => u.id === selectedLeaveRequest.userId);
+            const employeeLeaveBalances = leaveBalances.filter((b: LeaveBalance) => b.userId === selectedLeaveRequest.userId);
+            const relevantBalance = employeeLeaveBalances.find((b: LeaveBalance) => b.leaveType === selectedLeaveRequest.leaveType);
+            const availableDays = relevantBalance ? relevantBalance.total - relevantBalance.taken - relevantBalance.pending : 0;
+            
+            return (
+              <div className="space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-muted-foreground text-sm">Employee</Label>
+                    <p className="font-medium">{employee ? `${employee.firstName} ${employee.surname}` : selectedLeaveRequest.userId}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground text-sm">Leave Type</Label>
+                    <p className="font-medium capitalize">{selectedLeaveRequest.leaveType.replace('_', ' ')}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground text-sm">Start Date</Label>
+                    <p className="font-medium">{format(new Date(selectedLeaveRequest.startDate), 'MMMM d, yyyy')}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground text-sm">End Date</Label>
+                    <p className="font-medium">{format(new Date(selectedLeaveRequest.endDate), 'MMMM d, yyyy')}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground text-sm">Status</Label>
+                    <Badge variant={formatLeaveStatus(selectedLeaveRequest.status).variant}>
+                      {formatLeaveStatus(selectedLeaveRequest.status).label}
+                    </Badge>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground text-sm">Submitted</Label>
+                    <p className="font-medium">{format(new Date(selectedLeaveRequest.createdAt), 'MMM d, yyyy h:mm a')}</p>
+                  </div>
+                </div>
+                
+                <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                  <Label className="text-green-800 text-sm font-medium">Employee Leave Balance ({selectedLeaveRequest.leaveType.replace('_', ' ')})</Label>
+                  <div className="grid grid-cols-4 gap-2 mt-2 text-sm">
+                    <div className="text-center p-2 bg-white rounded">
+                      <p className="text-muted-foreground text-xs">Total</p>
+                      <p className="font-semibold">{relevantBalance?.total || 0}</p>
+                    </div>
+                    <div className="text-center p-2 bg-white rounded">
+                      <p className="text-muted-foreground text-xs">Taken</p>
+                      <p className="font-semibold text-amber-600">{relevantBalance?.taken || 0}</p>
+                    </div>
+                    <div className="text-center p-2 bg-white rounded">
+                      <p className="text-muted-foreground text-xs">Pending</p>
+                      <p className="font-semibold text-blue-600">{relevantBalance?.pending || 0}</p>
+                    </div>
+                    <div className="text-center p-2 bg-white rounded">
+                      <p className="text-muted-foreground text-xs">Available</p>
+                      <p className={`font-semibold ${availableDays > 0 ? 'text-green-600' : 'text-red-600'}`}>{availableDays}</p>
+                    </div>
+                  </div>
+                  {availableDays <= 0 && (
+                    <p className="text-red-600 text-xs mt-2 font-medium">Warning: Employee has no available leave for this type!</p>
+                  )}
+                </div>
+
+                <div>
+                  <Label className="text-muted-foreground text-sm">Reason</Label>
+                  <div className="mt-1 p-3 bg-slate-50 rounded-lg border">
+                    <p>{selectedLeaveRequest.reason || 'No reason provided'}</p>
+                  </div>
+                </div>
+
+                {selectedLeaveRequest.comments && (
+                  <div>
+                    <Label className="text-muted-foreground text-sm">Additional Comments from Employee</Label>
+                    <div className="mt-1 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                      <p className="text-blue-800">{selectedLeaveRequest.comments}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Approval History Section */}
+                {(selectedLeaveRequest.managerNotes || selectedLeaveRequest.hrNotes || selectedLeaveRequest.mdNotes) && (
+                  <div className="space-y-3">
+                    <Label className="text-muted-foreground text-sm">Approval History</Label>
+                    
+                    {selectedLeaveRequest.managerNotes && (
+                      <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Badge variant="outline" className="text-xs bg-purple-100 text-purple-700 border-purple-300">Manager Review</Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {selectedLeaveRequest.managerDecision === 'approved' ? '✓ Approved' : '✗ Rejected'}
+                            {selectedLeaveRequest.managerDecisionAt && ` on ${format(new Date(selectedLeaveRequest.managerDecisionAt), 'MMM d, yyyy')}`}
+                          </span>
+                        </div>
+                        <p className="text-sm text-purple-800">{selectedLeaveRequest.managerNotes}</p>
+                        {selectedLeaveRequest.managerApproverId && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            By: {users.find(u => u.id === selectedLeaveRequest.managerApproverId)?.firstName} {users.find(u => u.id === selectedLeaveRequest.managerApproverId)?.surname}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {selectedLeaveRequest.hrNotes && (
+                      <div className="p-3 bg-cyan-50 rounded-lg border border-cyan-200">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Badge variant="outline" className="text-xs bg-cyan-100 text-cyan-700 border-cyan-300">HR Review</Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {selectedLeaveRequest.hrDecision === 'approved' ? '✓ Approved' : '✗ Rejected'}
+                            {selectedLeaveRequest.hrDecisionAt && ` on ${format(new Date(selectedLeaveRequest.hrDecisionAt), 'MMM d, yyyy')}`}
+                          </span>
+                        </div>
+                        <p className="text-sm text-cyan-800">{selectedLeaveRequest.hrNotes}</p>
+                        {selectedLeaveRequest.hrApproverId && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            By: {users.find(u => u.id === selectedLeaveRequest.hrApproverId)?.firstName} {users.find(u => u.id === selectedLeaveRequest.hrApproverId)?.surname}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {selectedLeaveRequest.mdNotes && (
+                      <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Badge variant="outline" className="text-xs bg-amber-100 text-amber-700 border-amber-300">MD Review</Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {selectedLeaveRequest.mdDecision === 'approved' ? '✓ Approved' : '✗ Rejected'}
+                            {selectedLeaveRequest.mdDecisionAt && ` on ${format(new Date(selectedLeaveRequest.mdDecisionAt), 'MMM d, yyyy')}`}
+                          </span>
+                        </div>
+                        <p className="text-sm text-amber-800">{selectedLeaveRequest.mdNotes}</p>
+                        {selectedLeaveRequest.mdApproverId && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            By: {users.find(u => u.id === selectedLeaveRequest.mdApproverId)?.firstName} {users.find(u => u.id === selectedLeaveRequest.mdApproverId)?.surname}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {selectedLeaveRequest.documents && selectedLeaveRequest.documents.length > 0 && (
+                  <div>
+                    <Label className="text-muted-foreground text-sm">Supporting Documents</Label>
+                    <div className="mt-2 space-y-2">
+                      {selectedLeaveRequest.documents.map((doc, index) => {
+                        const isPdf = doc.includes('application/pdf') || doc.includes('.pdf');
+                        const isImage = doc.includes('image/');
+                        
+                        const openDocument = () => {
+                          if (doc.startsWith('data:')) {
+                            const byteString = atob(doc.split(',')[1]);
+                            const mimeType = doc.split(',')[0].split(':')[1].split(';')[0];
+                            const ab = new ArrayBuffer(byteString.length);
+                            const ia = new Uint8Array(ab);
+                            for (let i = 0; i < byteString.length; i++) {
+                              ia[i] = byteString.charCodeAt(i);
+                            }
+                            const blob = new Blob([ab], { type: mimeType });
+                            const url = URL.createObjectURL(blob);
+                            window.open(url, '_blank');
+                          } else {
+                            window.open(doc, '_blank');
+                          }
+                        };
+                        
+                        return (
+                          <button 
+                            key={index} 
+                            onClick={openDocument}
+                            className="flex items-center gap-2 p-2 bg-slate-50 rounded-lg border w-full text-left hover:bg-slate-100 transition-colors"
+                          >
+                            <FileText className="h-4 w-4 text-blue-500" />
+                            <span className="text-blue-600 hover:underline">
+                              {isPdf ? `PDF Document ${index + 1}` : isImage ? `Image ${index + 1}` : `Document ${index + 1}`}
+                              <span className="text-xs text-muted-foreground ml-2">(Click to view)</span>
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Admin Cancel for completed requests (approved/rejected) */}
+                {['approved', 'rejected'].includes(selectedLeaveRequest.status) && (
+                  <div className="mt-4 p-4 bg-red-50 rounded-lg border border-red-200">
+                    <p className="text-sm text-red-700 mb-2 font-medium">Admin Cancel</p>
+                    <p className="text-xs text-red-600 mb-3">
+                      {selectedLeaveRequest.status === 'approved' 
+                        ? "Cancelling this approved leave will credit the leave days back to the employee's balance."
+                        : "Cancel this rejected request if needed."}
+                    </p>
+                    <Button 
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => {
+                        if (confirm('Are you sure you want to cancel this leave request?' + 
+                          (selectedLeaveRequest.status === 'approved' ? ' The leave days will be credited back to the employee.' : ''))) {
+                          adminCancelMutation.mutate({ 
+                            id: selectedLeaveRequest.id, 
+                            reason: 'Cancelled by admin'
+                          });
+                        }
+                      }}
+                      disabled={adminCancelMutation.isPending}
+                    >
+                      {adminCancelMutation.isPending ? (
+                        <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cancelling...</>
+                      ) : (
+                        <><X className="mr-2 h-4 w-4" /> Cancel Leave Request</>
+                      )}
+                    </Button>
+                  </div>
+                )}
+
+                {(() => {
+                  const actionInfo = canTakeAction(selectedLeaveRequest);
+                  if (!actionInfo.canAct) return null;
+                  
+                  return (
+                    <>
+                      <div className="bg-blue-50 p-3 rounded-lg border border-blue-200 mb-4">
+                        <p className="text-sm text-blue-800">
+                          <strong>Current Stage:</strong> {actionInfo.stage}
+                        </p>
+                        {actionInfo.role === 'hr' && (
+                          <p className="text-xs text-blue-600 mt-1">
+                            Note: MD can bypass this stage if needed
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <Label htmlFor="adminNotes" className="text-sm">
+                          Review Comments <span className="text-red-500">*</span>
+                        </Label>
+                        <p className="text-xs text-muted-foreground mb-1">
+                          {actionInfo.role === 'manager' 
+                            ? 'Assess workload impact and provide comments for HR/MD review' 
+                            : actionInfo.role === 'hr'
+                            ? 'Review manager comments and add HR assessment for MD'
+                            : 'Review all previous comments and provide final decision notes'}
+                        </p>
+                        <Textarea
+                          id="adminNotes"
+                          placeholder={actionInfo.role === 'manager' 
+                            ? "Assess workload impact: Can this leave be accommodated? Any concerns for the team?"
+                            : actionInfo.role === 'hr'
+                            ? "HR assessment: Leave balance verification, policy compliance, any concerns?"
+                            : "Final review: Overall assessment considering all previous comments"}
+                          className={`mt-1 min-h-[80px] ${!adminNotes.trim() ? 'border-red-300' : ''}`}
+                          value={adminNotes}
+                          onChange={(e) => setAdminNotes(e.target.value)}
+                          data-testid="input-admin-notes"
+                        />
+                        {!adminNotes.trim() && (
+                          <p className="text-xs text-red-500 mt-1">Comments are required before making a decision</p>
+                        )}
+                      </div>
+                      <div className="flex justify-end gap-2 pt-4 border-t">
+                        <Button 
+                          variant="outline"
+                          disabled={!adminNotes.trim()}
+                          onClick={() => {
+                            if (!adminNotes.trim()) {
+                              toast({ variant: "destructive", title: "Comments Required", description: "Please add comments before rejecting" });
+                              return;
+                            }
+                            if (actionInfo.role === 'manager') {
+                              managerDecisionMutation.mutate({ 
+                                id: selectedLeaveRequest.id, 
+                                decision: 'rejected',
+                                notes: adminNotes
+                              });
+                            } else if (actionInfo.role === 'hr') {
+                              hrDecisionMutation.mutate({ 
+                                id: selectedLeaveRequest.id, 
+                                decision: 'rejected',
+                                notes: adminNotes
+                              });
+                            } else if (actionInfo.role === 'md') {
+                              mdDecisionMutation.mutate({ 
+                                id: selectedLeaveRequest.id, 
+                                decision: 'rejected',
+                                notes: adminNotes
+                              });
+                            }
+                          }}
+                          className="text-red-600 border-red-200 hover:bg-red-50"
+                        >
+                          <X className="mr-2 h-4 w-4" /> Reject
+                        </Button>
+                        <Button 
+                          disabled={!adminNotes.trim()}
+                          onClick={() => {
+                            if (!adminNotes.trim()) {
+                              toast({ variant: "destructive", title: "Comments Required", description: "Please add comments before approving" });
+                              return;
+                            }
+                            if (actionInfo.role === 'manager') {
+                              managerDecisionMutation.mutate({ 
+                                id: selectedLeaveRequest.id, 
+                                decision: 'approved',
+                                notes: adminNotes
+                              });
+                            } else if (actionInfo.role === 'hr') {
+                              hrDecisionMutation.mutate({ 
+                                id: selectedLeaveRequest.id, 
+                                decision: 'approved',
+                                notes: adminNotes
+                              });
+                            } else if (actionInfo.role === 'md') {
+                              mdDecisionMutation.mutate({ 
+                                id: selectedLeaveRequest.id, 
+                                decision: 'approved',
+                                notes: adminNotes
+                              });
+                            }
+                          }}
+                          className="bg-green-600 hover:bg-green-700"
+                        >
+                          <Check className="mr-2 h-4 w-4" /> {actionInfo.role === 'md' ? 'Approve (Final)' : 'Approve & Forward'}
+                        </Button>
+                        {actionInfo.role === 'md' && selectedLeaveRequest.status === 'pending_hr' && (
+                          <Button 
+                            disabled={!adminNotes.trim()}
+                            onClick={() => {
+                              if (!adminNotes.trim()) {
+                                toast({ variant: "destructive", title: "Comments Required", description: "Please add comments before approving" });
+                                return;
+                              }
+                              mdDecisionMutation.mutate({ 
+                                id: selectedLeaveRequest.id, 
+                                decision: 'approved',
+                                notes: adminNotes,
+                                bypassHR: true
+                              });
+                            }}
+                            className="bg-purple-600 hover:bg-purple-700"
+                          >
+                            <Check className="mr-2 h-4 w-4" /> Bypass HR & Approve
+                          </Button>
+                        )}
+                      </div>
+                      
+                      {selectedLeaveRequest.status !== 'cancelled' && selectedLeaveRequest.status !== 'rejected' && (
+                        <div className="mt-4 pt-4 border-t border-red-200 bg-red-50 -m-4 p-4 rounded-b-lg">
+                          <p className="text-sm text-red-700 mb-2 font-medium">Admin Cancel</p>
+                          <p className="text-xs text-red-600 mb-3">
+                            {selectedLeaveRequest.status === 'approved' 
+                              ? "Cancelling this approved leave will credit the leave days back to the employee's balance."
+                              : "Cancel this leave request completely."}
+                          </p>
+                          <Button 
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => {
+                              if (confirm('Are you sure you want to cancel this leave request?' + 
+                                (selectedLeaveRequest.status === 'approved' ? ' The leave days will be credited back to the employee.' : ''))) {
+                                adminCancelMutation.mutate({ 
+                                  id: selectedLeaveRequest.id, 
+                                  reason: adminNotes || 'Cancelled by admin'
+                                });
+                              }
+                            }}
+                            disabled={adminCancelMutation.isPending}
+                          >
+                            {adminCancelMutation.isPending ? (
+                              <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Cancelling...</>
+                            ) : (
+                              <><X className="mr-2 h-4 w-4" /> Cancel Leave Request</>
+                            )}
+                          </Button>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

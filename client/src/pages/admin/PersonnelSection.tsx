@@ -1,0 +1,1336 @@
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { userApi, departmentApi, userGroupApi, leaveBalanceApi, employeeTypeApi, contractHistoryApi, faceDescriptorApi, orgPositionApi } from '@/lib/api';
+import type { User, Department, UserGroup, LeaveBalance, EmployeeType, OrgPosition } from '@shared/schema';
+import { Plus, Pencil, Trash2, Mail, Camera, Loader2, CheckCircle2, UserCog, Shield, Check, X, Search, UserX, Network } from 'lucide-react';
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from '@/lib/auth-context';
+import WebcamCapture from '@/components/WebcamCapture';
+import MultiAngleFaceCapture from '@/components/MultiAngleFaceCapture';
+import { loadFaceModels, extractFaceDescriptorFromBase64, descriptorToJson } from '@/lib/face-recognition';
+import { formatDateForDisplay, getEmploymentDuration, generatePassword } from './utils';
+
+export default function PersonnelSection() {
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  const { data: users = [] } = useQuery({
+    queryKey: ['users'],
+    queryFn: userApi.getAll,
+  });
+
+  const { data: departments = [] } = useQuery({
+    queryKey: ['departments'],
+    queryFn: departmentApi.getAll,
+  });
+
+  const { data: userGroups = [] } = useQuery({
+    queryKey: ['userGroups'],
+    queryFn: userGroupApi.getAll,
+  });
+
+  const { data: employeeTypes = [] } = useQuery({
+    queryKey: ['employeeTypes'],
+    queryFn: employeeTypeApi.getAll,
+  });
+
+  const { data: leaveBalances = [] } = useQuery({
+    queryKey: ['leave-balances'],
+    queryFn: () => leaveBalanceApi.getAll(),
+  });
+
+  const { data: orgPositions = [] } = useQuery<OrgPosition[]>({
+    queryKey: ['org-positions'],
+    queryFn: () => orgPositionApi.getAll(),
+  });
+
+  // Employee Search State
+  const [employeeSearch, setEmployeeSearch] = useState('');
+  const [employeeDepartmentFilter, setEmployeeDepartmentFilter] = useState<string>('');
+  const [employeeStatusFilter, setEmployeeStatusFilter] = useState<'all' | 'active' | 'terminated'>('active');
+
+  // User Management State
+  const [isUserDialogOpen, setIsUserDialogOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<Partial<User>>({});
+  const [isEditing, setIsEditing] = useState(false);
+  const [isCapturingPhoto, setIsCapturingPhoto] = useState(false);
+  const [isMultiAngleCapture, setIsMultiAngleCapture] = useState(false);
+  const [extractingFace, setExtractingFace] = useState(false);
+  const [faceExtracted, setFaceExtracted] = useState(false);
+  const [pendingMultiAnglePhotos, setPendingMultiAnglePhotos] = useState<Array<{ angle: string; image: string; descriptor: string | null }>>([]);
+
+  // Admin User Creation State
+  const [isAdminDialogOpen, setIsAdminDialogOpen] = useState(false);
+  const [adminData, setAdminData] = useState<{
+    firstName: string;
+    surname: string;
+    email: string;
+    password: string;
+    userGroupId?: number;
+  }>({ firstName: '', surname: '', email: '', password: '' });
+
+  // Employee Balance View State
+  const [isBalanceDialogOpen, setIsBalanceDialogOpen] = useState(false);
+  const [selectedEmployeeForBalance, setSelectedEmployeeForBalance] = useState<User | null>(null);
+
+  // Contract Management State
+  const [isContractDialogOpen, setIsContractDialogOpen] = useState(false);
+  const [contractActionUser, setContractActionUser] = useState<User | null>(null);
+  const [contractAction, setContractAction] = useState<'extend' | 'convert'>('extend');
+  const [contractNewEndDate, setContractNewEndDate] = useState('');
+  const [contractNewTypeId, setContractNewTypeId] = useState<number | null>(null);
+  const [contractReason, setContractReason] = useState('');
+
+  // Termination State
+  const [isTerminationDialogOpen, setIsTerminationDialogOpen] = useState(false);
+  const [terminationUser, setTerminationUser] = useState<User | null>(null);
+  const [terminationDate, setTerminationDate] = useState('');
+
+  const saveAdditionalFaceDescriptors = async (userId: string) => {
+    if (pendingMultiAnglePhotos.length === 0) return;
+    
+    for (const photo of pendingMultiAnglePhotos) {
+      if (photo.descriptor) {
+        try {
+          await faceDescriptorApi.create({
+            userId,
+            descriptor: photo.descriptor,
+            label: photo.angle,
+            photoData: photo.image,
+          });
+        } catch (err) {
+          console.error(`Failed to save ${photo.angle} descriptor:`, err);
+        }
+      }
+    }
+    setPendingMultiAnglePhotos([]);
+  };
+
+  const createUserMutation = useMutation({
+    mutationFn: userApi.create,
+    onSuccess: async (createdUser) => {
+      if (createdUser?.id && pendingMultiAnglePhotos.length > 0) {
+        await saveAdditionalFaceDescriptors(createdUser.id);
+      }
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      toast({ title: "User Created", description: "User has been added successfully." });
+      setIsUserDialogOpen(false);
+      setCurrentUser({});
+      setIsEditing(false);
+      setIsCapturingPhoto(false);
+    },
+    onError: (error: any) => {
+      console.error('Create user error:', error);
+      toast({ variant: "destructive", title: "Error Creating User", description: error.message || "Failed to create user. Please try again." });
+    },
+  });
+
+  const updateUserMutation = useMutation({
+    mutationFn: ({ id, ...data }: any) => userApi.update(id, data),
+    onSuccess: async (_, variables) => {
+      if (variables?.id && pendingMultiAnglePhotos.length > 0) {
+        await saveAdditionalFaceDescriptors(variables.id);
+      }
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      toast({ title: "User Updated", description: "User has been updated successfully." });
+      setIsUserDialogOpen(false);
+      setCurrentUser({});
+      setIsEditing(false);
+      setIsCapturingPhoto(false);
+    },
+    onError: (error: any) => {
+      console.error('Update user error:', error);
+      toast({ variant: "destructive", title: "Error Updating User", description: error.message || "Failed to update user. Please try again." });
+    },
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: userApi.delete,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      toast({ title: "User Deleted", description: "User has been removed from the system." });
+    },
+  });
+
+  const handleSaveUser = () => {
+    if (!currentUser.firstName || !currentUser.surname || !currentUser.id) {
+      toast({ variant: "destructive", title: "Error", description: "First name, surname, and ID are required" });
+      return;
+    }
+    
+    const role = currentUser.role || 'worker';
+    
+    if (role === 'worker' && !currentUser.department) {
+      toast({ variant: "destructive", title: "Error", description: "Department is required for workers" });
+      return;
+    }
+    
+    if (currentUser.userGroupId && !currentUser.email) {
+      toast({ variant: "destructive", title: "Error", description: "Email is required for admin users" });
+      return;
+    }
+    
+    if (currentUser.userGroupId && !isEditing && !currentUser.password) {
+      toast({ variant: "destructive", title: "Error", description: "Password is required for new admin users" });
+      return;
+    }
+
+    const userData = { 
+      ...currentUser, 
+      role,
+      photoUrl: currentUser.photoUrl || 'https://github.com/shadcn.png',
+      employeeTypeId: currentUser.employeeTypeId || null,
+      nationalId: currentUser.nationalId || null,
+      taxNumber: currentUser.taxNumber || null,
+      nextOfKin: currentUser.nextOfKin || null,
+      emergencyNumber: currentUser.emergencyNumber || null,
+      startDate: currentUser.startDate || null,
+      userGroupId: currentUser.userGroupId || null,
+      managerId: currentUser.managerId || null,
+      orgPositionId: currentUser.orgPositionId || null,
+      exclude: currentUser.exclude || false,
+    };
+
+    if (isEditing) {
+      updateUserMutation.mutate(userData);
+    } else {
+      createUserMutation.mutate(userData);
+    }
+  };
+
+  const handlePhotoCapture = async (imageSrc: string) => {
+    setCurrentUser({ ...currentUser, photoUrl: imageSrc });
+    setIsCapturingPhoto(false);
+    setExtractingFace(true);
+    setFaceExtracted(false);
+    
+    try {
+      await loadFaceModels();
+      const descriptor = await extractFaceDescriptorFromBase64(imageSrc);
+      
+      if (descriptor) {
+        const faceDescriptor = descriptorToJson(descriptor);
+        setCurrentUser(prev => ({ ...prev, photoUrl: imageSrc, faceDescriptor }));
+        setFaceExtracted(true);
+        toast({ title: "Face Detected", description: "Identity verified for recognition." });
+      } else {
+        toast({ variant: "destructive", title: "No Face Detected", description: "Please ensure your face is clearly visible." });
+      }
+    } catch (error) {
+      toast({ variant: "destructive", title: "Error", description: "Failed to process face." });
+    } finally {
+      setExtractingFace(false);
+    }
+  };
+
+  const handleMultiAngleCaptureComplete = async (
+    photos: Array<{ angle: string; image: string; descriptor: string | null }>,
+    primaryPhoto: string,
+    primaryDescriptor: string
+  ) => {
+    setCurrentUser(prev => ({ 
+      ...prev, 
+      photoUrl: primaryPhoto, 
+      faceDescriptor: primaryDescriptor 
+    }));
+    setIsMultiAngleCapture(false);
+    setFaceExtracted(true);
+    
+    const additionalPhotos = photos.filter(p => p.descriptor && p.angle !== 'center');
+    setPendingMultiAnglePhotos(additionalPhotos);
+    
+    const capturedCount = photos.filter(p => p.descriptor).length;
+    toast({ 
+      title: "Face Registration Complete", 
+      description: `Captured ${capturedCount} face angles for improved recognition accuracy.` 
+    });
+  };
+
+  const handleDeleteUser = (id: string) => {
+    if (confirm('Are you sure you want to delete this user?')) {
+      deleteUserMutation.mutate(id);
+    }
+  };
+
+  const handleResendCredentials = async (id: string) => {
+    try {
+      const result = await userApi.resendCredentials(id);
+      toast({ title: "Email Sent", description: result.message });
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Error", description: error.message || "Failed to send credentials email" });
+    }
+  };
+
+  const handleOpenEdit = (user: User) => {
+    setCurrentUser(user);
+    setIsEditing(true);
+    setIsUserDialogOpen(true);
+    setFaceExtracted(!!user.faceDescriptor);
+    setExtractingFace(false);
+    setIsCapturingPhoto(false);
+  };
+
+  const handleOpenCreate = () => {
+    setCurrentUser({});
+    setIsEditing(false);
+    setIsUserDialogOpen(true);
+    setFaceExtracted(false);
+    setExtractingFace(false);
+    setIsCapturingPhoto(false);
+  };
+
+  const handleContractAction = async () => {
+    if (!contractActionUser || !user) return;
+    
+    try {
+      const previousType = employeeTypes.find(t => t.id === contractActionUser.employeeTypeId);
+      const newType = contractNewTypeId ? employeeTypes.find(t => t.id === contractNewTypeId) : null;
+      
+      if (contractAction === 'extend') {
+        if (!contractNewEndDate) {
+          toast({ variant: "destructive", title: "Error", description: "New end date is required for contract extension" });
+          return;
+        }
+        
+        await userApi.update(contractActionUser.id, { contractEndDate: contractNewEndDate });
+        
+        await contractHistoryApi.create(contractActionUser.id, {
+          action: 'extended',
+          previousEmployeeTypeId: contractActionUser.employeeTypeId,
+          newEmployeeTypeId: contractActionUser.employeeTypeId,
+          previousEndDate: contractActionUser.contractEndDate,
+          newEndDate: contractNewEndDate,
+          reason: contractReason || 'Contract extended',
+          performedBy: user.id,
+        });
+        
+        toast({ title: "Success", description: "Contract extended successfully" });
+      } else {
+        if (!contractNewTypeId) {
+          toast({ variant: "destructive", title: "Error", description: "Please select a new employee type" });
+          return;
+        }
+        
+        const isNewTypePermanent = newType?.isPermanent === 'yes';
+        const updateData: Partial<User> = { 
+          employeeTypeId: contractNewTypeId,
+          contractEndDate: isNewTypePermanent ? null : (contractNewEndDate || null),
+        };
+        
+        await userApi.update(contractActionUser.id, updateData);
+        
+        await contractHistoryApi.create(contractActionUser.id, {
+          action: 'converted',
+          previousEmployeeTypeId: contractActionUser.employeeTypeId,
+          newEmployeeTypeId: contractNewTypeId,
+          previousEndDate: contractActionUser.contractEndDate,
+          newEndDate: isNewTypePermanent ? null : contractNewEndDate,
+          reason: contractReason || `Converted to ${newType?.name}`,
+          performedBy: user.id,
+        });
+        
+        toast({ title: "Success", description: `Personnel converted to ${newType?.name}` });
+      }
+      
+      await queryClient.invalidateQueries({ queryKey: ['users'] });
+      setIsContractDialogOpen(false);
+      setContractActionUser(null);
+    } catch (error) {
+      console.error('Contract action error:', error);
+      toast({ variant: "destructive", title: "Error", description: "Failed to update contract" });
+    }
+  };
+
+  const handleSaveAdmin = () => {
+    if (!adminData.firstName || !adminData.surname || !adminData.email || !adminData.password) {
+      toast({ variant: "destructive", title: "Error", description: "First name, surname, email and password are required" });
+      return;
+    }
+
+    createUserMutation.mutate({
+      id: `ADM${Date.now()}`,
+      firstName: adminData.firstName,
+      surname: adminData.surname,
+      email: adminData.email,
+      password: adminData.password,
+      role: 'manager',
+      userGroupId: adminData.userGroupId,
+    }, {
+      onSuccess: () => {
+        setIsAdminDialogOpen(false);
+        setAdminData({ firstName: '', surname: '', email: '', password: '' });
+        toast({ title: "Admin Created", description: `Admin user created. Login credentials have been sent to ${adminData.email}` });
+      }
+    });
+  };
+
+  const handleOpenCreateAdmin = () => {
+    setAdminData({
+      firstName: '',
+      surname: '',
+      email: '',
+      password: generatePassword(),
+      userGroupId: undefined,
+    });
+    setIsAdminDialogOpen(true);
+  };
+
+  const filteredUsers = users
+    .filter(u => {
+      if (employeeStatusFilter === 'active') return !u.terminationDate;
+      if (employeeStatusFilter === 'terminated') return !!u.terminationDate;
+      return true;
+    })
+    .filter(u => {
+      if (!employeeDepartmentFilter) return true;
+      return u.department?.toString() === employeeDepartmentFilter;
+    })
+    .filter(u => {
+      if (!employeeSearch) return true;
+      const search = employeeSearch.toLowerCase();
+      return (
+        u.firstName.toLowerCase().includes(search) ||
+        u.surname.toLowerCase().includes(search) ||
+        u.id.toLowerCase().includes(search) ||
+        (u.email && u.email.toLowerCase().includes(search)) ||
+        (u.mobile && u.mobile.toLowerCase().includes(search))
+      );
+    });
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h1 className="text-3xl font-heading font-bold text-gray-900">Personnel</h1>
+        <p className="text-muted-foreground">Manage personnel access, IDs, and leave balances</p>
+      </div>
+      <Card>
+        <CardHeader>
+          <div className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>Personnel</CardTitle>
+              <CardDescription>Manage personnel access, IDs, and leave balances</CardDescription>
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={handleOpenCreateAdmin} variant="outline" className="btn-industrial">
+                <Shield className="mr-2 h-4 w-4" /> Add Admin
+              </Button>
+              <Button onClick={handleOpenCreate} className="btn-industrial bg-primary text-white">
+                <Plus className="mr-2 h-4 w-4" /> Add Person
+              </Button>
+            </div>
+          </div>
+          <div className="flex gap-4 mt-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name, ID, email, or mobile..."
+                  value={employeeSearch}
+                  onChange={(e) => setEmployeeSearch(e.target.value)}
+                  className="pl-8 max-w-sm"
+                  data-testid="employee-search"
+                />
+              </div>
+            </div>
+            <Select value={employeeDepartmentFilter || 'all'} onValueChange={(v) => setEmployeeDepartmentFilter(v === 'all' ? '' : v)}>
+              <SelectTrigger className="w-40" data-testid="employee-dept-filter">
+                <SelectValue placeholder="Department" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Departments</SelectItem>
+                {departments.map((d: Department) => (
+                  <SelectItem key={d.id} value={d.id.toString()}>{d.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={employeeStatusFilter} onValueChange={(v: 'all' | 'active' | 'terminated') => setEmployeeStatusFilter(v)}>
+              <SelectTrigger className="w-32" data-testid="employee-status-filter">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="terminated">Terminated</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-8"></TableHead>
+                <TableHead>ID Number</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Department</TableHead>
+                <TableHead>Tenure</TableHead>
+                <TableHead>Leave Balance</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredUsers.map((u) => (
+                <TableRow key={u.id}>
+                  <TableCell>
+                    <div className="w-8 h-8 rounded-full overflow-hidden bg-slate-100 border flex items-center justify-center">
+                      {u.photoUrl ? (
+                        <img src={u.photoUrl} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="text-[10px] text-slate-400 font-bold uppercase">
+                          {u.firstName[0]}{u.surname[0]}
+                        </div>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="font-mono">{u.id}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{u.firstName} {u.surname}</span>
+                      <span className="text-xs text-muted-foreground">{u.email || '-'}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>{u.department || '-'}</TableCell>
+                  <TableCell>{getEmploymentDuration(u.startDate)}</TableCell>
+                  <TableCell>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-7 text-xs flex items-center gap-1.5"
+                      onClick={() => {
+                        setSelectedEmployeeForBalance(u);
+                        setIsBalanceDialogOpen(true);
+                      }}
+                      data-testid={`button-view-balance-${u.id}`}
+                    >
+                      View Balances
+                    </Button>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={u.role === 'manager' ? 'default' : 'secondary'} className="capitalize">
+                      {u.role}
+                      {u.userGroupId && <UserCog className="ml-1 h-3 w-3 inline" />}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      {u.role === 'worker' && (
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8 text-blue-600"
+                          title="Manage Contract"
+                          onClick={() => {
+                            setContractActionUser(u);
+                            setContractAction('extend');
+                            setContractNewEndDate(u.contractEndDate || '');
+                            setContractNewTypeId(u.employeeTypeId);
+                            setContractReason('');
+                            setIsContractDialogOpen(true);
+                          }}
+                          data-testid={`button-manage-contract-${u.id}`}
+                        >
+                          <Network className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {u.userGroupId && (
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8 text-amber-600"
+                          title="Resend Credentials"
+                          onClick={() => handleResendCredentials(u.id)}
+                          data-testid={`button-resend-${u.id}`}
+                        >
+                          <Mail className="h-4 w-4" />
+                        </Button>
+                      )}
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-8 w-8"
+                        onClick={() => handleOpenEdit(u)}
+                        data-testid={`button-edit-${u.id}`}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      {!u.terminationDate ? (
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8 text-amber-600"
+                          onClick={() => {
+                            setTerminationUser(u);
+                            setTerminationDate(new Date().toISOString().split('T')[0]);
+                            setIsTerminationDialogOpen(true);
+                          }}
+                          data-testid={`button-terminate-${u.id}`}
+                        >
+                          <UserX className="h-4 w-4" />
+                        </Button>
+                      ) : (
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8 text-green-600"
+                          onClick={() => {
+                            updateUserMutation.mutate({ ...u, terminationDate: null });
+                            toast({ title: "Personnel Reactivated", description: `${u.firstName} is now active again.` });
+                          }}
+                          data-testid={`button-reactivate-${u.id}`}
+                        >
+                          <CheckCircle2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-8 w-8 text-destructive"
+                        onClick={() => handleDeleteUser(u.id)}
+                        data-testid={`button-delete-${u.id}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {filteredUsers.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    No personnel found matching your criteria.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Personnel Overview</CardTitle>
+          <CardDescription>High-level summary of personnel status</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-2 gap-4 col-span-2">
+              {['Annual Leave', 'Sick Leave', 'Family Responsibility'].map(leaveType => {
+                const typeBalances = leaveBalances.filter((b: LeaveBalance) => b.leaveType === leaveType);
+                const totalDays = typeBalances.reduce((sum: number, b: LeaveBalance) => sum + b.total, 0);
+                const takenDays = typeBalances.reduce((sum: number, b: LeaveBalance) => sum + b.taken, 0);
+                const pendingDays = typeBalances.reduce((sum: number, b: LeaveBalance) => sum + b.pending, 0);
+                return (
+                  <div key={leaveType} className="p-4 bg-slate-50 rounded-lg border">
+                    <p className="text-sm text-muted-foreground">{leaveType}</p>
+                    <p className="text-2xl font-bold">{totalDays - takenDays - pendingDays}</p>
+                    <p className="text-xs text-muted-foreground">Available ({takenDays} taken, {pendingDays} pending)</p>
+                  </div>
+                );
+              })}
+            </div>
+            
+            <div>
+              <p className="text-sm font-medium mb-2 text-amber-600">Low Leave Balance Alerts</p>
+              <div className="space-y-2">
+                {users.filter(u => u.role === 'worker').map(emp => {
+                  const empBalances = leaveBalances.filter((b: LeaveBalance) => b.userId === emp.id);
+                  const lowBalances = empBalances.filter((b: LeaveBalance) => (b.total - b.taken - b.pending) <= 2 && b.total > 0);
+                  if (lowBalances.length === 0) return null;
+                  return (
+                    <div key={emp.id} className="flex items-center justify-between p-2 bg-amber-50 rounded border border-amber-200">
+                      <span className="font-medium text-sm">{emp.firstName} {emp.surname}</span>
+                      <div className="flex gap-2">
+                        {lowBalances.map((b: LeaveBalance) => (
+                          <Badge key={b.id} variant="outline" className="border-amber-400 text-amber-700 text-[10px]">
+                            {b.leaveType}: {b.total - b.taken - b.pending} left
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }).filter(Boolean)}
+                {users.filter(u => u.role === 'worker').every(emp => {
+                  const empBalances = leaveBalances.filter((b: LeaveBalance) => b.userId === emp.id);
+                  return empBalances.every((b: LeaveBalance) => (b.total - b.taken - b.pending) > 2 || b.total === 0);
+                }) && (
+                  <p className="text-sm text-muted-foreground">No personnel with low leave balances.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* User Dialog */}
+      <Dialog open={isUserDialogOpen} onOpenChange={setIsUserDialogOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle>{isEditing ? 'Edit Employee' : 'Add New Employee'}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="firstName" className="text-right">First Name</Label>
+              <Input 
+                id="firstName" 
+                value={currentUser.firstName || ''} 
+                onChange={(e) => setCurrentUser({...currentUser, firstName: e.target.value})}
+                className="col-span-3"
+                data-testid="input-first-name"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="surname" className="text-right">Surname</Label>
+              <Input 
+                id="surname" 
+                value={currentUser.surname || ''} 
+                onChange={(e) => setCurrentUser({...currentUser, surname: e.target.value})}
+                className="col-span-3"
+                data-testid="input-surname"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="userId" className="text-right">Employee ID</Label>
+              <Input 
+                id="userId" 
+                value={currentUser.id || ''} 
+                onChange={(e) => setCurrentUser({...currentUser, id: e.target.value})}
+                className="col-span-3"
+                disabled={isEditing}
+                placeholder="e.g. EMP001"
+                data-testid="input-user-id"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="email" className="text-right">Email</Label>
+              <Input 
+                id="email" 
+                type="email"
+                value={currentUser.email || ''} 
+                onChange={(e) => setCurrentUser({...currentUser, email: e.target.value})}
+                className="col-span-3"
+                placeholder="Optional"
+                data-testid="input-email"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="password" className="text-right">Password</Label>
+              <Input 
+                id="password" 
+                type="password"
+                value={currentUser.password || ''} 
+                onChange={(e) => setCurrentUser({...currentUser, password: e.target.value})}
+                className="col-span-3"
+                placeholder={isEditing ? "Leave blank to keep current password" : (currentUser.userGroupId ? "Required for admin login" : "Optional")}
+                data-testid="input-password"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="mobile" className="text-right">Mobile</Label>
+              <Input 
+                id="mobile" 
+                value={currentUser.mobile || ''} 
+                onChange={(e) => setCurrentUser({...currentUser, mobile: e.target.value})}
+                className="col-span-3"
+                placeholder="Optional"
+                data-testid="input-mobile"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="homeAddress" className="text-right">Home Address</Label>
+              <Input 
+                id="homeAddress" 
+                value={currentUser.homeAddress || ''} 
+                onChange={(e) => setCurrentUser({...currentUser, homeAddress: e.target.value})}
+                className="col-span-3"
+                placeholder="Optional"
+                data-testid="input-home-address"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="gender" className="text-right">Gender</Label>
+              <div className="col-span-3">
+                <Select 
+                  value={currentUser.gender || ''} 
+                  onValueChange={(value) => setCurrentUser({...currentUser, gender: value})}
+                >
+                  <SelectTrigger data-testid="select-gender">
+                    <SelectValue placeholder="Select gender (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="male">Male</SelectItem>
+                    <SelectItem value="female">Female</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="dept" className="text-right">Department</Label>
+              <div className="col-span-3">
+                <Select 
+                  value={currentUser.department || ''} 
+                  onValueChange={(value) => {
+                    const updates: any = { department: value };
+                    if (currentUser.orgPositionId) {
+                      const currentPos = orgPositions.find(p => p.id === currentUser.orgPositionId);
+                      if (currentPos && currentPos.department !== value) {
+                        updates.orgPositionId = undefined;
+                      }
+                    }
+                    setCurrentUser({...currentUser, ...updates});
+                  }}
+                >
+                  <SelectTrigger data-testid="select-department">
+                    <SelectValue placeholder="Select a department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {departments.map((dept) => (
+                      <SelectItem key={dept.id} value={dept.name} data-testid={`option-dept-${dept.id}`}>
+                        {dept.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {departments.length === 0 && (
+                  <p className="text-xs text-amber-600 mt-1">No departments found. Please add them in the Departments section.</p>
+                )}
+              </div>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="orgPosition" className="text-right">Position</Label>
+              <div className="col-span-3">
+                <Select 
+                  value={currentUser.orgPositionId?.toString() || ''} 
+                  onValueChange={(value) => setCurrentUser({...currentUser, orgPositionId: value ? parseInt(value) : undefined})}
+                  disabled={!currentUser.department}
+                >
+                  <SelectTrigger data-testid="select-position">
+                    <SelectValue placeholder={currentUser.department ? "Select a position" : "Select department first"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {orgPositions
+                      .filter(p => p.department === currentUser.department)
+                      .map((pos) => (
+                        <SelectItem key={pos.id} value={pos.id.toString()}>
+                          {pos.title}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="manager" className="text-right">Reports To</Label>
+              <div className="col-span-3">
+                <Select 
+                  value={currentUser.managerId || ''} 
+                  onValueChange={(value) => setCurrentUser({...currentUser, managerId: value})}
+                >
+                  <SelectTrigger data-testid="select-manager">
+                    <SelectValue placeholder="Select manager (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {users.filter(u => u.id !== currentUser.id).map((u) => (
+                      <SelectItem key={u.id} value={u.id}>
+                        {u.firstName} {u.surname} ({u.role})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="employeeType" className="text-right">Employment Type</Label>
+              <div className="col-span-3">
+                <Select 
+                  value={currentUser.employeeTypeId?.toString() || ''} 
+                  onValueChange={(value) => {
+                    const typeId = parseInt(value);
+                    const type = employeeTypes.find(t => t.id === typeId);
+                    setCurrentUser({
+                      ...currentUser, 
+                      employeeTypeId: typeId,
+                      contractEndDate: type?.isPermanent === 'yes' ? null : currentUser.contractEndDate
+                    });
+                  }}
+                >
+                  <SelectTrigger data-testid="select-employee-type">
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {employeeTypes.map((type) => (
+                      <SelectItem key={type.id} value={type.id.toString()}>
+                        {type.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="startDate" className="text-right">Start Date</Label>
+              <Input 
+                id="startDate" 
+                type="date"
+                value={currentUser.startDate || ''} 
+                onChange={(e) => setCurrentUser({...currentUser, startDate: e.target.value})}
+                className="col-span-3"
+                data-testid="input-start-date"
+              />
+            </div>
+            {currentUser.employeeTypeId && employeeTypes.find(t => t.id === currentUser.employeeTypeId)?.isPermanent === 'no' && (
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="contractEndDate" className="text-right">Contract End Date</Label>
+                <Input 
+                  id="contractEndDate" 
+                  type="date"
+                  value={currentUser.contractEndDate || ''} 
+                  onChange={(e) => setCurrentUser({...currentUser, contractEndDate: e.target.value})}
+                  className="col-span-3 border-amber-300 bg-amber-50"
+                  data-testid="input-contract-end-date"
+                />
+              </div>
+            )}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="nationalId" className="text-right">National ID</Label>
+              <Input 
+                id="nationalId" 
+                value={currentUser.nationalId || ''} 
+                onChange={(e) => setCurrentUser({...currentUser, nationalId: e.target.value})}
+                className="col-span-3"
+                placeholder="Optional"
+                data-testid="input-national-id"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="taxNumber" className="text-right">Tax Number</Label>
+              <Input 
+                id="taxNumber" 
+                value={currentUser.taxNumber || ''} 
+                onChange={(e) => setCurrentUser({...currentUser, taxNumber: e.target.value})}
+                className="col-span-3"
+                placeholder="Optional"
+                data-testid="input-tax-number"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4 border-t pt-4">
+              <Label className="text-right">Profile Photo</Label>
+              <div className="col-span-3">
+                <div className="flex items-center gap-4">
+                  <div className="w-24 h-24 rounded-lg border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden bg-slate-50">
+                    {currentUser.photoUrl ? (
+                      <div className="relative group w-full h-full">
+                        <img src={currentUser.photoUrl} alt="Preview" className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="text-white hover:text-white"
+                            onClick={() => setCurrentUser({...currentUser, photoUrl: undefined, faceDescriptor: undefined})}
+                          >
+                            <Trash2 className="h-5 w-5" />
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <Camera className="h-8 w-8 text-slate-300" />
+                    )}
+                  </div>
+                  
+                  {isCapturingPhoto ? (
+                    <div className="flex-1">
+                      <WebcamCapture onCapture={handlePhotoCapture} label="Capture Photo" />
+                      <Button variant="ghost" size="sm" className="mt-2" onClick={() => setIsCapturingPhoto(false)}>Cancel</Button>
+                    </div>
+                  ) : isMultiAngleCapture ? (
+                    <div className="flex-1">
+                      <MultiAngleFaceCapture 
+                        onComplete={handleMultiAngleCaptureComplete}
+                        onCancel={() => setIsMultiAngleCapture(false)}
+                      />
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="w-full flex items-center justify-start gap-2 h-auto py-2"
+                        onClick={() => setIsMultiAngleCapture(true)}
+                        disabled={extractingFace}
+                      >
+                        <Shield className="h-4 w-4 text-blue-600" />
+                        <div className="text-left">
+                          <div className="font-medium">Secure Face Registration</div>
+                          <div className="text-xs text-muted-foreground">Captures multiple angles for better recognition</div>
+                        </div>
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        className="w-full text-sm text-muted-foreground"
+                        onClick={() => setIsCapturingPhoto(true)}
+                      >
+                        Quick single photo capture
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleSaveUser}>{isEditing ? 'Save Changes' : 'Create User'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Admin Dialog */}
+      <Dialog open={isAdminDialogOpen} onOpenChange={setIsAdminDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-primary" />
+              Create Admin User
+            </DialogTitle>
+            <DialogDescription>
+              Create a user with administrative access to the system.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="adminFirstName" className="text-right">First Name</Label>
+              <Input 
+                id="adminFirstName"
+                value={adminData.firstName}
+                onChange={(e) => setAdminData({...adminData, firstName: e.target.value})}
+                className="col-span-3"
+                data-testid="input-admin-first-name"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="adminSurname" className="text-right">Surname</Label>
+              <Input 
+                id="adminSurname"
+                value={adminData.surname}
+                onChange={(e) => setAdminData({...adminData, surname: e.target.value})}
+                className="col-span-3"
+                data-testid="input-admin-surname"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="adminEmail" className="text-right">Email</Label>
+              <Input 
+                id="adminEmail"
+                type="email"
+                value={adminData.email}
+                onChange={(e) => setAdminData({...adminData, email: e.target.value})}
+                className="col-span-3"
+                data-testid="input-admin-email"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="adminPassword" className="text-right">Password</Label>
+              <div className="col-span-3 flex gap-2">
+                <Input 
+                  id="adminPassword"
+                  value={adminData.password}
+                  onChange={(e) => setAdminData({...adminData, password: e.target.value})}
+                  className="flex-1 font-mono"
+                  data-testid="input-admin-password"
+                />
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setAdminData({...adminData, password: generatePassword()})}
+                >
+                  Generate
+                </Button>
+              </div>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="adminGroup" className="text-right">User Group</Label>
+              <div className="col-span-3">
+                <Select 
+                  value={adminData.userGroupId?.toString() || ''} 
+                  onValueChange={(value) => setAdminData({...adminData, userGroupId: value ? parseInt(value) : undefined})}
+                >
+                  <SelectTrigger data-testid="select-admin-group">
+                    <SelectValue placeholder="Select a group (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {userGroups.map((group) => (
+                      <SelectItem key={group.id} value={group.id.toString()}>
+                        {group.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
+              <Mail className="inline h-4 w-4 mr-2" />
+              Login credentials will be emailed to the admin after creation.
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleSaveAdmin} data-testid="button-save-admin">
+              Create Admin User
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Balance Dialog */}
+      <Dialog open={isBalanceDialogOpen} onOpenChange={setIsBalanceDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              Leave Balances - {selectedEmployeeForBalance?.firstName} {selectedEmployeeForBalance?.surname}
+            </DialogTitle>
+          </DialogHeader>
+          {selectedEmployeeForBalance && (() => {
+            const employeeBalances = leaveBalances.filter((b: LeaveBalance) => b.userId === selectedEmployeeForBalance.id);
+            return (
+              <div className="space-y-4">
+                {employeeBalances.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-4">No leave balances set for this employee.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {employeeBalances.map((balance: LeaveBalance) => {
+                      const available = balance.total - balance.taken - balance.pending;
+                      return (
+                        <div key={balance.id} className="p-4 bg-slate-50 rounded-lg border">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-medium capitalize">{balance.leaveType.replace('_', ' ')}</span>
+                            <Badge variant={available > 0 ? 'default' : 'destructive'}>
+                              {available} available
+                            </Badge>
+                          </div>
+                          <div className="grid grid-cols-3 gap-2 text-sm">
+                            <div className="text-center p-2 bg-white rounded">
+                              <p className="text-muted-foreground text-xs">Total</p>
+                              <p className="font-semibold">{balance.total}</p>
+                            </div>
+                            <div className="text-center p-2 bg-white rounded">
+                              <p className="text-muted-foreground text-xs">Taken</p>
+                              <p className="font-semibold text-amber-600">{balance.taken}</p>
+                            </div>
+                            <div className="text-center p-2 bg-white rounded">
+                              <p className="text-muted-foreground text-xs">Pending</p>
+                              <p className="font-semibold text-blue-600">{balance.pending}</p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* Contract Dialog */}
+      <Dialog open={isContractDialogOpen} onOpenChange={setIsContractDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              Manage Contract - {contractActionUser?.firstName} {contractActionUser?.surname}
+            </DialogTitle>
+            <DialogDescription>
+              Extend the current contract or convert to a different employment type.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Current Type</Label>
+              <p className="col-span-3 font-medium">
+                {employeeTypes.find(t => t.id === contractActionUser?.employeeTypeId)?.name || 'Not set'}
+              </p>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Current End Date</Label>
+              <p className="col-span-3 font-medium">
+                {contractActionUser?.contractEndDate ? formatDateForDisplay(contractActionUser.contractEndDate) : 'Permanent'}
+              </p>
+            </div>
+            
+            <div className="border-t pt-4">
+              <Label className="mb-2 block">Action to take</Label>
+              <div className="flex gap-4">
+                <Button 
+                  variant={contractAction === 'extend' ? 'default' : 'outline'}
+                  onClick={() => setContractAction('extend')}
+                  className="flex-1"
+                >
+                  Extend Contract
+                </Button>
+                <Button 
+                  variant={contractAction === 'convert' ? 'default' : 'outline'}
+                  onClick={() => setContractAction('convert')}
+                  className="flex-1"
+                >
+                  Convert Type
+                </Button>
+              </div>
+            </div>
+
+            {contractAction === 'extend' ? (
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="newEndDate" className="text-right">New End Date</Label>
+                <Input 
+                  id="newEndDate" 
+                  type="date"
+                  value={contractNewEndDate} 
+                  onChange={(e) => setContractNewEndDate(e.target.value)}
+                  className="col-span-3"
+                  data-testid="input-contract-new-end-date"
+                />
+              </div>
+            ) : (
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="newType" className="text-right">New Type</Label>
+                <div className="col-span-3">
+                  <Select 
+                    value={contractNewTypeId?.toString() || ''} 
+                    onValueChange={(v) => {
+                      const typeId = parseInt(v);
+                      setContractNewTypeId(typeId);
+                      const type = employeeTypes.find(t => t.id === typeId);
+                      if (type?.isPermanent === 'yes') setContractNewEndDate('');
+                    }}
+                  >
+                    <SelectTrigger data-testid="select-contract-new-type">
+                      <SelectValue placeholder="Select new type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {employeeTypes.map((type) => (
+                        <SelectItem key={type.id} value={type.id.toString()}>
+                          {type.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+
+            {contractAction === 'convert' && contractNewTypeId && employeeTypes.find(t => t.id === contractNewTypeId)?.isPermanent === 'no' && (
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="convertEndDate" className="text-right">New End Date</Label>
+                <Input 
+                  id="convertEndDate" 
+                  type="date"
+                  value={contractNewEndDate} 
+                  onChange={(e) => setContractNewEndDate(e.target.value)}
+                  className="col-span-3"
+                  data-testid="input-contract-convert-end-date"
+                />
+              </div>
+            )}
+
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="reason" className="text-right">Reason/Notes</Label>
+              <Input 
+                id="reason" 
+                value={contractReason} 
+                onChange={(e) => setContractReason(e.target.value)}
+                className="col-span-3"
+                placeholder="Optional reason for change"
+                data-testid="input-contract-reason"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsContractDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleContractAction}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Termination Dialog */}
+      <Dialog open={isTerminationDialogOpen} onOpenChange={setIsTerminationDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600">
+              <UserX className="h-5 w-5" />
+              Terminate Personnel
+            </DialogTitle>
+            <DialogDescription>
+              This will mark {terminationUser?.firstName} {terminationUser?.surname} as terminated.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right text-xs">Employee</Label>
+              <p className="col-span-3 font-medium text-sm">
+                {terminationUser?.firstName} {terminationUser?.surname}
+              </p>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right text-xs">ID</Label>
+              <p className="col-span-3 font-medium text-sm">
+                {terminationUser?.id}
+              </p>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="terminationDateInput" className="text-right text-xs">Termination Date</Label>
+              <Input 
+                id="terminationDateInput" 
+                type="date"
+                value={terminationDate} 
+                onChange={(e) => setTerminationDate(e.target.value)}
+                className="col-span-3"
+                data-testid="input-termination-date-dialog"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              The employee will be marked as terminated on this date. They will no longer be able to clock in or submit leave requests.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsTerminationDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={() => {
+                if (terminationUser && terminationDate) {
+                  updateUserMutation.mutate({
+                    id: terminationUser.id,
+                    terminationDate: terminationDate
+                  });
+                  setIsTerminationDialogOpen(false);
+                  toast({
+                    title: "Personnel Terminated",
+                    description: `${terminationUser.firstName} ${terminationUser.surname} has been marked as terminated.`,
+                  });
+                } else if (!terminationDate) {
+                  toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: "Please select a termination date.",
+                  });
+                }
+              }}
+              data-testid="button-confirm-termination"
+            >
+              Confirm Termination
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
