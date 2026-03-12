@@ -747,6 +747,80 @@ export default function PersonnelSection() {
         </CardContent>
       </Card>
 
+      {users.filter(u => u.terminationDate).length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <UserX className="h-5 w-5 text-amber-600" />
+              Terminated Personnel
+            </CardTitle>
+            <CardDescription>
+              {users.filter(u => u.terminationDate).length} former employee{users.filter(u => u.terminationDate).length !== 1 ? 's' : ''}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>ID Number</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Department</TableHead>
+                  <TableHead>Termination Date</TableHead>
+                  <TableHead>Employment Period</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {users.filter(u => u.terminationDate).map((emp) => (
+                  <TableRow key={emp.id} className="bg-slate-50/50">
+                    <TableCell className="font-mono font-medium text-muted-foreground">{emp.id}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-full overflow-hidden bg-slate-100 opacity-60">
+                          <img src={emp.photoUrl || 'https://github.com/shadcn.png'} alt={`${emp.firstName} ${emp.surname}`} className="h-full w-full object-cover grayscale" />
+                        </div>
+                        <span className="text-muted-foreground">{emp.firstName} {emp.surname}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{emp.department}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="border-amber-400 text-amber-700">
+                        {emp.terminationDate ? formatDateForDisplay(emp.terminationDate) : '-'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {emp.startDate && emp.terminationDate ? (
+                        (() => {
+                          const start = new Date(emp.startDate);
+                          const end = new Date(emp.terminationDate);
+                          const years = end.getFullYear() - start.getFullYear();
+                          const months = end.getMonth() - start.getMonth();
+                          const totalMonths = years * 12 + months;
+                          if (totalMonths >= 12) {
+                            const y = Math.floor(totalMonths / 12);
+                            const m = totalMonths % 12;
+                            return m > 0 ? `${y}y ${m}m` : `${y} year${y > 1 ? 's' : ''}`;
+                          }
+                          return `${totalMonths} month${totalMonths !== 1 ? 's' : ''}`;
+                        })()
+                      ) : '-'}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="icon" onClick={() => handleOpenEdit(emp)} title="View Details" data-testid={`button-edit-terminated-${emp.id}`}>
+                        <Pencil className="h-4 w-4 text-slate-400" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => handleDeleteUser(emp.id)} title="Delete Permanently" data-testid={`button-delete-terminated-${emp.id}`}>
+                        <Trash2 className="h-4 w-4 text-red-400" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Personnel Overview</CardTitle>
