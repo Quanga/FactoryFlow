@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Users, Building2, User as UserIcon, Crown, Briefcase, ZoomIn, ZoomOut, RotateCcw, Download, Loader2, Eye, EyeOff, Maximize2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
-import { userApi, departmentApi, attendanceApi } from '@/lib/api';
+import { userApi, departmentApi, attendanceApi, orgPositionApi } from '@/lib/api';
 import defaultAvatarUrl from '@/assets/default-avatar.jpg';
-import type { User, Department } from '@shared/schema';
+import type { User, Department, OrgPosition } from '@shared/schema';
 import * as d3 from 'd3-hierarchy';
 import { jsPDF } from 'jspdf';
 import { useToast } from '@/hooks/use-toast';
@@ -36,6 +36,8 @@ interface OrgNodeData {
   kind: 'manager' | 'department-group';
   workers?: WorkerData[];
   nodeHeight: number;
+  isVacant?: boolean;
+  positionTitle?: string;
 }
 
 const NODE_WIDTH = 240;
@@ -67,29 +69,35 @@ function getDepartmentColor(department: string | null): string {
 
 function ManagerNode({ data, x, y, showAttendance, clockedInUserIds }: { data: OrgNodeData; x: number; y: number } & AttendanceProps) {
   const isRoot = data.isRoot;
+  const isVacant = data.isVacant;
   const deptColor = getDepartmentColor(data.department);
   const isClockedIn = clockedInUserIds.has(data.id);
-  const opacity = showAttendance ? (isClockedIn ? 1 : 0.3) : 1;
+  const opacity = showAttendance ? (isClockedIn || isVacant ? 1 : 0.3) : 1;
   
   return (
     <g transform={`translate(${x - NODE_WIDTH / 2}, ${y})`} style={{ opacity }}>
       <foreignObject width={NODE_WIDTH} height={MANAGER_NODE_HEIGHT}>
         <div 
           className={`h-full rounded-lg border-2 shadow-md overflow-hidden ${
+            isVacant ? 'border-dashed border-red-400 bg-red-50' :
             isRoot ? 'border-amber-500 bg-amber-50' : 'border-primary bg-primary/5'
           }`}
         >
           {/* Department header at top */}
           <div 
             className="px-2 py-0.5 text-white text-[11px] font-medium truncate"
-            style={{ backgroundColor: deptColor }}
+            style={{ backgroundColor: isVacant ? '#dc2626' : deptColor }}
           >
-            {data.department || 'No Department'}
+            {data.positionTitle || data.department || 'No Department'}
           </div>
           
           {/* Manager content */}
           <div className="flex items-center gap-2 p-2 pb-3">
-            {data.photoUrl ? (
+            {isVacant ? (
+              <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-red-200 text-red-600 border-2 border-dashed border-red-400">
+                <UserIcon className="h-4 w-4" />
+              </div>
+            ) : data.photoUrl ? (
               <img 
                 src={data.photoUrl} 
                 alt={data.name} 
@@ -103,8 +111,12 @@ function ManagerNode({ data, x, y, showAttendance, clockedInUserIds }: { data: O
               </div>
             )}
             <div className="flex-1 min-w-0 overflow-hidden">
-              <p className="font-semibold text-[15px] truncate leading-tight">{data.name}</p>
-              <Badge variant="default" className="text-[10px] px-1.5 py-0 h-4 mt-1">Manager</Badge>
+              <p className={`font-semibold text-[15px] truncate leading-tight ${isVacant ? 'text-red-600 italic' : ''}`}>
+                {isVacant ? 'VACANT' : data.name}
+              </p>
+              <Badge variant={isVacant ? "destructive" : "default"} className="text-[10px] px-1.5 py-0 h-4 mt-1">
+                {isVacant ? 'Vacant' : 'Manager'}
+              </Badge>
             </div>
           </div>
         </div>
@@ -294,14 +306,16 @@ export default function OrgChart() {
       nodeGroup.setAttribute('transform', `translate(${x}, ${y})`);
       
       if (d.kind === 'manager') {
+        const isVacant = d.isVacant;
         // Manager node background
         const rect = document.createElementNS(svgNs, 'rect');
         rect.setAttribute('width', String(NODE_WIDTH));
         rect.setAttribute('height', String(MANAGER_NODE_HEIGHT));
         rect.setAttribute('rx', '8');
-        rect.setAttribute('fill', d.isRoot ? '#fef3c7' : '#eff6ff');
-        rect.setAttribute('stroke', d.isRoot ? '#f59e0b' : '#3b82f6');
+        rect.setAttribute('fill', isVacant ? '#fef2f2' : d.isRoot ? '#fef3c7' : '#eff6ff');
+        rect.setAttribute('stroke', isVacant ? '#dc2626' : d.isRoot ? '#f59e0b' : '#3b82f6');
         rect.setAttribute('stroke-width', '2');
+        if (isVacant) rect.setAttribute('stroke-dasharray', '6,3');
         nodeGroup.appendChild(rect);
         
         // Department header bar
@@ -309,7 +323,7 @@ export default function OrgChart() {
         deptBar.setAttribute('width', String(NODE_WIDTH));
         deptBar.setAttribute('height', '16');
         deptBar.setAttribute('rx', '8');
-        deptBar.setAttribute('fill', deptColor);
+        deptBar.setAttribute('fill', isVacant ? '#dc2626' : deptColor);
         nodeGroup.appendChild(deptBar);
         
         // Cover bottom corners of dept bar
@@ -328,7 +342,7 @@ export default function OrgChart() {
         deptText.setAttribute('fill', '#ffffff');
         deptText.setAttribute('font-size', '12');
         deptText.setAttribute('font-family', 'Arial, sans-serif');
-        deptText.textContent = d.department || 'No Department';
+        deptText.textContent = d.positionTitle || d.department || 'No Department';
         nodeGroup.appendChild(deptText);
         
         // Name text
@@ -336,21 +350,24 @@ export default function OrgChart() {
         nameText.setAttribute('x', String(NODE_WIDTH / 2));
         nameText.setAttribute('y', '40');
         nameText.setAttribute('text-anchor', 'middle');
-        nameText.setAttribute('fill', '#1e293b');
+        nameText.setAttribute('fill', isVacant ? '#dc2626' : '#1e293b');
         nameText.setAttribute('font-size', '14');
         nameText.setAttribute('font-weight', 'bold');
         nameText.setAttribute('font-family', 'Arial, sans-serif');
-        nameText.textContent = d.name.length > 22 ? d.name.substring(0, 20) + '...' : d.name;
+        if (isVacant) nameText.setAttribute('font-style', 'italic');
+        const nameDisplay = isVacant ? 'VACANT' : d.name;
+        nameText.textContent = nameDisplay.length > 22 ? nameDisplay.substring(0, 20) + '...' : nameDisplay;
         nodeGroup.appendChild(nameText);
         
         // Manager badge
+        const badgeLabel = isVacant ? 'Vacant' : 'Manager';
         const badgeRect = document.createElementNS(svgNs, 'rect');
         badgeRect.setAttribute('x', String((NODE_WIDTH - 56) / 2));
         badgeRect.setAttribute('y', '50');
         badgeRect.setAttribute('width', '56');
         badgeRect.setAttribute('height', '18');
         badgeRect.setAttribute('rx', '4');
-        badgeRect.setAttribute('fill', '#3b82f6');
+        badgeRect.setAttribute('fill', isVacant ? '#dc2626' : '#3b82f6');
         nodeGroup.appendChild(badgeRect);
         
         const badgeText = document.createElementNS(svgNs, 'text');
@@ -360,7 +377,7 @@ export default function OrgChart() {
         badgeText.setAttribute('fill', '#ffffff');
         badgeText.setAttribute('font-size', '12');
         badgeText.setAttribute('font-family', 'Arial, sans-serif');
-        badgeText.textContent = 'Manager';
+        badgeText.textContent = badgeLabel;
         nodeGroup.appendChild(badgeText);
         
       } else if (d.kind === 'department-group') {
@@ -573,22 +590,141 @@ export default function OrgChart() {
     queryFn: departmentApi.getAll,
   });
 
-  const isLoading = usersLoading || deptsLoading;
+  const { data: orgPositions = [], isLoading: positionsLoading } = useQuery<OrgPosition[]>({
+    queryKey: ['org-positions'],
+    queryFn: orgPositionApi.getAll,
+  });
+
+  const isLoading = usersLoading || deptsLoading || positionsLoading;
 
   const activeUsers = useMemo(() => users.filter(u => !u.terminationDate && !u.exclude), [users]);
 
   const { treeData, dimensions } = useMemo(() => {
-    if (activeUsers.length === 0) {
+    if (activeUsers.length === 0 && orgPositions.length === 0) {
       return { treeData: null, dimensions: { width: 800, height: 400, offsetX: 0 } };
     }
 
     const userMap = new Map(activeUsers.map(u => [u.id, u]));
-    const roots = activeUsers.filter(u => !u.managerId || !userMap.has(u.managerId));
     
     interface TreeNode {
       data: OrgNodeData;
       children: TreeNode[];
     }
+
+    // ===== POSITION-BASED ORG CHART =====
+    if (orgPositions.length > 0) {
+      const positionMap = new Map(orgPositions.map(p => [p.id, p]));
+      const rootPositions = orgPositions.filter(p => !p.parentPositionId);
+      
+      const buildPositionSubtree = (posId: number): TreeNode => {
+        const pos = positionMap.get(posId)!;
+        const assignedUser = pos.assignedUserId ? userMap.get(pos.assignedUserId) : null;
+        const childPositions = orgPositions
+          .filter(p => p.parentPositionId === posId)
+          .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+        
+        const children: TreeNode[] = childPositions.map(cp => buildPositionSubtree(cp.id));
+        
+        // Find workers who report to this position's assigned user
+        if (assignedUser) {
+          const workerReports = activeUsers.filter(u => 
+            u.role === 'worker' && (u.managerId === assignedUser.id || u.secondManagerId === assignedUser.id)
+          );
+          // Group workers by department
+          const workersByDept = new Map<string, User[]>();
+          workerReports.forEach(w => {
+            const dept = w.department || 'Unassigned';
+            if (!workersByDept.has(dept)) workersByDept.set(dept, []);
+            workersByDept.get(dept)!.push(w);
+          });
+          
+          Array.from(workersByDept.entries())
+            .sort(([a], [b]) => a.localeCompare(b))
+            .forEach(([dept, workers]) => {
+              const nodeHeight = DEPT_HEADER_HEIGHT + workers.length * WORKER_ROW_HEIGHT + 4;
+              children.push({
+                data: {
+                  id: `pos-workers-${posId}-${dept}`,
+                  name: dept,
+                  role: 'worker',
+                  department: dept,
+                  photoUrl: null,
+                  kind: 'department-group' as const,
+                  workers: workers.map(w => ({
+                    id: w.id,
+                    name: `${w.firstName} ${w.surname}`,
+                    photoUrl: w.photoUrl,
+                  })),
+                  nodeHeight,
+                },
+                children: [],
+              });
+            });
+        }
+        
+        return {
+          data: {
+            id: `pos-${posId}`,
+            name: assignedUser ? `${assignedUser.firstName} ${assignedUser.surname}` : 'VACANT',
+            role: 'manager',
+            department: pos.department || pos.title,
+            photoUrl: assignedUser?.photoUrl || null,
+            isRoot: !pos.parentPositionId,
+            kind: 'manager' as const,
+            nodeHeight: MANAGER_NODE_HEIGHT,
+            isVacant: !assignedUser,
+            positionTitle: pos.title,
+          } as OrgNodeData,
+          children,
+        };
+      };
+      
+      let rootNode: TreeNode;
+      if (rootPositions.length === 1) {
+        rootNode = buildPositionSubtree(rootPositions[0].id);
+        rootNode.data.isRoot = true;
+      } else {
+        rootNode = {
+          data: {
+            id: 'company',
+            name: 'AEC Electronics',
+            role: 'manager',
+            department: 'Managing Director',
+            photoUrl: null,
+            isRoot: true,
+            kind: 'manager',
+            nodeHeight: MANAGER_NODE_HEIGHT,
+          },
+          children: rootPositions.map(p => buildPositionSubtree(p.id)),
+        };
+      }
+      
+      const h = d3.hierarchy(rootNode);
+      let maxNodeHeight = MANAGER_NODE_HEIGHT;
+      h.each(node => {
+        if (node.data.data.nodeHeight > maxNodeHeight) maxNodeHeight = node.data.data.nodeHeight;
+      });
+      const treeLayout = d3.tree<TreeNode>()
+        .nodeSize([NODE_WIDTH + HORIZONTAL_GAP, (maxNodeHeight + VERTICAL_GAP) / 2])
+        .separation(() => 1);
+      const tree = treeLayout(h);
+      const nodes = tree.descendants();
+      const minX = Math.min(...nodes.map(n => n.x));
+      const maxX = Math.max(...nodes.map(n => n.x));
+      const maxY = Math.max(...nodes.map(n => n.y + n.data.data.nodeHeight));
+      const padding = 30;
+      return {
+        treeData: tree,
+        dimensions: {
+          width: maxX - minX + NODE_WIDTH + padding * 2,
+          height: maxY + padding * 2,
+          offsetX: -minX + NODE_WIDTH / 2 + padding,
+        },
+      };
+    }
+
+    // ===== LEGACY MANAGER-BASED ORG CHART =====
+    const roots = activeUsers.filter(u => !u.managerId || !userMap.has(u.managerId));
 
     const buildSubtree = (userId: string, visited = new Set<string>()): TreeNode | null => {
       if (visited.has(userId)) return null;
@@ -797,7 +933,7 @@ export default function OrgChart() {
       treeData: tree,
       dimensions: { width, height, offsetX },
     };
-  }, [activeUsers]);
+  }, [activeUsers, orgPositions]);
 
   const totalManagers = activeUsers.filter(u => u.role === 'manager').length;
   const totalWorkers = activeUsers.filter(u => u.role === 'worker').length;

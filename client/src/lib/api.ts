@@ -1,4 +1,4 @@
-import type { User, LeaveBalance, LeaveRequest, AttendanceRecord, Setting, Department, UserGroup, EmployeeType, LeaveRule, LeaveRulePhase, ContractHistory, Grievance, InsertGrievance, PublicHoliday, InsertPublicHoliday, Notification, InsertNotification } from "@shared/schema";
+import type { User, LeaveBalance, LeaveRequest, AttendanceRecord, Setting, Department, UserGroup, EmployeeType, LeaveRule, LeaveRulePhase, ContractHistory, Grievance, InsertGrievance, PublicHoliday, InsertPublicHoliday, Notification, InsertNotification, OrgPosition, InsertOrgPosition } from "@shared/schema";
 
 const API_BASE = "/api";
 
@@ -965,6 +965,41 @@ export const faceDescriptorApi = {
       method: "DELETE",
     });
     if (!res.ok) throw new Error("Failed to delete face descriptor");
+  },
+};
+
+export const orgPositionApi = {
+  async getAll(): Promise<OrgPosition[]> {
+    const res = await fetch(`${API_BASE}/org-positions`);
+    if (!res.ok) throw new Error("Failed to fetch org positions");
+    return res.json();
+  },
+
+  async create(position: Partial<InsertOrgPosition>): Promise<OrgPosition> {
+    const res = await fetch(`${API_BASE}/org-positions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(position),
+    });
+    if (!res.ok) throw new Error("Failed to create org position");
+    return res.json();
+  },
+
+  async update(id: number, position: Partial<InsertOrgPosition>): Promise<OrgPosition> {
+    const res = await fetch(`${API_BASE}/org-positions/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(position),
+    });
+    if (!res.ok) throw new Error("Failed to update org position");
+    return res.json();
+  },
+
+  async delete(id: number): Promise<void> {
+    const res = await fetch(`${API_BASE}/org-positions/${id}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) throw new Error("Failed to delete org position");
   },
 };
 

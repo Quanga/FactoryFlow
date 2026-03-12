@@ -34,6 +34,8 @@ import type {
   InsertNotification,
   FaceDescriptor,
   InsertFaceDescriptor,
+  OrgPosition,
+  InsertOrgPosition,
 } from "@shared/schema";
 
 const pool = new Pool({
@@ -169,6 +171,13 @@ export interface IStorage {
   getAllFaceDescriptorsForMatching(): Promise<{ userId: string; descriptor: string }[]>;
   createFaceDescriptor(data: InsertFaceDescriptor): Promise<FaceDescriptor>;
   deleteFaceDescriptor(id: number): Promise<boolean>;
+
+  // Org Position operations
+  getAllOrgPositions(): Promise<OrgPosition[]>;
+  getOrgPosition(id: number): Promise<OrgPosition | undefined>;
+  createOrgPosition(position: InsertOrgPosition): Promise<OrgPosition>;
+  updateOrgPosition(id: number, position: Partial<InsertOrgPosition>): Promise<OrgPosition | undefined>;
+  deleteOrgPosition(id: number): Promise<boolean>;
 }
 
 export class DrizzleStorage implements IStorage {
@@ -1030,6 +1039,31 @@ export class DrizzleStorage implements IStorage {
     await db
       .delete(schema.faceDescriptors)
       .where(eq(schema.faceDescriptors.id, id));
+    return true;
+  }
+
+  // Org Position operations
+  async getAllOrgPositions(): Promise<OrgPosition[]> {
+    return db.select().from(schema.orgPositions).orderBy(schema.orgPositions.sortOrder);
+  }
+
+  async getOrgPosition(id: number): Promise<OrgPosition | undefined> {
+    const results = await db.select().from(schema.orgPositions).where(eq(schema.orgPositions.id, id));
+    return results[0];
+  }
+
+  async createOrgPosition(position: InsertOrgPosition): Promise<OrgPosition> {
+    const [newPosition] = await db.insert(schema.orgPositions).values(position).returning();
+    return newPosition;
+  }
+
+  async updateOrgPosition(id: number, position: Partial<InsertOrgPosition>): Promise<OrgPosition | undefined> {
+    const [updated] = await db.update(schema.orgPositions).set(position).where(eq(schema.orgPositions.id, id)).returning();
+    return updated;
+  }
+
+  async deleteOrgPosition(id: number): Promise<boolean> {
+    await db.delete(schema.orgPositions).where(eq(schema.orgPositions.id, id));
     return true;
   }
 }

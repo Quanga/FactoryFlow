@@ -335,6 +335,24 @@ export const insertNotificationSchema = createInsertSchema(notifications).omit({
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 export type Notification = typeof notifications.$inferSelect;
 
+// Org Positions Table (defines the org chart structure independently of employees)
+export const orgPositions = pgTable("org_positions", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  department: text("department"),
+  parentPositionId: integer("parent_position_id"),
+  assignedUserId: text("assigned_user_id").references(() => users.id, { onDelete: "set null" }),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertOrgPositionSchema = createInsertSchema(orgPositions).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertOrgPosition = z.infer<typeof insertOrgPositionSchema>;
+export type OrgPosition = typeof orgPositions.$inferSelect;
+
 // Face Descriptors Table (for storing multiple face photos per user to improve recognition)
 export const faceDescriptors = pgTable("face_descriptors", {
   id: serial("id").primaryKey(),

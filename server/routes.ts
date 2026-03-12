@@ -2393,5 +2393,52 @@ export async function registerRoutes(
     }
   });
 
+  // ========== ORG POSITION ROUTES ==========
+
+  app.get("/api/org-positions", async (req, res) => {
+    try {
+      const positions = await storage.getAllOrgPositions();
+      return res.json(positions);
+    } catch (error) {
+      console.error("Get org positions error:", error);
+      return res.status(500).json({ error: "Failed to get org positions" });
+    }
+  });
+
+  app.post("/api/org-positions", async (req, res) => {
+    try {
+      const position = await storage.createOrgPosition(req.body);
+      return res.status(201).json(position);
+    } catch (error) {
+      console.error("Create org position error:", error);
+      return res.status(500).json({ error: "Failed to create org position" });
+    }
+  });
+
+  app.patch("/api/org-positions/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const position = await storage.updateOrgPosition(id, req.body);
+      if (!position) {
+        return res.status(404).json({ error: "Position not found" });
+      }
+      return res.json(position);
+    } catch (error) {
+      console.error("Update org position error:", error);
+      return res.status(500).json({ error: "Failed to update org position" });
+    }
+  });
+
+  app.delete("/api/org-positions/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteOrgPosition(id);
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("Delete org position error:", error);
+      return res.status(500).json({ error: "Failed to delete org position" });
+    }
+  });
+
   return httpServer;
 }

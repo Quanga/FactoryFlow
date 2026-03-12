@@ -13,8 +13,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { userApi, settingsApi, departmentApi, userGroupApi, leaveRequestApi, leaveBalanceApi, attendanceApi, employeeTypeApi, leaveRuleApi, leaveRulePhaseApi, contractHistoryApi, grievanceApi, publicHolidayApi, dashboardApi, backupApi } from '@/lib/api';
-import type { User, Department, UserGroup, LeaveRequest, LeaveBalance, AttendanceRecord, EmployeeType, LeaveRule, LeaveRulePhase, ContractHistory, Grievance, PublicHoliday } from '@shared/schema';
+import { userApi, settingsApi, departmentApi, userGroupApi, leaveRequestApi, leaveBalanceApi, attendanceApi, employeeTypeApi, leaveRuleApi, leaveRulePhaseApi, contractHistoryApi, grievanceApi, publicHolidayApi, dashboardApi, backupApi, orgPositionApi } from '@/lib/api';
+import type { User, Department, UserGroup, LeaveRequest, LeaveBalance, AttendanceRecord, EmployeeType, LeaveRule, LeaveRulePhase, ContractHistory, Grievance, PublicHoliday, OrgPosition } from '@shared/schema';
 import { Plus, Pencil, Trash2, Save, Mail, Users, Settings, Camera, Building2, Loader2, CheckCircle2, UserCog, Shield, Calendar, Clock, FileText, Check, X, Search, ChevronDown, ChevronRight, LayoutDashboard, AlertTriangle, LogOut, UserX, Network, MessageSquareWarning, Eye, CalendarDays, TrendingUp, UserCheck, ClipboardList, Home, Download, Upload, Palette } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { NotificationBell } from '@/components/NotificationBell';
@@ -173,6 +173,11 @@ export default function AdminDashboard() {
     queryFn: () => publicHolidayApi.getAll(),
   });
 
+  const { data: orgPositions = [] } = useQuery<OrgPosition[]>({
+    queryKey: ['org-positions'],
+    queryFn: () => orgPositionApi.getAll(),
+  });
+
   // Employee Search State
   const [employeeSearch, setEmployeeSearch] = useState('');
   const [employeeDepartmentFilter, setEmployeeDepartmentFilter] = useState<string>('');
@@ -237,7 +242,7 @@ export default function AdminDashboard() {
   const [expandedLeaveBalanceEmployees, setExpandedLeaveBalanceEmployees] = useState<Set<string>>(new Set());
 
   // Navigation State
-  const [activeSection, setActiveSection] = useState<'dashboard' | 'employees' | 'leave-requests' | 'attendance' | 'departments' | 'employee-types' | 'leave-rules' | 'grievances' | 'holidays' | 'leave-calendar' | 'settings'>('dashboard');
+  const [activeSection, setActiveSection] = useState<'dashboard' | 'employees' | 'leave-requests' | 'attendance' | 'departments' | 'employee-types' | 'leave-rules' | 'grievances' | 'holidays' | 'leave-calendar' | 'positions' | 'settings'>('dashboard');
   const [settingsTab, setSettingsTab] = useState<'general' | 'user-groups' | 'branding'>('general');
   const [attendanceTab, setAttendanceTab] = useState<'records' | 'manual-entry' | 'trends'>('records');
   const [manualAttendanceDate, setManualAttendanceDate] = useState<string>(() => {
@@ -248,6 +253,11 @@ export default function AdminDashboard() {
     return `${year}-${month}-${day}`;
   });
   const [manualAttendanceEntries, setManualAttendanceEntries] = useState<Record<string, { clockIn: string; clockOut: string }>>({});
+
+  // Positions State
+  const [positionDialogOpen, setPositionDialogOpen] = useState(false);
+  const [editingPosition, setEditingPosition] = useState<OrgPosition | null>(null);
+  const [positionForm, setPositionForm] = useState({ title: '', department: '', parentPositionId: '', assignedUserId: '', sortOrder: '0' });
 
   // Attendance Edit State
   const [editingAttendance, setEditingAttendance] = useState<AttendanceRecord | null>(null);
@@ -1246,6 +1256,63 @@ export default function AdminDashboard() {
     deleteDeptMutation.mutate(id);
   };
 
+  // Positions Handlers
+  const handleOpenCreatePosition = () => {
+    setEditingPosition(null);
+    setPositionForm({ title: '', department: '', parentPositionId: '', assignedUserId: '', sortOrder: '0' });
+    setPositionDialogOpen(true);
+  };
+
+  const handleOpenEditPosition = (pos: OrgPosition) => {
+    setEditingPosition(pos);
+    setPositionForm({
+      title: pos.title,
+      department: pos.department || '',
+      parentPositionId: pos.parentPositionId ? String(pos.parentPositionId) : '',
+      assignedUserId: pos.assignedUserId || '',
+      sortOrder: String(pos.sortOrder || 0),
+    });
+    setPositionDialogOpen(true);
+  };
+
+  const handleSavePosition = async () => {
+    if (!positionForm.title) {
+      toast({ variant: "destructive", title: "Error", description: "Position title is required" });
+      return;
+    }
+    const payload = {
+      title: positionForm.title,
+      department: positionForm.department || null,
+      parentPositionId: positionForm.parentPositionId ? Number(positionForm.parentPositionId) : null,
+      assignedUserId: positionForm.assignedUserId || null,
+      sortOrder: Number(positionForm.sortOrder) || 0,
+    };
+    try {
+      if (editingPosition) {
+        await orgPositionApi.update(editingPosition.id, payload);
+        toast({ title: "Success", description: "Position updated" });
+      } else {
+        await orgPositionApi.create(payload);
+        toast({ title: "Success", description: "Position created" });
+      }
+      queryClient.invalidateQueries({ queryKey: ['org-positions'] });
+      setPositionDialogOpen(false);
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message });
+    }
+  };
+
+  const handleDeletePosition = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this position? Child positions will become root-level.')) return;
+    try {
+      await orgPositionApi.delete(id);
+      queryClient.invalidateQueries({ queryKey: ['org-positions'] });
+      toast({ title: "Success", description: "Position deleted" });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error", description: e.message });
+    }
+  };
+
   // User Group Handlers
   const handleSaveGroup = () => {
     if (!currentGroup.name) {
@@ -1780,6 +1847,15 @@ export default function AdminDashboard() {
                 data-testid="nav-holidays"
               >
                 <CalendarDays className="h-4 w-4" /> Public Holidays
+              </button>
+              <button
+                onClick={() => setActiveSection('positions')}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
+                  activeSection === 'positions' ? 'bg-primary text-white' : 'hover:bg-slate-100 text-slate-700'
+                }`}
+                data-testid="nav-positions"
+              >
+                <Network className="h-4 w-4" /> Org Positions
               </button>
               <button
                 onClick={() => setActiveSection('grievances')}
@@ -4171,6 +4247,176 @@ export default function AdminDashboard() {
                       data-testid="save-holiday"
                     >
                       {isEditingHoliday ? 'Update' : 'Add'} Holiday
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
+          )}
+
+          {/* Positions Section */}
+          {activeSection === 'positions' && (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h1 className="text-3xl font-heading font-bold text-slate-900">Org Positions</h1>
+                  <p className="text-muted-foreground">Define the position-based hierarchy for the org chart. When positions exist, the org chart uses them instead of the manager-based tree.</p>
+                </div>
+                <Button onClick={handleOpenCreatePosition} data-testid="button-add-position">
+                  <Plus className="h-4 w-4 mr-2" /> Add Position
+                </Button>
+              </div>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Positions ({orgPositions.length})</CardTitle>
+                  <CardDescription>Each position can have a parent position and an assigned employee. Unassigned positions appear as "Vacant" in the org chart.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {orgPositions.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No positions defined yet. The org chart will use the manager-based hierarchy. Add positions to switch to a position-based org chart.
+                    </div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Title</TableHead>
+                          <TableHead>Department</TableHead>
+                          <TableHead>Parent Position</TableHead>
+                          <TableHead>Assigned Employee</TableHead>
+                          <TableHead>Sort Order</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {orgPositions
+                          .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+                          .map((pos) => {
+                            const parentPos = orgPositions.find(p => p.id === pos.parentPositionId);
+                            const assignedUser = users.find(u => u.id === pos.assignedUserId);
+                            return (
+                              <TableRow key={pos.id} data-testid={`row-position-${pos.id}`}>
+                                <TableCell className="font-medium">{pos.title}</TableCell>
+                                <TableCell>{pos.department || '-'}</TableCell>
+                                <TableCell>{parentPos ? parentPos.title : <span className="text-muted-foreground italic">Root</span>}</TableCell>
+                                <TableCell>
+                                  {assignedUser ? (
+                                    <span>{assignedUser.firstName} {assignedUser.surname}</span>
+                                  ) : (
+                                    <span className="text-red-500 italic">Vacant</span>
+                                  )}
+                                </TableCell>
+                                <TableCell>{pos.sortOrder || 0}</TableCell>
+                                <TableCell>
+                                  {pos.assignedUserId ? (
+                                    <Badge variant="default" className="bg-green-600">Filled</Badge>
+                                  ) : (
+                                    <Badge variant="destructive">Vacant</Badge>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <Button variant="ghost" size="icon" onClick={() => handleOpenEditPosition(pos)} data-testid={`button-edit-position-${pos.id}`}>
+                                    <Pencil className="h-4 w-4 text-slate-500" />
+                                  </Button>
+                                  <Button variant="ghost" size="icon" onClick={() => handleDeletePosition(pos.id)} data-testid={`button-delete-position-${pos.id}`}>
+                                    <Trash2 className="h-4 w-4 text-red-500" />
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Dialog open={positionDialogOpen} onOpenChange={setPositionDialogOpen}>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>{editingPosition ? 'Edit Position' : 'Add Position'}</DialogTitle>
+                    <DialogDescription>
+                      {editingPosition ? 'Update the position details below.' : 'Create a new position in the org chart hierarchy.'}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="pos-title">Position Title *</Label>
+                      <Input
+                        id="pos-title"
+                        value={positionForm.title}
+                        onChange={(e) => setPositionForm(f => ({ ...f, title: e.target.value }))}
+                        placeholder="e.g. General Manager, Mechanical Supervisor"
+                        data-testid="input-position-title"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="pos-department">Department</Label>
+                      <Select value={positionForm.department} onValueChange={(v) => setPositionForm(f => ({ ...f, department: v === '__none__' ? '' : v }))}>
+                        <SelectTrigger data-testid="select-position-department">
+                          <SelectValue placeholder="Select department" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">No Department</SelectItem>
+                          {departments.map(d => (
+                            <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="pos-parent">Parent Position</Label>
+                      <Select value={positionForm.parentPositionId} onValueChange={(v) => setPositionForm(f => ({ ...f, parentPositionId: v === '__none__' ? '' : v }))}>
+                        <SelectTrigger data-testid="select-position-parent">
+                          <SelectValue placeholder="None (Root Position)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">None (Root Position)</SelectItem>
+                          {orgPositions
+                            .filter(p => !editingPosition || p.id !== editingPosition.id)
+                            .map(p => (
+                              <SelectItem key={p.id} value={String(p.id)}>{p.title}{p.department ? ` (${p.department})` : ''}</SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="pos-user">Assigned Employee</Label>
+                      <Select value={positionForm.assignedUserId} onValueChange={(v) => setPositionForm(f => ({ ...f, assignedUserId: v === '__none__' ? '' : v }))}>
+                        <SelectTrigger data-testid="select-position-user">
+                          <SelectValue placeholder="Vacant (no one assigned)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Vacant (no one assigned)</SelectItem>
+                          {users
+                            .filter(u => u.status !== 'terminated')
+                            .sort((a, b) => `${a.firstName} ${a.surname}`.localeCompare(`${b.firstName} ${b.surname}`))
+                            .map(u => (
+                              <SelectItem key={u.id} value={u.id}>
+                                {u.firstName} {u.surname} ({u.id}) - {u.role}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="pos-sort">Sort Order</Label>
+                      <Input
+                        id="pos-sort"
+                        type="number"
+                        value={positionForm.sortOrder}
+                        onChange={(e) => setPositionForm(f => ({ ...f, sortOrder: e.target.value }))}
+                        placeholder="0"
+                        data-testid="input-position-sort"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">Lower numbers appear first among siblings</p>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setPositionDialogOpen(false)}>Cancel</Button>
+                    <Button onClick={handleSavePosition} data-testid="button-save-position">
+                      <Save className="h-4 w-4 mr-2" /> {editingPosition ? 'Update' : 'Create'}
                     </Button>
                   </DialogFooter>
                 </DialogContent>
