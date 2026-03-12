@@ -448,7 +448,7 @@ export default function PersonnelSection() {
               <SelectContent>
                 <SelectItem value="all">All Departments</SelectItem>
                 {departments.map((d: Department) => (
-                  <SelectItem key={d.id} value={d.id.toString()}>{d.name}</SelectItem>
+                  <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
