@@ -1344,7 +1344,7 @@ export async function registerRoutes(
     try {
       const { value } = req.body;
       
-      if (!value) {
+      if (value === undefined || value === null) {
         return res.status(400).json({ error: "Value is required" });
       }
 

@@ -431,8 +431,9 @@ export const passwordResetApi = {
 
 // Settings API
 export const settingsApi = {
-  async get(key: string): Promise<Setting> {
+  async get(key: string): Promise<Setting | null> {
     const res = await fetch(`${API_BASE}/settings/${key}`);
+    if (res.status === 404) return null;
     if (!res.ok) throw new Error("Failed to fetch setting");
     return res.json();
   },
