@@ -257,7 +257,7 @@ export default function AdminDashboard() {
   // Positions State
   const [positionDialogOpen, setPositionDialogOpen] = useState(false);
   const [editingPosition, setEditingPosition] = useState<OrgPosition | null>(null);
-  const [positionForm, setPositionForm] = useState({ title: '', department: '', parentPositionId: '', assignedUserId: '', sortOrder: '0' });
+  const [positionForm, setPositionForm] = useState({ title: '', department: '', parentPositionId: '', assignedUserIds: [] as string[], sortOrder: '0' });
 
   // Attendance Edit State
   const [editingAttendance, setEditingAttendance] = useState<AttendanceRecord | null>(null);
@@ -1259,7 +1259,7 @@ export default function AdminDashboard() {
   // Positions Handlers
   const handleOpenCreatePosition = () => {
     setEditingPosition(null);
-    setPositionForm({ title: '', department: '', parentPositionId: '', assignedUserId: '', sortOrder: '0' });
+    setPositionForm({ title: '', department: '', parentPositionId: '', assignedUserIds: [], sortOrder: '0' });
     setPositionDialogOpen(true);
   };
 
@@ -1269,7 +1269,7 @@ export default function AdminDashboard() {
       title: pos.title,
       department: pos.department || '',
       parentPositionId: pos.parentPositionId ? String(pos.parentPositionId) : '',
-      assignedUserId: pos.assignedUserId || '',
+      assignedUserIds: pos.assignedUserIds || [],
       sortOrder: String(pos.sortOrder || 0),
     });
     setPositionDialogOpen(true);
@@ -1284,7 +1284,7 @@ export default function AdminDashboard() {
       title: positionForm.title,
       department: positionForm.department || null,
       parentPositionId: positionForm.parentPositionId ? Number(positionForm.parentPositionId) : null,
-      assignedUserId: positionForm.assignedUserId || null,
+      assignedUserIds: positionForm.assignedUserIds,
       sortOrder: Number(positionForm.sortOrder) || 0,
     };
     try {
@@ -4294,23 +4294,28 @@ export default function AdminDashboard() {
                           .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
                           .map((pos) => {
                             const parentPos = orgPositions.find(p => p.id === pos.parentPositionId);
-                            const assignedUser = users.find(u => u.id === pos.assignedUserId);
+                            const assignedUsers = (pos.assignedUserIds || []).map(id => users.find(u => u.id === id)).filter(Boolean);
+                            const isFilled = assignedUsers.length > 0;
                             return (
                               <TableRow key={pos.id} data-testid={`row-position-${pos.id}`}>
                                 <TableCell className="font-medium">{pos.title}</TableCell>
                                 <TableCell>{pos.department || '-'}</TableCell>
                                 <TableCell>{parentPos ? parentPos.title : <span className="text-muted-foreground italic">Root</span>}</TableCell>
                                 <TableCell>
-                                  {assignedUser ? (
-                                    <span>{assignedUser.firstName} {assignedUser.surname}</span>
+                                  {isFilled ? (
+                                    <div className="space-y-0.5">
+                                      {assignedUsers.map((u: any) => (
+                                        <div key={u.id} className="text-sm">{u.firstName} {u.surname}</div>
+                                      ))}
+                                    </div>
                                   ) : (
                                     <span className="text-red-500 italic">Vacant</span>
                                   )}
                                 </TableCell>
                                 <TableCell>{pos.sortOrder || 0}</TableCell>
                                 <TableCell>
-                                  {pos.assignedUserId ? (
-                                    <Badge variant="default" className="bg-green-600">Filled</Badge>
+                                  {isFilled ? (
+                                    <Badge variant="default" className="bg-green-600">{assignedUsers.length} assigned</Badge>
                                   ) : (
                                     <Badge variant="destructive">Vacant</Badge>
                                   )}
@@ -4382,23 +4387,35 @@ export default function AdminDashboard() {
                       </Select>
                     </div>
                     <div>
-                      <Label htmlFor="pos-user">Assigned Employee</Label>
-                      <Select value={positionForm.assignedUserId} onValueChange={(v) => setPositionForm(f => ({ ...f, assignedUserId: v === '__none__' ? '' : v }))}>
-                        <SelectTrigger data-testid="select-position-user">
-                          <SelectValue placeholder="Vacant (no one assigned)" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">Vacant (no one assigned)</SelectItem>
-                          {users
-                            .filter(u => u.status !== 'terminated')
-                            .sort((a, b) => `${a.firstName} ${a.surname}`.localeCompare(`${b.firstName} ${b.surname}`))
-                            .map(u => (
-                              <SelectItem key={u.id} value={u.id}>
-                                {u.firstName} {u.surname} ({u.id}) - {u.role}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
+                      <Label>Assigned Employees ({positionForm.assignedUserIds.length} selected)</Label>
+                      <div className="border rounded-md max-h-48 overflow-y-auto p-2 space-y-1 mt-1" data-testid="select-position-users">
+                        {users
+                          .filter(u => !u.terminationDate)
+                          .sort((a, b) => `${a.firstName} ${a.surname}`.localeCompare(`${b.firstName} ${b.surname}`))
+                          .map(u => {
+                            const isChecked = positionForm.assignedUserIds.includes(u.id);
+                            return (
+                              <label key={u.id} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-slate-50 cursor-pointer text-sm">
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => {
+                                    setPositionForm(f => ({
+                                      ...f,
+                                      assignedUserIds: isChecked
+                                        ? f.assignedUserIds.filter(id => id !== u.id)
+                                        : [...f.assignedUserIds, u.id]
+                                    }));
+                                  }}
+                                  className="rounded"
+                                />
+                                <span>{u.firstName} {u.surname} ({u.id})</span>
+                                <Badge variant="outline" className="ml-auto text-[10px]">{u.role}</Badge>
+                              </label>
+                            );
+                          })}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">Leave empty for a vacant position</p>
                     </div>
                     <div>
                       <Label htmlFor="pos-sort">Sort Order</Label>

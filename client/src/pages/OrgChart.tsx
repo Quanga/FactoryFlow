@@ -616,18 +616,26 @@ export default function OrgChart() {
       const positionMap = new Map(orgPositions.map(p => [p.id, p]));
       const rootPositions = orgPositions.filter(p => !p.parentPositionId);
       
+      const getAssignedUsers = (pos: typeof orgPositions[0]) => {
+        const ids = pos.assignedUserIds || [];
+        return ids.map(id => userMap.get(id)).filter((u): u is User => !!u);
+      };
+
       const isWorkerPosition = (posId: number): boolean => {
         const pos = positionMap.get(posId)!;
         const hasChildren = orgPositions.some(p => p.parentPositionId === posId);
         if (hasChildren) return false;
-        const assignedUser = pos.assignedUserId ? userMap.get(pos.assignedUserId) : null;
-        if (assignedUser && assignedUser.role === 'manager') return false;
-        return true;
+        const assignedUsers = getAssignedUsers(pos);
+        if (assignedUsers.length === 1 && assignedUsers[0].role === 'manager') return false;
+        if (assignedUsers.length > 1) return true;
+        if (assignedUsers.length === 0) return true;
+        return assignedUsers[0].role === 'worker';
       };
 
       const buildPositionSubtree = (posId: number): TreeNode => {
         const pos = positionMap.get(posId)!;
-        const assignedUser = pos.assignedUserId ? userMap.get(pos.assignedUserId) : null;
+        const assignedUsers = getAssignedUsers(pos);
+        const primaryUser = assignedUsers.length > 0 ? assignedUsers[0] : null;
         const childPositions = orgPositions
           .filter(p => p.parentPositionId === posId)
           .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
@@ -641,14 +649,16 @@ export default function OrgChart() {
           const groupsByDept = new Map<string, { id: string; name: string; photoUrl: string | null }[]>();
           workerChildren.forEach(wp => {
             const wPos = positionMap.get(wp.id)!;
-            const wUser = wPos.assignedUserId ? userMap.get(wPos.assignedUserId) : null;
+            const wUsers = getAssignedUsers(wPos);
             const dept = wPos.department || wPos.title || 'Staff';
             if (!groupsByDept.has(dept)) groupsByDept.set(dept, []);
-            if (wUser) {
-              groupsByDept.get(dept)!.push({
-                id: wUser.id,
-                name: `${wUser.firstName} ${wUser.surname}`,
-                photoUrl: wUser.photoUrl,
+            if (wUsers.length > 0) {
+              wUsers.forEach(wUser => {
+                groupsByDept.get(dept)!.push({
+                  id: wUser.id,
+                  name: `${wUser.firstName} ${wUser.surname}`,
+                  photoUrl: wUser.photoUrl,
+                });
               });
             } else {
               groupsByDept.get(dept)!.push({
@@ -679,17 +689,42 @@ export default function OrgChart() {
             });
         }
         
+        const hasMultipleUsers = assignedUsers.length > 1;
+        const isVacant = assignedUsers.length === 0;
+        
+        if (hasMultipleUsers) {
+          const workerEntries = assignedUsers.map(u => ({
+            id: u.id,
+            name: `${u.firstName} ${u.surname}`,
+            photoUrl: u.photoUrl,
+          }));
+          const nodeHeight = DEPT_HEADER_HEIGHT + workerEntries.length * WORKER_ROW_HEIGHT + 4;
+          return {
+            data: {
+              id: `pos-${posId}`,
+              name: pos.title,
+              role: 'worker',
+              department: pos.department || pos.title,
+              photoUrl: null,
+              kind: 'department-group' as const,
+              workers: workerEntries,
+              nodeHeight,
+            },
+            children,
+          };
+        }
+        
         return {
           data: {
             id: `pos-${posId}`,
-            name: assignedUser ? `${assignedUser.firstName} ${assignedUser.surname}` : 'VACANT',
+            name: primaryUser ? `${primaryUser.firstName} ${primaryUser.surname}` : 'VACANT',
             role: 'manager',
             department: pos.department || pos.title,
-            photoUrl: assignedUser?.photoUrl || null,
+            photoUrl: primaryUser?.photoUrl || null,
             isRoot: !pos.parentPositionId,
             kind: 'manager' as const,
             nodeHeight: MANAGER_NODE_HEIGHT,
-            isVacant: !assignedUser,
+            isVacant,
             positionTitle: pos.title,
           } as OrgNodeData,
           children,

@@ -341,7 +341,7 @@ export const orgPositions = pgTable("org_positions", {
   title: text("title").notNull(),
   department: text("department"),
   parentPositionId: integer("parent_position_id"),
-  assignedUserId: text("assigned_user_id").references(() => users.id, { onDelete: "set null" }),
+  assignedUserIds: text("assigned_user_ids").array().default([]),
   sortOrder: integer("sort_order").default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
