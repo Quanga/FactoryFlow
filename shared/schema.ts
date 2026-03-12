@@ -130,6 +130,7 @@ export const users = pgTable("users", {
   terminationDate: text("termination_date"), // Date when employee was terminated (null if active)
   managerId: text("manager_id"), // ID of the employee's direct manager
   secondManagerId: text("second_manager_id"), // ID of a second manager (for shared reporting)
+  orgPositionId: integer("org_position_id"), // ID of the org position this employee is assigned to
   photoUrl: text("photo_url"),
   faceDescriptor: text("face_descriptor"), // JSON array of 128 face embedding values
   exclude: boolean("exclude").default(false), // Exclude from org chart and attendance (for test/dummy users)
@@ -341,7 +342,6 @@ export const orgPositions = pgTable("org_positions", {
   title: text("title").notNull(),
   department: text("department"),
   parentPositionId: integer("parent_position_id"),
-  assignedUserIds: text("assigned_user_ids").array().default([]),
   sortOrder: integer("sort_order").default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

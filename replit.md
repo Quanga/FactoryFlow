@@ -68,7 +68,7 @@ Preferred communication style: Simple, everyday language.
 
 **Schema Design**
 - **Users**: Stores both workers and managers with role-based differentiation
-  - Fields: id, firstName, surname, nickname, email, mobile, homeAddress, gender, role, departmentId, userGroupId (for admins), faceDescriptor, password (hashed, for admins), managerId, secondManagerId
+  - Fields: id, firstName, surname, nickname, email, mobile, homeAddress, gender, role, departmentId, userGroupId (for admins), faceDescriptor, password (hashed, for admins), managerId, secondManagerId, orgPositionId
   - Workers: ID-based authentication (no email/password required), assigned to departments
   - Managers: Email/password authentication, assigned to user groups
   - Dual manager support: Workers can report to two managers via managerId and secondManagerId (for shared department oversight)
@@ -81,6 +81,10 @@ Preferred communication style: Simple, everyday language.
 - **Settings**: System-wide configuration (e.g., admin email for notifications, sender email, timezone)
 - **Public Holidays**: Calendar of public holidays for leave calculation exclusions
   - Fields: id, name, date, isRecurring (for annual holidays), description
+- **Org Positions**: Defines position-based org chart hierarchy (position names and structure only)
+  - Fields: id, title, department, parentPositionId, sortOrder
+  - Employees are assigned to positions via users.orgPositionId (set on the employee edit page)
+  - When positions exist, the org chart uses position hierarchy; otherwise falls back to manager-based tree
 - **Notifications**: User notification system for alerts and updates
   - Fields: id, userId, type, title, message, isRead, createdAt
 

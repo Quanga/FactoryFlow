@@ -257,7 +257,7 @@ export default function AdminDashboard() {
   // Positions State
   const [positionDialogOpen, setPositionDialogOpen] = useState(false);
   const [editingPosition, setEditingPosition] = useState<OrgPosition | null>(null);
-  const [positionForm, setPositionForm] = useState({ title: '', department: '', parentPositionId: '', assignedUserIds: [] as string[], sortOrder: '0' });
+  const [positionForm, setPositionForm] = useState({ title: '', department: '', parentPositionId: '', sortOrder: '0' });
 
   // Attendance Edit State
   const [editingAttendance, setEditingAttendance] = useState<AttendanceRecord | null>(null);
@@ -1103,6 +1103,7 @@ export default function AdminDashboard() {
       startDate: currentUser.startDate || null,
       userGroupId: currentUser.userGroupId || null,
       managerId: currentUser.managerId || null,
+      orgPositionId: currentUser.orgPositionId || null,
       exclude: currentUser.exclude || false,
     };
 
@@ -1259,7 +1260,7 @@ export default function AdminDashboard() {
   // Positions Handlers
   const handleOpenCreatePosition = () => {
     setEditingPosition(null);
-    setPositionForm({ title: '', department: '', parentPositionId: '', assignedUserIds: [], sortOrder: '0' });
+    setPositionForm({ title: '', department: '', parentPositionId: '', sortOrder: '0' });
     setPositionDialogOpen(true);
   };
 
@@ -1269,7 +1270,6 @@ export default function AdminDashboard() {
       title: pos.title,
       department: pos.department || '',
       parentPositionId: pos.parentPositionId ? String(pos.parentPositionId) : '',
-      assignedUserIds: pos.assignedUserIds || [],
       sortOrder: String(pos.sortOrder || 0),
     });
     setPositionDialogOpen(true);
@@ -1284,7 +1284,6 @@ export default function AdminDashboard() {
       title: positionForm.title,
       department: positionForm.department || null,
       parentPositionId: positionForm.parentPositionId ? Number(positionForm.parentPositionId) : null,
-      assignedUserIds: positionForm.assignedUserIds,
       sortOrder: Number(positionForm.sortOrder) || 0,
     };
     try {
@@ -4294,7 +4293,7 @@ export default function AdminDashboard() {
                           .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
                           .map((pos) => {
                             const parentPos = orgPositions.find(p => p.id === pos.parentPositionId);
-                            const assignedUsers = (pos.assignedUserIds || []).map(id => users.find(u => u.id === id)).filter(Boolean);
+                            const assignedUsers = users.filter(u => u.orgPositionId === pos.id && !u.terminationDate);
                             const isFilled = assignedUsers.length > 0;
                             return (
                               <TableRow key={pos.id} data-testid={`row-position-${pos.id}`}>
@@ -4304,7 +4303,7 @@ export default function AdminDashboard() {
                                 <TableCell>
                                   {isFilled ? (
                                     <div className="space-y-0.5">
-                                      {assignedUsers.map((u: any) => (
+                                      {assignedUsers.map((u) => (
                                         <div key={u.id} className="text-sm">{u.firstName} {u.surname}</div>
                                       ))}
                                     </div>
@@ -4387,35 +4386,9 @@ export default function AdminDashboard() {
                       </Select>
                     </div>
                     <div>
-                      <Label>Assigned Employees ({positionForm.assignedUserIds.length} selected)</Label>
-                      <div className="border rounded-md max-h-48 overflow-y-auto p-2 space-y-1 mt-1" data-testid="select-position-users">
-                        {users
-                          .filter(u => !u.terminationDate)
-                          .sort((a, b) => `${a.firstName} ${a.surname}`.localeCompare(`${b.firstName} ${b.surname}`))
-                          .map(u => {
-                            const isChecked = positionForm.assignedUserIds.includes(u.id);
-                            return (
-                              <label key={u.id} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-slate-50 cursor-pointer text-sm">
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={() => {
-                                    setPositionForm(f => ({
-                                      ...f,
-                                      assignedUserIds: isChecked
-                                        ? f.assignedUserIds.filter(id => id !== u.id)
-                                        : [...f.assignedUserIds, u.id]
-                                    }));
-                                  }}
-                                  className="rounded"
-                                />
-                                <span>{u.firstName} {u.surname} ({u.id})</span>
-                                <Badge variant="outline" className="ml-auto text-[10px]">{u.role}</Badge>
-                              </label>
-                            );
-                          })}
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-1">Leave empty for a vacant position</p>
+                      <p className="text-xs text-muted-foreground bg-blue-50 border border-blue-200 rounded p-2">
+                        Employees are assigned to positions from the employee edit page, not here. This page is for defining position names and hierarchy only.
+                      </p>
                     </div>
                     <div>
                       <Label htmlFor="pos-sort">Sort Order</Label>
@@ -6190,6 +6163,32 @@ export default function AdminDashboard() {
                   </Select>
                   <p className="text-xs text-muted-foreground mt-1">
                     Optional second manager for shared reporting (e.g. worker reports to two department managers).
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="orgPosition" className="text-right">Position</Label>
+                <div className="col-span-3">
+                  <Select 
+                    value={currentUser.orgPositionId ? String(currentUser.orgPositionId) : 'none'} 
+                    onValueChange={(value) => setCurrentUser({...currentUser, orgPositionId: value === 'none' ? undefined : Number(value)})}
+                  >
+                    <SelectTrigger data-testid="select-org-position">
+                      <SelectValue placeholder="Select a position (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No Position</SelectItem>
+                      {orgPositions
+                        .sort((a, b) => a.title.localeCompare(b.title))
+                        .map((pos) => (
+                          <SelectItem key={pos.id} value={String(pos.id)} data-testid={`option-position-${pos.id}`}>
+                            {pos.title}{pos.department ? ` (${pos.department})` : ''}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    The org chart position for this employee. Positions are defined under Org Positions.
                   </p>
                 </div>
               </div>

@@ -616,16 +616,15 @@ export default function OrgChart() {
       const positionMap = new Map(orgPositions.map(p => [p.id, p]));
       const rootPositions = orgPositions.filter(p => !p.parentPositionId);
       
-      const getAssignedUsers = (pos: typeof orgPositions[0]) => {
-        const ids = pos.assignedUserIds || [];
-        return ids.map(id => userMap.get(id)).filter((u): u is User => !!u);
+      const getUsersForPosition = (posId: number): User[] => {
+        return activeUsers.filter(u => u.orgPositionId === posId);
       };
 
       const isWorkerPosition = (posId: number): boolean => {
         const pos = positionMap.get(posId)!;
         const hasChildren = orgPositions.some(p => p.parentPositionId === posId);
         if (hasChildren) return false;
-        const assignedUsers = getAssignedUsers(pos);
+        const assignedUsers = getUsersForPosition(posId);
         if (assignedUsers.length === 1 && assignedUsers[0].role === 'manager') return false;
         if (assignedUsers.length > 1) return true;
         if (assignedUsers.length === 0) return true;
@@ -634,7 +633,7 @@ export default function OrgChart() {
 
       const buildPositionSubtree = (posId: number): TreeNode => {
         const pos = positionMap.get(posId)!;
-        const assignedUsers = getAssignedUsers(pos);
+        const assignedUsers = getUsersForPosition(posId);
         const primaryUser = assignedUsers.length > 0 ? assignedUsers[0] : null;
         const childPositions = orgPositions
           .filter(p => p.parentPositionId === posId)
@@ -649,7 +648,7 @@ export default function OrgChart() {
           const groupsByDept = new Map<string, { id: string; name: string; photoUrl: string | null }[]>();
           workerChildren.forEach(wp => {
             const wPos = positionMap.get(wp.id)!;
-            const wUsers = getAssignedUsers(wPos);
+            const wUsers = getUsersForPosition(wp.id);
             const dept = wPos.department || wPos.title || 'Staff';
             if (!groupsByDept.has(dept)) groupsByDept.set(dept, []);
             if (wUsers.length > 0) {
