@@ -4265,33 +4265,38 @@ export default function AdminDashboard() {
                   <Plus className="h-4 w-4 mr-2" /> Add Position
                 </Button>
               </div>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Positions ({orgPositions.length})</CardTitle>
-                  <CardDescription>Each position can have a parent position and an assigned employee. Unassigned positions appear as "Vacant" in the org chart.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {orgPositions.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground">
+              {orgPositions.length === 0 ? (
+                <Card>
+                  <CardContent className="py-8">
+                    <div className="text-center text-muted-foreground">
                       No positions defined yet. The org chart will use the manager-based hierarchy. Add positions to switch to a position-based org chart.
                     </div>
-                  ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Title</TableHead>
-                          <TableHead>Department</TableHead>
-                          <TableHead>Parent Position</TableHead>
-                          <TableHead>Assigned Employee</TableHead>
-                          <TableHead>Sort Order</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {orgPositions
-                          .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
-                          .map((pos) => {
+                  </CardContent>
+                </Card>
+              ) : (() => {
+                const isManagerPosition = (title: string) => /manager|director|assistant|supervisor/i.test(title);
+                const managerPositions = orgPositions.filter(p => isManagerPosition(p.title)).sort((a, b) => a.title.localeCompare(b.title));
+                const staffPositions = orgPositions.filter(p => !isManagerPosition(p.title)).sort((a, b) => a.title.localeCompare(b.title));
+
+                const renderPositionTable = (positions: typeof orgPositions, label: string) => (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>{label} ({positions.length})</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Title</TableHead>
+                            <TableHead>Department</TableHead>
+                            <TableHead>Parent Position</TableHead>
+                            <TableHead>Assigned Employee(s)</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {positions.map((pos) => {
                             const parentPos = orgPositions.find(p => p.id === pos.parentPositionId);
                             const assignedUsers = users.filter(u => u.orgPositionId === pos.id && !u.terminationDate);
                             const isFilled = assignedUsers.length > 0;
@@ -4303,15 +4308,16 @@ export default function AdminDashboard() {
                                 <TableCell>
                                   {isFilled ? (
                                     <div className="space-y-0.5">
-                                      {assignedUsers.map((u) => (
-                                        <div key={u.id} className="text-sm">{u.firstName} {u.surname}</div>
-                                      ))}
+                                      {assignedUsers
+                                        .sort((a, b) => `${a.firstName} ${a.surname}`.localeCompare(`${b.firstName} ${b.surname}`))
+                                        .map((u) => (
+                                          <div key={u.id} className="text-sm">{u.firstName} {u.surname}</div>
+                                        ))}
                                     </div>
                                   ) : (
                                     <span className="text-red-500 italic">Vacant</span>
                                   )}
                                 </TableCell>
-                                <TableCell>{pos.sortOrder || 0}</TableCell>
                                 <TableCell>
                                   {isFilled ? (
                                     <Badge variant="default" className="bg-green-600">{assignedUsers.length} assigned</Badge>
@@ -4330,11 +4336,19 @@ export default function AdminDashboard() {
                               </TableRow>
                             );
                           })}
-                      </TableBody>
-                    </Table>
-                  )}
-                </CardContent>
-              </Card>
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  </Card>
+                );
+
+                return (
+                  <>
+                    {renderPositionTable(managerPositions, 'Manager Positions')}
+                    {renderPositionTable(staffPositions, 'Staff Positions')}
+                  </>
+                );
+              })()}
 
               <Dialog open={positionDialogOpen} onOpenChange={setPositionDialogOpen}>
                 <DialogContent className="sm:max-w-md">
