@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { userApi, departmentApi, userGroupApi, leaveBalanceApi, employeeTypeApi, contractHistoryApi, faceDescriptorApi, orgPositionApi } from '@/lib/api';
 import type { User, Department, UserGroup, LeaveBalance, EmployeeType, OrgPosition } from '@shared/schema';
 import { Plus, Pencil, Trash2, Mail, Camera, Loader2, CheckCircle2, UserCog, Shield, Check, X, Search, UserX, Network, ChevronDown, ChevronRight } from 'lucide-react';
@@ -16,7 +17,7 @@ import { useAuth } from '@/lib/auth-context';
 import WebcamCapture from '@/components/WebcamCapture';
 import MultiAngleFaceCapture from '@/components/MultiAngleFaceCapture';
 import { loadFaceModels, extractFaceDescriptorFromBase64, descriptorToJson } from '@/lib/face-recognition';
-import { formatDateForDisplay, getEmploymentDuration, generatePassword } from './utils';
+import { formatDateForDisplay, getEmploymentDuration, generatePassword, isValidDateFormat, parseDateFromDisplay } from './utils';
 
 export default function PersonnelSection() {
   const { toast } = useToast();
@@ -219,8 +220,13 @@ export default function PersonnelSection() {
       startDate: currentUser.startDate || null,
       userGroupId: currentUser.userGroupId || null,
       managerId: currentUser.managerId || null,
+      secondManagerId: currentUser.secondManagerId || null,
       orgPositionId: currentUser.orgPositionId || null,
       exclude: currentUser.exclude || false,
+      attendanceRequired: currentUser.attendanceRequired !== false,
+      nickname: currentUser.nickname || null,
+      terminationDate: currentUser.terminationDate || null,
+      contractEndDate: currentUser.contractEndDate || null,
     };
 
     if (isEditing) {
@@ -824,6 +830,17 @@ export default function PersonnelSection() {
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="nickname" className="text-right">Nickname</Label>
+              <Input 
+                id="nickname" 
+                value={currentUser.nickname || ''} 
+                onChange={(e) => setCurrentUser({...currentUser, nickname: e.target.value})}
+                className="col-span-3"
+                placeholder="Optional"
+                data-testid="input-nickname"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="userId" className="text-right">Employee ID</Label>
               <Input 
                 id="userId" 
@@ -955,24 +972,75 @@ export default function PersonnelSection() {
               </div>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="role" className="text-right">Role</Label>
+              <div className="col-span-3">
+                <Select 
+                  value={currentUser.role || 'worker'} 
+                  onValueChange={(value) => setCurrentUser({...currentUser, role: value})}
+                >
+                  <SelectTrigger data-testid="select-role">
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="worker">Worker</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Managers can be assigned as supervisors to other employees.
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="manager" className="text-right">Reports To</Label>
               <div className="col-span-3">
                 <Select 
-                  value={currentUser.managerId || ''} 
-                  onValueChange={(value) => setCurrentUser({...currentUser, managerId: value})}
+                  value={currentUser.managerId || 'none'} 
+                  onValueChange={(value) => setCurrentUser({...currentUser, managerId: value === 'none' ? undefined : value})}
                 >
                   <SelectTrigger data-testid="select-manager">
-                    <SelectValue placeholder="Select manager (optional)" />
+                    <SelectValue placeholder="Select a manager (optional)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {users.filter(u => u.id !== currentUser.id).map((u) => (
-                      <SelectItem key={u.id} value={u.id}>
-                        {u.firstName} {u.surname} ({u.role})
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="none">No Manager</SelectItem>
+                    {users
+                      .filter(u => u.id !== currentUser.id && u.role === 'manager')
+                      .map((mgr) => (
+                        <SelectItem key={mgr.id} value={mgr.id} data-testid={`option-manager-${mgr.id}`}>
+                          {mgr.firstName} {mgr.surname} {mgr.department ? `(${mgr.department})` : ''}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Select the direct manager for this employee. Only users with "Manager" role are shown.
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="secondManager" className="text-right">2nd Manager</Label>
+              <div className="col-span-3">
+                <Select 
+                  value={currentUser.secondManagerId || 'none'} 
+                  onValueChange={(value) => setCurrentUser({...currentUser, secondManagerId: value === 'none' ? undefined : value})}
+                >
+                  <SelectTrigger data-testid="select-second-manager">
+                    <SelectValue placeholder="Select a second manager (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No Second Manager</SelectItem>
+                    {users
+                      .filter(u => u.id !== currentUser.id && u.role === 'manager' && u.id !== currentUser.managerId)
+                      .map((mgr) => (
+                        <SelectItem key={mgr.id} value={mgr.id} data-testid={`option-second-manager-${mgr.id}`}>
+                          {mgr.firstName} {mgr.surname} {mgr.department ? `(${mgr.department})` : ''}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Optional second manager for shared reporting (e.g. worker reports to two department managers).
+                </p>
               </div>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
@@ -1049,6 +1117,111 @@ export default function PersonnelSection() {
                 data-testid="input-tax-number"
               />
             </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="nextOfKin" className="text-right">Next of Kin</Label>
+              <Input 
+                id="nextOfKin" 
+                value={currentUser.nextOfKin || ''} 
+                onChange={(e) => setCurrentUser({...currentUser, nextOfKin: e.target.value})}
+                className="col-span-3"
+                placeholder="Name and relationship"
+                data-testid="input-next-of-kin"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="emergencyNumber" className="text-right">Emergency Contact</Label>
+              <Input 
+                id="emergencyNumber" 
+                value={currentUser.emergencyNumber || ''} 
+                onChange={(e) => setCurrentUser({...currentUser, emergencyNumber: e.target.value})}
+                className="col-span-3"
+                placeholder="Emergency phone number"
+                data-testid="input-emergency-number"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="userGroup" className="text-right">Admin Access</Label>
+              <div className="col-span-3">
+                <Select 
+                  value={currentUser.userGroupId?.toString() || 'none'} 
+                  onValueChange={(value) => {
+                    if (value === 'none') {
+                      setCurrentUser({...currentUser, userGroupId: undefined, role: 'worker'});
+                    } else {
+                      setCurrentUser({...currentUser, userGroupId: parseInt(value), role: 'manager'});
+                    }
+                  }}
+                >
+                  <SelectTrigger data-testid="select-user-group">
+                    <SelectValue placeholder="No admin access" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No admin access (Worker only)</SelectItem>
+                    {userGroups.map((group) => (
+                      <SelectItem key={group.id} value={group.id.toString()}>
+                        {group.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {currentUser.userGroupId ? 
+                    "This user has admin access and can log into the admin dashboard." : 
+                    "Select a group to grant admin access to this user."}
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="exclude" className="text-right">Exclude</Label>
+              <div className="col-span-3 flex items-center gap-3">
+                <Switch
+                  id="exclude"
+                  checked={currentUser.exclude || false}
+                  onCheckedChange={(checked) => setCurrentUser({...currentUser, exclude: checked})}
+                  data-testid="switch-exclude"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Exclude from org chart and attendance (for test/dummy users).
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="attendanceRequired" className="text-right">Attendance Required</Label>
+              <div className="col-span-3 flex items-center gap-3">
+                <Switch
+                  id="attendanceRequired"
+                  checked={currentUser.attendanceRequired !== false}
+                  onCheckedChange={(checked) => setCurrentUser({...currentUser, attendanceRequired: checked})}
+                  data-testid="switch-attendance-required"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Whether this employee needs to clock in/out. Disable for contractors, consultants, or off-site workers.
+                </p>
+              </div>
+            </div>
+            {isEditing && (
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="terminationDate" className="text-right">Termination Date</Label>
+                <div className="col-span-3">
+                  <Input 
+                    id="terminationDate" 
+                    type="text"
+                    placeholder="dd/mm/yyyy"
+                    value={formatDateForDisplay(currentUser.terminationDate)} 
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (isValidDateFormat(value) || value.length <= 10) {
+                        setCurrentUser({...currentUser, terminationDate: parseDateFromDisplay(value)});
+                      }
+                    }}
+                    data-testid="input-termination-date"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Format: dd/mm/yyyy - Leave blank for active personnel.
+                  </p>
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-4 items-center gap-4 border-t pt-4">
               <Label className="text-right">Profile Photo</Label>
               <div className="col-span-3">
