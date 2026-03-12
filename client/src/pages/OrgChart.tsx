@@ -616,6 +616,15 @@ export default function OrgChart() {
       const positionMap = new Map(orgPositions.map(p => [p.id, p]));
       const rootPositions = orgPositions.filter(p => !p.parentPositionId);
       
+      const isWorkerPosition = (posId: number): boolean => {
+        const pos = positionMap.get(posId)!;
+        const hasChildren = orgPositions.some(p => p.parentPositionId === posId);
+        if (hasChildren) return false;
+        const assignedUser = pos.assignedUserId ? userMap.get(pos.assignedUserId) : null;
+        if (assignedUser && assignedUser.role === 'manager') return false;
+        return true;
+      };
+
       const buildPositionSubtree = (posId: number): TreeNode => {
         const pos = positionMap.get(posId)!;
         const assignedUser = pos.assignedUserId ? userMap.get(pos.assignedUserId) : null;
@@ -623,38 +632,46 @@ export default function OrgChart() {
           .filter(p => p.parentPositionId === posId)
           .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
         
-        const children: TreeNode[] = childPositions.map(cp => buildPositionSubtree(cp.id));
+        const managerChildren = childPositions.filter(cp => !isWorkerPosition(cp.id));
+        const workerChildren = childPositions.filter(cp => isWorkerPosition(cp.id));
         
-        // Find workers who report to this position's assigned user
-        if (assignedUser) {
-          const workerReports = activeUsers.filter(u => 
-            u.role === 'worker' && (u.managerId === assignedUser.id || u.secondManagerId === assignedUser.id)
-          );
-          // Group workers by department
-          const workersByDept = new Map<string, User[]>();
-          workerReports.forEach(w => {
-            const dept = w.department || 'Unassigned';
-            if (!workersByDept.has(dept)) workersByDept.set(dept, []);
-            workersByDept.get(dept)!.push(w);
+        const children: TreeNode[] = managerChildren.map(cp => buildPositionSubtree(cp.id));
+        
+        if (workerChildren.length > 0) {
+          const groupsByDept = new Map<string, { id: string; name: string; photoUrl: string | null }[]>();
+          workerChildren.forEach(wp => {
+            const wPos = positionMap.get(wp.id)!;
+            const wUser = wPos.assignedUserId ? userMap.get(wPos.assignedUserId) : null;
+            const dept = wPos.department || wPos.title || 'Staff';
+            if (!groupsByDept.has(dept)) groupsByDept.set(dept, []);
+            if (wUser) {
+              groupsByDept.get(dept)!.push({
+                id: wUser.id,
+                name: `${wUser.firstName} ${wUser.surname}`,
+                photoUrl: wUser.photoUrl,
+              });
+            } else {
+              groupsByDept.get(dept)!.push({
+                id: `vacant-${wp.id}`,
+                name: `VACANT - ${wPos.title}`,
+                photoUrl: null,
+              });
+            }
           });
           
-          Array.from(workersByDept.entries())
+          Array.from(groupsByDept.entries())
             .sort(([a], [b]) => a.localeCompare(b))
             .forEach(([dept, workers]) => {
               const nodeHeight = DEPT_HEADER_HEIGHT + workers.length * WORKER_ROW_HEIGHT + 4;
               children.push({
                 data: {
-                  id: `pos-workers-${posId}-${dept}`,
+                  id: `pos-group-${posId}-${dept}`,
                   name: dept,
                   role: 'worker',
                   department: dept,
                   photoUrl: null,
                   kind: 'department-group' as const,
-                  workers: workers.map(w => ({
-                    id: w.id,
-                    name: `${w.firstName} ${w.surname}`,
-                    photoUrl: w.photoUrl,
-                  })),
+                  workers,
                   nodeHeight,
                 },
                 children: [],
