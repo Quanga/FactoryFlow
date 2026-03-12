@@ -353,6 +353,15 @@ export const insertOrgPositionSchema = createInsertSchema(orgPositions).omit({
 export type InsertOrgPosition = z.infer<typeof insertOrgPositionSchema>;
 export type OrgPosition = typeof orgPositions.$inferSelect;
 
+// Password Reset Tokens Table
+export const passwordResetTokens = pgTable("password_reset_tokens", {
+  id: serial("id").primaryKey(),
+  token: text("token").notNull().unique(),
+  email: text("email").notNull(),
+  expiry: timestamp("expiry").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Face Descriptors Table (for storing multiple face photos per user to improve recognition)
 export const faceDescriptors = pgTable("face_descriptors", {
   id: serial("id").primaryKey(),

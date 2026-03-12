@@ -28,6 +28,7 @@ interface AttendanceProps {
 
 interface OrgNodeData {
   id: string;
+  userId?: string;
   name: string;
   role: string;
   department: string | null;
@@ -71,7 +72,7 @@ function ManagerNode({ data, x, y, showAttendance, clockedInUserIds }: { data: O
   const isRoot = data.isRoot;
   const isVacant = data.isVacant;
   const deptColor = getDepartmentColor(data.department);
-  const isClockedIn = clockedInUserIds.has(data.id);
+  const isClockedIn = data.userId ? clockedInUserIds.has(data.userId) : false;
   const opacity = showAttendance ? (isClockedIn || isVacant ? 1 : 0.3) : 1;
   
   return (
@@ -716,6 +717,7 @@ export default function OrgChart() {
         return {
           data: {
             id: `pos-${posId}`,
+            userId: primaryUser?.id,
             name: primaryUser ? `${primaryUser.firstName} ${primaryUser.surname}` : 'VACANT',
             role: 'manager',
             department: pos.department || pos.title,
@@ -909,6 +911,7 @@ export default function OrgChart() {
       return {
         data: {
           id: user.id,
+          userId: user.id,
           name: `${user.firstName} ${user.surname}`,
           role: user.role,
           department: user.department,

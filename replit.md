@@ -111,14 +111,19 @@ Preferred communication style: Simple, everyday language.
    
 2. **Admin Authentication**:
    - Email and password credentials
-   - Role verification (must be 'manager')
+   - Passwords hashed with bcrypt (10 rounds); legacy plaintext passwords auto-upgrade on first login
+   - Role verification (must be 'manager' or 'maintainer')
+
+**Password Reset**
+- Reset tokens stored in `password_reset_tokens` database table (persistent across restarts)
+- Tokens expire after 1 hour; single-use with automatic cleanup
 
 **Session Management**
 - Client-side session using localStorage
 - User object stored and persisted across page refreshes
 - Context API provides auth state to all components
 
-**Rationale**: The dual authentication approach recognizes that factory workers may not have email addresses and need a simpler login method. The ID + face verification provides adequate security while remaining accessible. Administrators require traditional credential-based authentication for stronger security.
+**Rationale**: The dual authentication approach recognizes that factory workers may not have email addresses and need a simpler login method. The ID + face verification provides adequate security while remaining accessible. Administrators require traditional credential-based authentication with bcrypt-hashed passwords for strong security.
 
 ### File Upload & Media Handling
 

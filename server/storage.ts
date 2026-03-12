@@ -178,6 +178,11 @@ export interface IStorage {
   createOrgPosition(position: InsertOrgPosition): Promise<OrgPosition>;
   updateOrgPosition(id: number, position: Partial<InsertOrgPosition>): Promise<OrgPosition | undefined>;
   deleteOrgPosition(id: number): Promise<boolean>;
+
+  // Password Reset Token operations
+  createPasswordResetToken(token: string, email: string, expiry: Date): Promise<void>;
+  getPasswordResetToken(token: string): Promise<{ email: string; expiry: Date } | undefined>;
+  deletePasswordResetToken(token: string): Promise<void>;
 }
 
 export class DrizzleStorage implements IStorage {
@@ -1065,6 +1070,20 @@ export class DrizzleStorage implements IStorage {
   async deleteOrgPosition(id: number): Promise<boolean> {
     await db.delete(schema.orgPositions).where(eq(schema.orgPositions.id, id));
     return true;
+  }
+
+  async createPasswordResetToken(token: string, email: string, expiry: Date): Promise<void> {
+    await db.insert(schema.passwordResetTokens).values({ token, email, expiry });
+  }
+
+  async getPasswordResetToken(token: string): Promise<{ email: string; expiry: Date } | undefined> {
+    const results = await db.select().from(schema.passwordResetTokens).where(eq(schema.passwordResetTokens.token, token));
+    if (results.length === 0) return undefined;
+    return { email: results[0].email, expiry: results[0].expiry };
+  }
+
+  async deletePasswordResetToken(token: string): Promise<void> {
+    await db.delete(schema.passwordResetTokens).where(eq(schema.passwordResetTokens.token, token));
   }
 }
 

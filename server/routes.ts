@@ -5,9 +5,20 @@ import { z } from "zod";
 import { insertUserSchema, insertLeaveRequestSchema, insertAttendanceRecordSchema, insertDepartmentSchema, insertUserGroupSchema, insertEmployeeTypeSchema, insertLeaveRuleSchema, insertLeaveRulePhaseSchema, insertGrievanceSchema } from "@shared/schema";
 import { sendLeaveRequestNotification, sendLateAttendanceNotification, sendAdminWelcomeEmail, sendLeaveStatusNotification, sendPasswordResetEmail, sendAdminCredentialsEmail } from "./email";
 import crypto from "crypto";
+import bcrypt from "bcrypt";
 
-// Simple in-memory store for password reset tokens (in production, use database)
-const passwordResetTokens = new Map<string, { email: string; expiry: Date }>();
+const BCRYPT_ROUNDS = 10;
+
+async function hashPassword(password: string): Promise<string> {
+  return bcrypt.hash(password, BCRYPT_ROUNDS);
+}
+
+async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  if (!hash.startsWith('$2')) {
+    return password === hash;
+  }
+  return bcrypt.compare(password, hash);
+}
 
 export async function registerRoutes(
   httpServer: Server,
@@ -84,9 +95,14 @@ export async function registerRoutes(
         return res.status(401).json({ error: "Invalid credentials" });
       }
 
-      // Simple password check (in production, use bcrypt)
-      if (user.password !== password) {
+      const passwordValid = await verifyPassword(password, user.password || '');
+      if (!passwordValid) {
         return res.status(401).json({ error: "Invalid credentials" });
+      }
+
+      if (user.password && !user.password.startsWith('$2')) {
+        const hashed = await hashPassword(password);
+        await storage.updateUser(user.id, { password: hashed });
       }
 
       return res.json(user);
@@ -116,7 +132,7 @@ export async function registerRoutes(
       const token = crypto.randomBytes(32).toString('hex');
       const expiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour expiry
       
-      passwordResetTokens.set(token, { email, expiry });
+      await storage.createPasswordResetToken(token, email, expiry);
 
       // Send reset email
       const senderEmail = "noreply@aece.co.za";
@@ -147,14 +163,14 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Token and new password are required" });
       }
 
-      const tokenData = passwordResetTokens.get(token);
+      const tokenData = await storage.getPasswordResetToken(token);
       
       if (!tokenData) {
         return res.status(400).json({ error: "Invalid or expired reset token" });
       }
 
       if (new Date() > tokenData.expiry) {
-        passwordResetTokens.delete(token);
+        await storage.deletePasswordResetToken(token);
         return res.status(400).json({ error: "Reset token has expired" });
       }
 
@@ -164,11 +180,10 @@ export async function registerRoutes(
         return res.status(400).json({ error: "User not found" });
       }
 
-      // Update password
-      await storage.updateUser(user.id, { password: newPassword });
+      const hashedPassword = await hashPassword(newPassword);
+      await storage.updateUser(user.id, { password: hashedPassword });
       
-      // Remove used token
-      passwordResetTokens.delete(token);
+      await storage.deletePasswordResetToken(token);
 
       return res.json({ message: "Password has been reset successfully" });
     } catch (error) {
@@ -232,7 +247,8 @@ export async function registerRoutes(
       const results = [];
       for (const user of usersWithoutPasswords) {
         const randomPassword = generateSecurePassword();
-        await storage.updateUser(user.id, { password: randomPassword });
+        const hashedPassword = await hashPassword(randomPassword);
+        await storage.updateUser(user.id, { password: hashedPassword });
         results.push({ id: user.id, name: `${user.firstName} ${user.surname}` });
       }
       
@@ -351,10 +367,15 @@ export async function registerRoutes(
   app.post("/api/users", async (req, res) => {
     try {
       const validatedData = insertUserSchema.parse(req.body);
+      
+      const plaintextPassword = validatedData.password;
+      if (validatedData.password) {
+        validatedData.password = await hashPassword(validatedData.password);
+      }
+      
       const newUser = await storage.createUser(validatedData);
       
-      // Send welcome email for new admin users
-      if (validatedData.role === 'manager' && validatedData.email && validatedData.password) {
+      if (validatedData.role === 'manager' && validatedData.email && plaintextPassword) {
         try {
           await sendAdminWelcomeEmail(
             validatedData.email,
@@ -363,12 +384,11 @@ export async function registerRoutes(
               firstName: validatedData.firstName,
               surname: validatedData.surname,
               email: validatedData.email,
-              password: validatedData.password,
+              password: plaintextPassword,
             }
           );
         } catch (emailError) {
           console.error('Failed to send welcome email:', emailError);
-          // Don't fail user creation if email fails
         }
       }
       
@@ -383,8 +403,11 @@ export async function registerRoutes(
   // Update user
   app.patch("/api/users/:id", async (req, res) => {
     try {
-      // Remove fields that shouldn't be updated
       const { id, createdAt, ...updateData } = req.body;
+      
+      if (updateData.password && !updateData.password.startsWith('$2')) {
+        updateData.password = await hashPassword(updateData.password);
+      }
       
       const updatedUser = await storage.updateUser(req.params.id, updateData);
       
@@ -1791,14 +1814,17 @@ export async function registerRoutes(
         return res.status(400).json({ error: "User does not have an email address" });
       }
       
-      if (!user.password) {
-        return res.status(400).json({ error: "User does not have a password set" });
-      }
-      
       const fromEmailSetting = await storage.getSetting('from_email');
       const fromEmail = fromEmailSetting?.value || 'noreply@aece.co.za';
       
-      const siteUrl = 'https://factory-flow--quanga01.replit.app';
+      const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+        ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
+        : 'https://factory-flow--quanga01.replit.app';
+      
+      const resetToken = crypto.randomBytes(32).toString('hex');
+      const expiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      await storage.createPasswordResetToken(resetToken, user.email, expiry);
+      const resetUrl = `${baseUrl}/reset-password?token=${resetToken}`;
       
       const success = await sendAdminCredentialsEmail(
         user.email,
@@ -1807,8 +1833,8 @@ export async function registerRoutes(
           firstName: user.firstName,
           surname: user.surname,
           email: user.email,
-          password: user.password,
-          siteUrl: siteUrl,
+          password: `Please set your password using: ${resetUrl}`,
+          siteUrl: baseUrl,
         }
       );
       
