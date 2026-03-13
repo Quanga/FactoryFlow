@@ -227,6 +227,7 @@ export default function PersonnelSection() {
       nickname: currentUser.nickname || null,
       terminationDate: currentUser.terminationDate || null,
       contractEndDate: currentUser.contractEndDate || null,
+      adminRole: currentUser.userGroupId ? (currentUser.adminRole || 'manager') : null,
     };
 
     if (isEditing) {
@@ -392,6 +393,7 @@ export default function PersonnelSection() {
       email: adminData.email,
       password: adminData.password,
       role: 'manager',
+      adminRole: 'manager',
       userGroupId: adminData.userGroupId,
     }, {
       onSuccess: () => {
@@ -1220,9 +1222,9 @@ export default function PersonnelSection() {
                   value={currentUser.userGroupId?.toString() || 'none'} 
                   onValueChange={(value) => {
                     if (value === 'none') {
-                      setCurrentUser({...currentUser, userGroupId: undefined, role: 'worker'});
+                      setCurrentUser({...currentUser, userGroupId: undefined, role: 'worker', adminRole: null});
                     } else {
-                      setCurrentUser({...currentUser, userGroupId: parseInt(value), role: 'manager'});
+                      setCurrentUser({...currentUser, userGroupId: parseInt(value), role: 'manager', adminRole: 'manager'});
                     }
                   }}
                 >
