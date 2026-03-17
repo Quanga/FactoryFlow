@@ -9,9 +9,9 @@ import React, { useState } from 'react';
   import { Badge } from "@/components/ui/badge";
   import { Switch } from "@/components/ui/switch";
   import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-  import { attendanceApi, userApi } from '@/lib/api';
-  import type { AttendanceRecord, User } from '@shared/schema';
-  import { Plus, Pencil, Trash2, FileText, Clock, AlertTriangle, TrendingUp, Search, X } from 'lucide-react';
+  import { attendanceApi, userApi, publicHolidayApi, leaveRequestApi } from '@/lib/api';
+  import type { AttendanceRecord, User, PublicHoliday, LeaveRequest } from '@shared/schema';
+  import { Plus, Pencil, Trash2, FileText, Clock, AlertTriangle, TrendingUp, Search, X, UserX } from 'lucide-react';
   import { format } from 'date-fns';
   import { useToast } from "@/hooks/use-toast";
   import jsPDF from 'jspdf';
@@ -25,7 +25,14 @@ import React, { useState } from 'react';
     const [attendanceEndDate, setAttendanceEndDate] = useState(today);
     const [attendanceUserFilter, setAttendanceUserFilter] = useState('');
     const [attendanceInfringementFilter, setAttendanceInfringementFilter] = useState(false);
-    const [attendanceTab, setAttendanceTab] = useState<'records' | 'manual-entry' | 'trends'>('records');
+    const [attendanceTab, setAttendanceTab] = useState<'records' | 'manual-entry' | 'trends' | 'awol'>('records');
+    const [awolStartDate, setAwolStartDate] = useState(() => {
+      const d = new Date();
+      d.setDate(1);
+      return format(d, 'yyyy-MM-dd');
+    });
+    const [awolEndDate, setAwolEndDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
+    const [awolDeptFilter, setAwolDeptFilter] = useState('');
 
     const [manualAttendanceDate, setManualAttendanceDate] = useState<string>(() => {
       const now = new Date();
@@ -76,6 +83,22 @@ import React, { useState } from 'react';
 
     const clockInCutoff = clockInCutoffSetting?.value || '08:00';
     const clockOutCutoff = clockOutCutoffSetting?.value || '17:00';
+
+    const { data: publicHolidays = [] } = useQuery({
+      queryKey: ['publicHolidays'],
+      queryFn: publicHolidayApi.getAll,
+    });
+
+    const { data: leaveRequests = [] } = useQuery({
+      queryKey: ['leaveRequests'],
+      queryFn: () => leaveRequestApi.getAll(),
+    });
+
+    const { data: awolAttendanceRecords = [] } = useQuery({
+      queryKey: ['attendance', awolStartDate, awolEndDate],
+      queryFn: () => attendanceApi.getAll(awolStartDate || undefined, awolEndDate || undefined),
+      enabled: attendanceTab === 'awol',
+    });
 
     const bulkAttendanceMutation = useMutation({
       mutationFn: (records: { userId: string; type: string; timestamp: string }[]) => attendanceApi.createBulk(records),
@@ -256,6 +279,18 @@ import React, { useState } from 'react';
           >
             <AlertTriangle className="inline h-4 w-4 mr-2" />
             Trends
+          </button>
+          <button
+            onClick={() => setAttendanceTab('awol')}
+            className={`px-4 py-2 rounded-t-lg text-sm font-medium transition-colors ${
+              attendanceTab === 'awol' 
+                ? 'bg-primary text-white' 
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+            data-testid="attendance-tab-awol"
+          >
+            <UserX className="inline h-4 w-4 mr-2" />
+            Absent Without Leave
           </button>
         </div>
         
@@ -925,6 +960,200 @@ import React, { useState } from 'react';
               </CardContent>
             </Card>
           </div>
+        )}
+
+        {/* AWOL Tab */}
+        {attendanceTab === 'awol' && (
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-row items-center justify-between w-full">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <UserX className="h-5 w-5 text-red-600" />
+                      Absent Without Leave
+                    </CardTitle>
+                    <CardDescription>Working days where employees did not clock in or out, and had no approved leave</CardDescription>
+                  </div>
+                </div>
+                <div className="flex gap-2 items-center flex-wrap">
+                  <Input
+                    type="date"
+                    value={awolStartDate}
+                    onChange={(e) => setAwolStartDate(e.target.value)}
+                    className="w-40"
+                    data-testid="input-awol-start"
+                  />
+                  <span className="text-muted-foreground">to</span>
+                  <Input
+                    type="date"
+                    value={awolEndDate}
+                    onChange={(e) => setAwolEndDate(e.target.value)}
+                    className="w-40"
+                    data-testid="input-awol-end"
+                  />
+                  <Select value={awolDeptFilter || 'all'} onValueChange={(v) => setAwolDeptFilter(v === 'all' ? '' : v)}>
+                    <SelectTrigger className="w-40" data-testid="select-awol-dept">
+                      <SelectValue placeholder="All Departments" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Departments</SelectItem>
+                      {Array.from(new Set(users.filter(u => u.department).map(u => u.department!))).sort().map(dept => (
+                        <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {(() => {
+                const eligibleUsers = users.filter(u => 
+                  !u.terminationDate && 
+                  u.attendanceRequired !== false && 
+                  !u.exclude &&
+                  (!awolDeptFilter || u.department === awolDeptFilter)
+                );
+
+                const holidayDates = new Set<string>();
+                publicHolidays.forEach((h: PublicHoliday) => {
+                  if (h.date) {
+                    const dateStr = typeof h.date === 'string' ? h.date.split('T')[0] : format(new Date(h.date), 'yyyy-MM-dd');
+                    holidayDates.add(dateStr);
+                  }
+                });
+
+                const approvedLeaveByUser = new Map<string, Set<string>>();
+                leaveRequests
+                  .filter((lr: LeaveRequest) => lr.status === 'approved' || lr.status === 'manager_approved' || lr.status === 'hr_approved')
+                  .forEach((lr: LeaveRequest) => {
+                    if (!lr.startDate || !lr.endDate) return;
+                    const start = new Date(lr.startDate);
+                    const end = new Date(lr.endDate);
+                    if (!approvedLeaveByUser.has(lr.userId)) {
+                      approvedLeaveByUser.set(lr.userId, new Set());
+                    }
+                    const dates = approvedLeaveByUser.get(lr.userId)!;
+                    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+                      dates.add(format(d, 'yyyy-MM-dd'));
+                    }
+                  });
+
+                const attendanceDatesByUser = new Map<string, Set<string>>();
+                awolAttendanceRecords.forEach((r: AttendanceRecord) => {
+                  if (!attendanceDatesByUser.has(r.userId)) {
+                    attendanceDatesByUser.set(r.userId, new Set());
+                  }
+                  const dateStr = format(new Date(r.timestamp), 'yyyy-MM-dd');
+                  attendanceDatesByUser.get(r.userId)!.add(dateStr);
+                });
+
+                const workingDays: string[] = [];
+                const startD = new Date(awolStartDate);
+                const endD = new Date(awolEndDate);
+                const todayDate = format(new Date(), 'yyyy-MM-dd');
+                for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
+                  const dayOfWeek = d.getDay();
+                  const dateStr = format(d, 'yyyy-MM-dd');
+                  if (dayOfWeek !== 0 && dayOfWeek !== 6 && !holidayDates.has(dateStr) && dateStr <= todayDate) {
+                    workingDays.push(dateStr);
+                  }
+                }
+
+                type AwolEntry = { user: User; date: string };
+                const awolEntries: AwolEntry[] = [];
+
+                eligibleUsers.forEach(user => {
+                  const userAttendanceDates = attendanceDatesByUser.get(user.id) || new Set();
+                  const userLeaveDates = approvedLeaveByUser.get(user.id) || new Set();
+                  const userStartDate = user.startDate ? user.startDate.split('T')[0] : null;
+
+                  workingDays.forEach(day => {
+                    if (userStartDate && day < userStartDate) return;
+                    if (!userAttendanceDates.has(day) && !userLeaveDates.has(day)) {
+                      awolEntries.push({ user, date: day });
+                    }
+                  });
+                });
+
+                awolEntries.sort((a, b) => b.date.localeCompare(a.date) || a.user.surname.localeCompare(b.user.surname));
+
+                const awolByUser = new Map<string, number>();
+                awolEntries.forEach(e => {
+                  awolByUser.set(e.user.id, (awolByUser.get(e.user.id) || 0) + 1);
+                });
+
+                return (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-3 gap-4 mb-4">
+                      <div className="p-4 bg-slate-50 rounded-lg border text-center">
+                        <p className="text-2xl font-bold">{workingDays.length}</p>
+                        <p className="text-xs text-muted-foreground">Working Days</p>
+                      </div>
+                      <div className="p-4 bg-red-50 rounded-lg border border-red-200 text-center">
+                        <p className="text-2xl font-bold text-red-600">{awolEntries.length}</p>
+                        <p className="text-xs text-muted-foreground">Total AWOL Instances</p>
+                      </div>
+                      <div className="p-4 bg-amber-50 rounded-lg border border-amber-200 text-center">
+                        <p className="text-2xl font-bold text-amber-600">{awolByUser.size}</p>
+                        <p className="text-xs text-muted-foreground">Employees with AWOL</p>
+                      </div>
+                    </div>
+
+                    {awolEntries.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <UserX className="h-12 w-12 mx-auto mb-2 opacity-20" />
+                        <p>No absent without leave entries found for this period.</p>
+                      </div>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Employee</TableHead>
+                            <TableHead>Department</TableHead>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Day</TableHead>
+                            <TableHead>Total AWOL Days</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {awolEntries.slice(0, 200).map((entry, idx) => {
+                            const d = new Date(entry.date);
+                            const dayName = format(d, 'EEEE');
+                            return (
+                              <TableRow key={`${entry.user.id}-${entry.date}-${idx}`} className="bg-red-50/30">
+                                <TableCell>
+                                  <div className="flex items-center gap-2">
+                                    <div className="h-7 w-7 rounded-full overflow-hidden bg-slate-100">
+                                      <img src={entry.user.photoUrl || 'https://github.com/shadcn.png'} alt="" className="h-full w-full object-cover" />
+                                    </div>
+                                    <span className="font-medium">{entry.user.firstName} {entry.user.surname}</span>
+                                  </div>
+                                </TableCell>
+                                <TableCell>{entry.user.department || '-'}</TableCell>
+                                <TableCell>
+                                  <Badge variant="outline" className="border-red-300 text-red-700">
+                                    {format(d, 'dd/MM/yyyy')}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-muted-foreground">{dayName}</TableCell>
+                                <TableCell>
+                                  <Badge variant="destructive">{awolByUser.get(entry.user.id) || 0}</Badge>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    )}
+                    {awolEntries.length > 200 && (
+                      <p className="text-xs text-muted-foreground text-center">Showing first 200 of {awolEntries.length} entries. Narrow the date range for more detail.</p>
+                    )}
+                  </div>
+                );
+              })()}
+            </CardContent>
+          </Card>
         )}
 
         {/* Edit Attendance Dialog */}
