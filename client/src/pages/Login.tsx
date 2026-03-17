@@ -51,7 +51,7 @@ export default function Login() {
 
   useEffect(() => {
     if (loginMode === 'worker') {
-      initFaceRecognition(true);
+      initFaceRecognition(false);
     }
   }, [loginMode]);
 
@@ -131,31 +131,15 @@ export default function Login() {
       const MATCH_THRESHOLD = 0.7; // Distance threshold for valid match
       const MIN_GAP = 0.1; // Gap required between best and second-best for workers
       
-      // Prioritize managers - if there's a manager within threshold, prefer them
-      // This helps when face descriptors are similar between users
-      const managerMatches = allMatches.filter(m => m.user.role === 'manager' && m.distance < MATCH_THRESHOLD);
-      
-      // If a manager is within threshold, use them (admins get priority)
       let finalMatch = bestMatch;
-      if (managerMatches.length > 0 && bestMatch?.user.role === 'worker') {
-        // Switch to manager if their match is reasonably close (within 0.2 of best worker match)
-        if (managerMatches[0].distance - bestMatch.distance < 0.2) {
-          finalMatch = managerMatches[0];
-          console.log(`Prioritizing manager ${finalMatch.user.firstName} over worker ${bestMatch.user.firstName}`);
-        }
-      }
-      
       const secondMatch = allMatches.find(m => m !== finalMatch) || null;
       
-      // For managers: just check threshold (no gap required - they have password backup)
-      // For workers: require gap to prevent misidentification
-      const isManager = finalMatch?.user.role === 'manager';
       const hasClearMatch = finalMatch && 
         finalMatch.distance < MATCH_THRESHOLD &&
-        (isManager || !secondMatch || (secondMatch.distance - finalMatch.distance) >= MIN_GAP);
+        (!secondMatch || (secondMatch.distance - finalMatch.distance) >= MIN_GAP);
       
       if (finalMatch && secondMatch) {
-        console.log(`Best: ${finalMatch.user.firstName} (${finalMatch.distance.toFixed(3)}) | Second: ${secondMatch.user.firstName} (${secondMatch.distance.toFixed(3)}) | Gap: ${(secondMatch.distance - finalMatch.distance).toFixed(3)} | IsManager: ${isManager}`);
+        console.log(`Best: ${finalMatch.user.firstName} (${finalMatch.distance.toFixed(3)}) | Second: ${secondMatch.user.firstName} (${secondMatch.distance.toFixed(3)}) | Gap: ${(secondMatch.distance - finalMatch.distance).toFixed(3)}`);
       }
       
       if (hasClearMatch) {
@@ -168,28 +152,6 @@ export default function Login() {
         setFaceMessage(`Welcome, ${bestMatch.user.firstName}!`);
         setRecognizedUser(`${bestMatch.user.firstName} ${bestMatch.user.surname}`);
         setModelsReady(false);
-        
-        if (bestMatch.user.role === 'manager') {
-          setTimeout(async () => {
-            try {
-              const user = await authApi.loginByFace(bestMatch.user.id);
-              setUser(user);
-              // Route based on adminRole
-              if (user.adminRole === 'maintainer') {
-                setLocation('/maintainer/dashboard');
-              } else {
-                setLocation('/admin/dashboard');
-              }
-            } catch (err) {
-              setError('Face login failed');
-              setFaceStatus('scanning');
-              setFaceMessage('Look at the camera to login');
-              setRecognizedUser(null);
-              setModelsReady(true);
-            }
-          }, 1000);
-          return;
-        }
         
         setTimeout(async () => {
           try {
