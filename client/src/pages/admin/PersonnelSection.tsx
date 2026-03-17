@@ -310,7 +310,19 @@ export default function PersonnelSection() {
   };
 
   const handleOpenCreate = () => {
-    setCurrentUser({});
+    const aecePrefixRegex = /^AECE(\d+)$/i;
+    let maxNum = 0;
+    users.forEach(u => {
+      const match = u.id.match(aecePrefixRegex);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (num > maxNum) maxNum = num;
+      }
+    });
+    const nextNum = maxNum + 1;
+    const nextId = `AECE${String(nextNum).padStart(4, '0')}`;
+
+    setCurrentUser({ id: nextId });
     setIsEditing(false);
     setIsUserDialogOpen(true);
     setFaceExtracted(false);
