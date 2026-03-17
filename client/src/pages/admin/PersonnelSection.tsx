@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { userApi, departmentApi, userGroupApi, leaveBalanceApi, employeeTypeApi, contractHistoryApi, faceDescriptorApi, orgPositionApi } from '@/lib/api';
 import type { User, Department, UserGroup, LeaveBalance, EmployeeType, OrgPosition } from '@shared/schema';
-import { Plus, Pencil, Trash2, Mail, Camera, Loader2, CheckCircle2, UserCog, Shield, Check, X, Search, UserX, Network, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, Pencil, Trash2, Mail, Camera, Loader2, CheckCircle2, UserCog, Shield, Check, X, Search, UserX, Network, ChevronDown, ChevronRight, ArrowUp, ArrowDown, ChevronsUpDown } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/lib/auth-context';
 import WebcamCapture from '@/components/WebcamCapture';
@@ -58,6 +58,28 @@ export default function PersonnelSection() {
   const [employeeSearch, setEmployeeSearch] = useState('');
   const [employeeDepartmentFilter, setEmployeeDepartmentFilter] = useState<string>('');
   const [employeeStatusFilter, setEmployeeStatusFilter] = useState<'all' | 'active' | 'terminated'>('active');
+
+  type SortField = 'id' | 'name' | 'department' | 'tenure' | 'leave' | 'role';
+  type SortDir = 'asc' | 'desc';
+  const [sortField, setSortField] = useState<SortField | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      if (sortDir === 'asc') setSortDir('desc');
+      else { setSortField(null); setSortDir('asc'); }
+    } else {
+      setSortField(field);
+      setSortDir('asc');
+    }
+  };
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) return <ChevronsUpDown className="inline h-3 w-3 ml-1 opacity-40" />;
+    return sortDir === 'asc'
+      ? <ArrowUp className="inline h-3 w-3 ml-1" />
+      : <ArrowDown className="inline h-3 w-3 ml-1" />;
+  };
   const [expandedEmployees, setExpandedEmployees] = useState<Set<string>>(new Set());
   const toggleEmployeeExpanded = (id: string) => {
     setExpandedEmployees(prev => {
@@ -447,6 +469,32 @@ export default function PersonnelSection() {
         (u.email && u.email.toLowerCase().includes(search)) ||
         (u.mobile && u.mobile.toLowerCase().includes(search))
       );
+    })
+    .sort((a, b) => {
+      if (!sortField) return 0;
+      const dir = sortDir === 'asc' ? 1 : -1;
+      switch (sortField) {
+        case 'id':
+          return dir * a.id.localeCompare(b.id);
+        case 'name':
+          return dir * `${a.surname} ${a.firstName}`.localeCompare(`${b.surname} ${b.firstName}`);
+        case 'department':
+          return dir * (a.department || '').localeCompare(b.department || '');
+        case 'tenure': {
+          const aDate = a.startDate ? new Date(a.startDate).getTime() : 0;
+          const bDate = b.startDate ? new Date(b.startDate).getTime() : 0;
+          return dir * (aDate - bDate);
+        }
+        case 'leave': {
+          const aBalance = leaveBalances.filter((lb: LeaveBalance) => lb.userId === a.id).reduce((s: number, lb: LeaveBalance) => s + (lb.total - lb.taken - lb.pending), 0);
+          const bBalance = leaveBalances.filter((lb: LeaveBalance) => lb.userId === b.id).reduce((s: number, lb: LeaveBalance) => s + (lb.total - lb.taken - lb.pending), 0);
+          return dir * (aBalance - bBalance);
+        }
+        case 'role':
+          return dir * (a.role || '').localeCompare(b.role || '');
+        default:
+          return 0;
+      }
     });
 
   return (
@@ -512,12 +560,24 @@ export default function PersonnelSection() {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-8"></TableHead>
-                <TableHead>ID Number</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Department</TableHead>
-                <TableHead>Tenure</TableHead>
-                <TableHead>Leave Balance</TableHead>
-                <TableHead>Role</TableHead>
+                <TableHead className="cursor-pointer select-none hover:bg-slate-50" onClick={() => handleSort('id')} data-testid="sort-id">
+                  ID Number <SortIcon field="id" />
+                </TableHead>
+                <TableHead className="cursor-pointer select-none hover:bg-slate-50" onClick={() => handleSort('name')} data-testid="sort-name">
+                  Name <SortIcon field="name" />
+                </TableHead>
+                <TableHead className="cursor-pointer select-none hover:bg-slate-50" onClick={() => handleSort('department')} data-testid="sort-department">
+                  Department <SortIcon field="department" />
+                </TableHead>
+                <TableHead className="cursor-pointer select-none hover:bg-slate-50" onClick={() => handleSort('tenure')} data-testid="sort-tenure">
+                  Tenure <SortIcon field="tenure" />
+                </TableHead>
+                <TableHead className="cursor-pointer select-none hover:bg-slate-50" onClick={() => handleSort('leave')} data-testid="sort-leave">
+                  Leave Balance <SortIcon field="leave" />
+                </TableHead>
+                <TableHead className="cursor-pointer select-none hover:bg-slate-50" onClick={() => handleSort('role')} data-testid="sort-role">
+                  Role <SortIcon field="role" />
+                </TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
