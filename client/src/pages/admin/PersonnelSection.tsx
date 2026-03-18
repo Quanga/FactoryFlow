@@ -217,7 +217,7 @@ export default function PersonnelSection() {
     const role = currentUser.role || 'worker';
     
     if (role === 'worker' && !currentUser.department) {
-      toast({ variant: "destructive", title: "Error", description: "Department is required for workers" });
+      toast({ variant: "destructive", title: "Error", description: "Department is required for employees" });
       return;
     }
     
@@ -1308,7 +1308,7 @@ export default function PersonnelSection() {
                     <SelectValue placeholder="Select role" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="worker">Worker</SelectItem>
+                    <SelectItem value="worker">Employee</SelectItem>
                     <SelectItem value="manager">Manager</SelectItem>
                   </SelectContent>
                 </Select>
@@ -1365,7 +1365,7 @@ export default function PersonnelSection() {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Optional second manager for shared reporting (e.g. worker reports to two department managers).
+                  Optional second manager for shared reporting (e.g. employee reports to two department managers).
                 </p>
               </div>
             </div>
@@ -1482,7 +1482,7 @@ export default function PersonnelSection() {
                     <SelectValue placeholder="No admin access" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">No admin access (Worker only)</SelectItem>
+                    <SelectItem value="none">No admin access (Employee only)</SelectItem>
                     {userGroups.map((group) => (
                       <SelectItem key={group.id} value={group.id.toString()}>
                         {group.name}
@@ -1521,7 +1521,7 @@ export default function PersonnelSection() {
                   data-testid="switch-attendance-required"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Whether this employee needs to clock in/out. Disable for contractors, consultants, or off-site workers.
+                  Whether this employee needs to clock in/out. Disable for contractors, consultants, or off-site employees.
                 </p>
               </div>
             </div>

@@ -279,7 +279,7 @@ export default function AttendanceTileMode() {
                   CLOCK IN
                 </h2>
                 <p className="text-green-400/70">
-                  Record worker arrivals
+                  Record employee arrivals
                 </p>
               </CardContent>
             </Card>
@@ -297,7 +297,7 @@ export default function AttendanceTileMode() {
                   CLOCK OUT
                 </h2>
                 <p className="text-orange-400/70">
-                  Record worker departures
+                  Record employee departures
                 </p>
               </CardContent>
             </Card>

@@ -488,7 +488,7 @@ export default function MaintainerDashboard() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="worker">Worker</SelectItem>
+                    <SelectItem value="worker">Employee</SelectItem>
                     <SelectItem value="manager">Manager</SelectItem>
                   </SelectContent>
                 </Select>

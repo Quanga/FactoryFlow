@@ -138,7 +138,7 @@ export default function AdminLogin() {
           </div>
           <div className="mt-2 text-center">
              <Button variant="link" className="text-slate-500" onClick={() => setLocation('/')}>
-               Back to Worker Login
+               Back to Employee Login
              </Button>
           </div>
         </CardContent>

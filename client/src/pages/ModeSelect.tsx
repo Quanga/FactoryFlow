@@ -85,7 +85,7 @@ export default function ModeSelect() {
                   ATTENDANCE MODE
                 </h2>
                 <p className="text-gray-600">
-                  Fast clock-in/clock-out for workers entering or leaving the facility
+                  Fast clock-in/clock-out for employees entering or leaving the facility
                 </p>
               </CardContent>
             </Card>
@@ -103,7 +103,7 @@ export default function ModeSelect() {
                   APPLICATION MODE
                 </h2>
                 <p className="text-gray-600">
-                  Access leave requests, dashboard, and other worker services
+                  Access leave requests, dashboard, and other employee services
                 </p>
               </CardContent>
             </Card>
@@ -134,7 +134,7 @@ export default function ModeSelect() {
                     CLOCK IN
                   </h2>
                   <p className="text-green-700">
-                    Record worker arrivals at the start of shift
+                    Record employee arrivals at the start of shift
                   </p>
                 </CardContent>
               </Card>
@@ -152,7 +152,7 @@ export default function ModeSelect() {
                     CLOCK OUT
                   </h2>
                   <p className="text-red-700">
-                    Record worker departures at end of shift
+                    Record employee departures at end of shift
                   </p>
                 </CardContent>
               </Card>
@@ -184,7 +184,7 @@ export default function ModeSelect() {
                     CAMERA MODE
                   </h2>
                   <p className="text-blue-700">
-                    Use facial recognition to identify workers automatically
+                    Use facial recognition to identify employees automatically
                   </p>
                 </CardContent>
               </Card>

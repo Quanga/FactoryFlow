@@ -257,7 +257,7 @@ export default function Login() {
           <img src={companyLogo} alt={companyName} className="h-14 mx-auto mb-4" />
           <CardTitle className="text-3xl font-heading tracking-wide text-gray-900">{companyName.toUpperCase()}</CardTitle>
           <CardDescription className="text-gray-600 text-base">
-            {loginMode === 'admin' ? 'Admin Portal Access' : 'Worker Portal Access'}
+            {loginMode === 'admin' ? 'Admin Portal Access' : 'Employee Portal Access'}
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-6">
@@ -435,7 +435,7 @@ export default function Login() {
             className="text-xs text-primary hover:text-primary/80 font-medium transition-colors"
             data-testid="button-toggle-login-mode"
           >
-            {loginMode === 'worker' ? 'Admin Login' : 'Worker Login'}
+            {loginMode === 'worker' ? 'Admin Login' : 'Employee Login'}
           </button>
         </div>
       </Card>

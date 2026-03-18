@@ -459,7 +459,7 @@ export default function SettingsSection() {
                   className="w-40"
                   data-testid="input-clock-in-cutoff"
                 />
-                <p className="text-xs text-muted-foreground">Workers clocking in after this time will be marked as late, and HR will be notified.</p>
+                <p className="text-xs text-muted-foreground">Employees clocking in after this time will be marked as late, and HR will be notified.</p>
               </div>
 
               <div className="space-y-2">
@@ -471,7 +471,7 @@ export default function SettingsSection() {
                   className="w-40"
                   data-testid="input-clock-out-cutoff"
                 />
-                <p className="text-xs text-muted-foreground">Workers clocking out before this time will be flagged for early departure.</p>
+                <p className="text-xs text-muted-foreground">Employees clocking out before this time will be flagged for early departure.</p>
               </div>
             </div>
           </CardContent>

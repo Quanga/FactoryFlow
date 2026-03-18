@@ -358,13 +358,13 @@ export default function AttendanceKiosk() {
               <div className="space-y-6">
                 <div className="text-center">
                   <User className="w-16 h-16 mx-auto text-slate-400 mb-4" />
-                  <h2 className="font-oswald text-2xl font-bold text-slate-800">Enter Worker ID</h2>
+                  <h2 className="font-oswald text-2xl font-bold text-slate-800">Enter Employee ID</h2>
                 </div>
                 
                 <form onSubmit={handleIdSubmit} className="space-y-4">
                   <Input
                     type="text"
-                    placeholder="Worker ID"
+                    placeholder="Employee ID"
                     value={workerId}
                     onChange={(e) => setWorkerId(e.target.value)}
                     className="text-center text-2xl h-16"

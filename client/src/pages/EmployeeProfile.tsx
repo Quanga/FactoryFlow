@@ -89,7 +89,7 @@ export default function EmployeeProfile() {
                 )}
                 <div className="mt-2 flex flex-wrap justify-center md:justify-start gap-2">
                   <Badge variant={displayUser.role === 'manager' ? 'default' : 'secondary'}>
-                    {displayUser.role === 'manager' ? 'Manager' : 'Worker'}
+                    {displayUser.role === 'manager' ? 'Manager' : 'Employee'}
                   </Badge>
                   {departmentName && (
                     <Badge variant="outline">{departmentName}</Badge>
