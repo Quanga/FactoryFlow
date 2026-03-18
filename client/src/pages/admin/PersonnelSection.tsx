@@ -499,9 +499,11 @@ export default function PersonnelSection() {
     });
 
   const handleExportPdf = () => {
-    const pdf = new jsPDF({ orientation: 'landscape' });
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 14;
+    const usableWidth = pageWidth - margin * 2;
     const now = new Date();
     const generatedStr = now.toLocaleDateString('en-ZA', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' + now.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' });
 
@@ -511,74 +513,153 @@ export default function PersonnelSection() {
     if (employeeSearch) filterParts.push(`Search: "${employeeSearch}"`);
     const filterStr = filterParts.length > 0 ? filterParts.join(' | ') : 'All employees';
 
-    pdf.setFontSize(18);
+    // Title block
+    pdf.setFillColor(30, 41, 59);
+    pdf.rect(0, 0, pageWidth, 28, 'F');
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFontSize(16);
     pdf.setFont('helvetica', 'bold');
-    pdf.text('AECE Checkpoint — Employee List', 14, 18);
-
+    pdf.text('AECE Checkpoint', margin, 11);
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'normal');
-    pdf.text(`Generated: ${generatedStr}`, 14, 26);
-    pdf.text(`Filter: ${filterStr}`, 14, 32);
-    pdf.text(`Total: ${filteredUsers.length} employee(s)`, 14, 38);
+    pdf.text('Employee List', margin, 18);
+    pdf.setFontSize(8);
+    pdf.text(`Generated: ${generatedStr}   |   Filter: ${filterStr}   |   Total: ${filteredUsers.length}`, margin, 24);
+    pdf.setTextColor(0, 0, 0);
 
-    const colX = { id: 14, name: 42, dept: 100, role: 140, start: 168, tenure: 196, leave: 230, mobile: 255 };
-    let y = 48;
+    // Column layout (portrait 182mm wide)
+    const col = {
+      id:      margin,
+      name:    margin + 22,
+      dept:    margin + 68,
+      role:    margin + 105,
+      start:   margin + 124,
+      tenure:  margin + 147,
+    };
+    // Row 2 columns
+    const col2 = {
+      label:   margin + 4,
+      natId:   margin + 4,
+      tax:     margin + 55,
+      mobile:  margin + 106,
+      emergency: margin + 4,
+    };
+
+    let y = 36;
+    let pageNum = 1;
 
     const drawHeader = () => {
-      pdf.setFillColor(30, 41, 59);
-      pdf.rect(14, y - 5, pageWidth - 28, 8, 'F');
+      pdf.setFillColor(71, 85, 105);
+      pdf.rect(margin, y - 5, usableWidth, 7, 'F');
       pdf.setTextColor(255, 255, 255);
       pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(8);
-      pdf.text('ID', colX.id, y);
-      pdf.text('Name', colX.name, y);
-      pdf.text('Department', colX.dept, y);
-      pdf.text('Role', colX.role, y);
-      pdf.text('Start Date', colX.start, y);
-      pdf.text('Tenure', colX.tenure, y);
-      pdf.text('Leave (days)', colX.leave, y);
-      pdf.text('Mobile', colX.mobile, y);
+      pdf.setFontSize(7);
+      pdf.text('EMP ID', col.id, y);
+      pdf.text('FULL NAME', col.name, y);
+      pdf.text('DEPARTMENT', col.dept, y);
+      pdf.text('ROLE', col.role, y);
+      pdf.text('START DATE', col.start, y);
+      pdf.text('TENURE', col.tenure, y);
       pdf.setTextColor(0, 0, 0);
       pdf.setFont('helvetica', 'normal');
-      y += 8;
+      y += 4;
+    };
+
+    const addFooter = () => {
+      pdf.setFontSize(7);
+      pdf.setTextColor(150, 150, 150);
+      pdf.text('AECE Checkpoint — Confidential', margin, pageHeight - 6);
+      pdf.text(`Page ${pageNum}`, pageWidth - margin - 10, pageHeight - 6);
+      pdf.setTextColor(0, 0, 0);
     };
 
     drawHeader();
 
     filteredUsers.forEach((emp, idx) => {
-      if (y > pageHeight - 15) {
+      const rowHeight = 18; // two-line row height
+      if (y + rowHeight > pageHeight - 12) {
+        addFooter();
         pdf.addPage();
+        pageNum++;
         y = 20;
         drawHeader();
       }
 
+      // Alternating row background
       if (idx % 2 === 0) {
         pdf.setFillColor(248, 250, 252);
-        pdf.rect(14, y - 4, pageWidth - 28, 7, 'F');
+      } else {
+        pdf.setFillColor(255, 255, 255);
       }
+      pdf.rect(margin, y - 1, usableWidth, rowHeight, 'F');
+
+      // Thin separator line
+      pdf.setDrawColor(226, 232, 240);
+      pdf.line(margin, y - 1, margin + usableWidth, y - 1);
 
       const empBalances = leaveBalances.filter((b: LeaveBalance) => b.userId === emp.id);
       const totalAvailable = empBalances.reduce((sum: number, b: LeaveBalance) => sum + (b.total - b.taken - b.pending), 0);
+      const leaveStr = empBalances.length > 0 ? `${totalAvailable} days` : '-';
 
+      // --- Row 1: main info ---
       pdf.setFontSize(8);
-      pdf.text(emp.id, colX.id, y);
-      const fullName = `${emp.firstName} ${emp.surname}`;
-      pdf.text(fullName.length > 22 ? fullName.substring(0, 21) + '...' : fullName, colX.name, y);
-      const dept = emp.department || '-';
-      pdf.text(dept.length > 18 ? dept.substring(0, 17) + '...' : dept, colX.dept, y);
-      pdf.text(emp.role || '-', colX.role, y);
-      pdf.text(emp.startDate ? formatDateForDisplay(emp.startDate) : '-', colX.start, y);
-      pdf.text(getEmploymentDuration(emp.startDate), colX.tenure, y);
-      pdf.text(empBalances.length > 0 ? String(totalAvailable) : '-', colX.leave, y);
-      pdf.text(emp.mobile || '-', colX.mobile, y);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(30, 41, 59);
+      pdf.text(emp.id, col.id, y + 4);
 
-      y += 7;
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(0, 0, 0);
+      const fullName = `${emp.firstName} ${emp.surname}`;
+      pdf.text(fullName.length > 20 ? fullName.substring(0, 19) + '...' : fullName, col.name, y + 4);
+
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(7.5);
+      const dept = emp.department || '-';
+      pdf.text(dept.length > 17 ? dept.substring(0, 16) + '...' : dept, col.dept, y + 4);
+      pdf.text(emp.role || '-', col.role, y + 4);
+      pdf.text(emp.startDate ? formatDateForDisplay(emp.startDate) : '-', col.start, y + 4);
+      pdf.text(getEmploymentDuration(emp.startDate), col.tenure, y + 4);
+
+      // Leave badge
+      pdf.setFontSize(6.5);
+      pdf.setTextColor(100, 100, 100);
+      pdf.text(`Leave: ${leaveStr}`, col.tenure, y + 10);
+
+      // --- Row 2: secondary info ---
+      pdf.setFontSize(7);
+      pdf.setTextColor(80, 80, 80);
+
+      // National ID
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('ID No:', col2.natId, y + 10);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(emp.nationalId || '-', col2.natId + 11, y + 10);
+
+      // Tax number
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Tax No:', col2.tax, y + 10);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(emp.taxNumber || '-', col2.tax + 13, y + 10);
+
+      // Mobile
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Mobile:', col2.mobile, y + 10);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(emp.mobile || '-', col2.mobile + 13, y + 10);
+
+      // Emergency contact (full width row 3 of the block)
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Emergency:', col2.emergency, y + 15);
+      pdf.setFont('helvetica', 'normal');
+      const emergencyStr = [emp.nextOfKin, emp.emergencyNumber].filter(Boolean).join('  |  ') || '-';
+      const emergencyTrunc = emergencyStr.length > 70 ? emergencyStr.substring(0, 69) + '...' : emergencyStr;
+      pdf.text(emergencyTrunc, col2.emergency + 18, y + 15);
+
+      pdf.setTextColor(0, 0, 0);
+      y += rowHeight;
     });
 
-    pdf.setFontSize(8);
-    pdf.setTextColor(150, 150, 150);
-    pdf.text(`AECE Checkpoint — Confidential`, 14, pageHeight - 6);
-    pdf.text(`Page 1`, pageWidth - 20, pageHeight - 6);
+    addFooter();
 
     const date = now.toISOString().split('T')[0];
     pdf.save(`employee-list-${date}.pdf`);
