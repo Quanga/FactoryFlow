@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { userApi, departmentApi, userGroupApi, leaveBalanceApi, employeeTypeApi, contractHistoryApi, faceDescriptorApi, orgPositionApi } from '@/lib/api';
 import type { User, Department, UserGroup, LeaveBalance, EmployeeType, OrgPosition } from '@shared/schema';
-import { Plus, Pencil, Trash2, Mail, Camera, Loader2, CheckCircle2, UserCog, Shield, Check, X, Search, UserX, Network, ChevronDown, ChevronRight, ArrowUp, ArrowDown, ChevronsUpDown } from 'lucide-react';
+import { Plus, Pencil, Trash2, Mail, Camera, Loader2, CheckCircle2, UserCog, Shield, Check, X, Search, UserX, Network, ChevronDown, ChevronRight, ArrowUp, ArrowDown, ChevronsUpDown, FileText } from 'lucide-react';
+import jsPDF from 'jspdf';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/lib/auth-context';
 import WebcamCapture from '@/components/WebcamCapture';
@@ -497,6 +498,93 @@ export default function PersonnelSection() {
       }
     });
 
+  const handleExportPdf = () => {
+    const pdf = new jsPDF({ orientation: 'landscape' });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const now = new Date();
+    const generatedStr = now.toLocaleDateString('en-ZA', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' + now.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' });
+
+    const filterParts: string[] = [];
+    if (employeeStatusFilter !== 'all') filterParts.push(`Status: ${employeeStatusFilter}`);
+    if (employeeDepartmentFilter) filterParts.push(`Department: ${employeeDepartmentFilter}`);
+    if (employeeSearch) filterParts.push(`Search: "${employeeSearch}"`);
+    const filterStr = filterParts.length > 0 ? filterParts.join(' | ') : 'All employees';
+
+    pdf.setFontSize(18);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('AECE Checkpoint — Employee List', 14, 18);
+
+    pdf.setFontSize(10);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text(`Generated: ${generatedStr}`, 14, 26);
+    pdf.text(`Filter: ${filterStr}`, 14, 32);
+    pdf.text(`Total: ${filteredUsers.length} employee(s)`, 14, 38);
+
+    const colX = { id: 14, name: 42, dept: 100, role: 140, start: 168, tenure: 196, leave: 230, mobile: 255 };
+    let y = 48;
+
+    const drawHeader = () => {
+      pdf.setFillColor(30, 41, 59);
+      pdf.rect(14, y - 5, pageWidth - 28, 8, 'F');
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(8);
+      pdf.text('ID', colX.id, y);
+      pdf.text('Name', colX.name, y);
+      pdf.text('Department', colX.dept, y);
+      pdf.text('Role', colX.role, y);
+      pdf.text('Start Date', colX.start, y);
+      pdf.text('Tenure', colX.tenure, y);
+      pdf.text('Leave (days)', colX.leave, y);
+      pdf.text('Mobile', colX.mobile, y);
+      pdf.setTextColor(0, 0, 0);
+      pdf.setFont('helvetica', 'normal');
+      y += 8;
+    };
+
+    drawHeader();
+
+    filteredUsers.forEach((emp, idx) => {
+      if (y > pageHeight - 15) {
+        pdf.addPage();
+        y = 20;
+        drawHeader();
+      }
+
+      if (idx % 2 === 0) {
+        pdf.setFillColor(248, 250, 252);
+        pdf.rect(14, y - 4, pageWidth - 28, 7, 'F');
+      }
+
+      const empBalances = leaveBalances.filter((b: LeaveBalance) => b.userId === emp.id);
+      const totalAvailable = empBalances.reduce((sum: number, b: LeaveBalance) => sum + (b.total - b.taken - b.pending), 0);
+
+      pdf.setFontSize(8);
+      pdf.text(emp.id, colX.id, y);
+      const fullName = `${emp.firstName} ${emp.surname}`;
+      pdf.text(fullName.length > 22 ? fullName.substring(0, 21) + '...' : fullName, colX.name, y);
+      const dept = emp.department || '-';
+      pdf.text(dept.length > 18 ? dept.substring(0, 17) + '...' : dept, colX.dept, y);
+      pdf.text(emp.role || '-', colX.role, y);
+      pdf.text(emp.startDate ? formatDateForDisplay(emp.startDate) : '-', colX.start, y);
+      pdf.text(getEmploymentDuration(emp.startDate), colX.tenure, y);
+      pdf.text(empBalances.length > 0 ? String(totalAvailable) : '-', colX.leave, y);
+      pdf.text(emp.mobile || '-', colX.mobile, y);
+
+      y += 7;
+    });
+
+    pdf.setFontSize(8);
+    pdf.setTextColor(150, 150, 150);
+    pdf.text(`AECE Checkpoint — Confidential`, 14, pageHeight - 6);
+    pdf.text(`Page 1`, pageWidth - 20, pageHeight - 6);
+
+    const date = now.toISOString().split('T')[0];
+    pdf.save(`employee-list-${date}.pdf`);
+    toast({ title: 'PDF Exported', description: `${filteredUsers.length} employee(s) exported.` });
+  };
+
   return (
     <div className="space-y-4">
       <div>
@@ -513,6 +601,9 @@ export default function PersonnelSection() {
             <div className="flex gap-2">
               <Button onClick={handleOpenCreateAdmin} variant="outline" className="btn-industrial">
                 <Shield className="mr-2 h-4 w-4" /> Add Admin
+              </Button>
+              <Button variant="outline" onClick={handleExportPdf} data-testid="button-export-pdf">
+                <FileText className="mr-2 h-4 w-4" /> Export PDF
               </Button>
               <Button onClick={handleOpenCreate} className="btn-industrial bg-primary text-white">
                 <Plus className="mr-2 h-4 w-4" /> Add Person
