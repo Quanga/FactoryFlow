@@ -576,7 +576,7 @@ export default function PersonnelSection() {
     drawHeader();
 
     filteredUsers.forEach((emp, idx) => {
-      const rowHeight = 18; // two-line row height
+      const rowHeight = 22;
       if (y + rowHeight > pageHeight - 12) {
         addFooter();
         pdf.addPage();
@@ -647,13 +647,19 @@ export default function PersonnelSection() {
       pdf.setFont('helvetica', 'normal');
       pdf.text(emp.mobile || '-', col2.mobile + 13, y + 10);
 
-      // Emergency contact (full width row 3 of the block)
+      // Row 3: Emergency contact person + contact number
+      const emgColLabel = margin + 4;
+      const emgColNoLabel = margin + 100;
       pdf.setFont('helvetica', 'bold');
-      pdf.text('Emergency:', col2.emergency, y + 15);
+      pdf.text('Emergency Contact:', emgColLabel, y + 15);
       pdf.setFont('helvetica', 'normal');
-      const emergencyStr = [emp.nextOfKin, emp.emergencyNumber].filter(Boolean).join('  |  ') || '-';
-      const emergencyTrunc = emergencyStr.length > 70 ? emergencyStr.substring(0, 69) + '...' : emergencyStr;
-      pdf.text(emergencyTrunc, col2.emergency + 18, y + 15);
+      const nextOfKinStr = emp.nextOfKin || '-';
+      pdf.text(nextOfKinStr.length > 23 ? nextOfKinStr.substring(0, 22) + '...' : nextOfKinStr, emgColLabel + 31, y + 15);
+
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Contact No:', emgColNoLabel, y + 15);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(emp.emergencyNumber || '-', emgColNoLabel + 19, y + 15);
 
       pdf.setTextColor(0, 0, 0);
       y += rowHeight;
