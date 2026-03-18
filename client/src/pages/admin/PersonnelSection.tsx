@@ -499,11 +499,12 @@ export default function PersonnelSection() {
     });
 
   const handleExportPdf = () => {
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const margin = 14;
-    const usableWidth = pageWidth - margin * 2;
+    const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    // Landscape A4: 297 x 210mm
+    const pageWidth = pdf.internal.pageSize.getWidth();   // 297
+    const pageHeight = pdf.internal.pageSize.getHeight(); // 210
+    const margin = 12;
+    const usableWidth = pageWidth - margin * 2;           // 273
     const now = new Date();
     const generatedStr = now.toLocaleDateString('en-ZA', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' + now.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' });
 
@@ -513,53 +514,57 @@ export default function PersonnelSection() {
     if (employeeSearch) filterParts.push(`Search: "${employeeSearch}"`);
     const filterStr = filterParts.length > 0 ? filterParts.join(' | ') : 'All employees';
 
-    // Title block
+    // ── Title banner ──────────────────────────────────────────────────────────
     pdf.setFillColor(30, 41, 59);
-    pdf.rect(0, 0, pageWidth, 28, 'F');
+    pdf.rect(0, 0, pageWidth, 22, 'F');
     pdf.setTextColor(255, 255, 255);
-    pdf.setFontSize(16);
+    pdf.setFontSize(15);
     pdf.setFont('helvetica', 'bold');
-    pdf.text('AECE Checkpoint', margin, 11);
-    pdf.setFontSize(10);
-    pdf.setFont('helvetica', 'normal');
-    pdf.text('Employee List', margin, 18);
+    pdf.text('AECE Checkpoint  —  Employee List', margin, 10);
     pdf.setFontSize(8);
-    pdf.text(`Generated: ${generatedStr}   |   Filter: ${filterStr}   |   Total: ${filteredUsers.length}`, margin, 24);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text(`Generated: ${generatedStr}   |   Filter: ${filterStr}   |   Total: ${filteredUsers.length} employee(s)`, margin, 17);
     pdf.setTextColor(0, 0, 0);
 
-    // Column layout (portrait 182mm wide)
+    // ── Column x-positions (landscape 273mm usable) ───────────────────────────
+    // Row 1: EMP ID | Name | Department | Role | Start Date | Tenure | Leave
     const col = {
-      id:      margin,
-      name:    margin + 22,
-      dept:    margin + 68,
-      role:    margin + 105,
-      start:   margin + 124,
-      tenure:  margin + 147,
+      id:     margin,           // ~18mm wide
+      name:   margin + 20,      // ~52mm wide
+      dept:   margin + 72,      // ~45mm wide
+      role:   margin + 117,     // ~22mm wide
+      start:  margin + 139,     // ~28mm wide
+      tenure: margin + 167,     // ~30mm wide
+      leave:  margin + 197,     // ~25mm wide  → ends ~222 (fits in 285)
     };
-    // Row 2 columns
+    // Row 2: National ID | Tax No | Mobile | Emergency Contact | Contact No
     const col2 = {
-      label:   margin + 4,
-      natId:   margin + 4,
-      tax:     margin + 55,
-      mobile:  margin + 106,
-      emergency: margin + 4,
+      natId:  margin + 4,       // value at +12
+      tax:    margin + 62,      // value at +75
+      mobile: margin + 120,     // value at +133
+      emerg:  margin + 170,     // value at +189
+      contNo: margin + 230,     // value at +243
     };
 
-    let y = 36;
+    let y = 30;
     let pageNum = 1;
 
+    const trunc = (str: string, max: number) =>
+      str.length > max ? str.substring(0, max - 1) + '...' : str;
+
     const drawHeader = () => {
-      pdf.setFillColor(71, 85, 105);
+      pdf.setFillColor(51, 65, 85);
       pdf.rect(margin, y - 5, usableWidth, 7, 'F');
       pdf.setTextColor(255, 255, 255);
       pdf.setFont('helvetica', 'bold');
       pdf.setFontSize(7);
-      pdf.text('EMP ID', col.id, y);
-      pdf.text('FULL NAME', col.name, y);
-      pdf.text('DEPARTMENT', col.dept, y);
-      pdf.text('ROLE', col.role, y);
-      pdf.text('START DATE', col.start, y);
-      pdf.text('TENURE', col.tenure, y);
+      pdf.text('EMP ID',      col.id,     y);
+      pdf.text('FULL NAME',   col.name,   y);
+      pdf.text('DEPARTMENT',  col.dept,   y);
+      pdf.text('ROLE',        col.role,   y);
+      pdf.text('START DATE',  col.start,  y);
+      pdf.text('TENURE',      col.tenure, y);
+      pdf.text('LEAVE',       col.leave,  y);
       pdf.setTextColor(0, 0, 0);
       pdf.setFont('helvetica', 'normal');
       y += 4;
@@ -568,98 +573,79 @@ export default function PersonnelSection() {
     const addFooter = () => {
       pdf.setFontSize(7);
       pdf.setTextColor(150, 150, 150);
-      pdf.text('AECE Checkpoint — Confidential', margin, pageHeight - 6);
-      pdf.text(`Page ${pageNum}`, pageWidth - margin - 10, pageHeight - 6);
+      pdf.text('AECE Checkpoint — Confidential', margin, pageHeight - 5);
+      pdf.text(`Page ${pageNum}`, pageWidth - margin - 10, pageHeight - 5);
       pdf.setTextColor(0, 0, 0);
     };
 
     drawHeader();
 
     filteredUsers.forEach((emp, idx) => {
-      const rowHeight = 22;
-      if (y + rowHeight > pageHeight - 12) {
+      const rowHeight = 16;
+      if (y + rowHeight > pageHeight - 10) {
         addFooter();
         pdf.addPage();
         pageNum++;
-        y = 20;
+        y = 18;
         drawHeader();
       }
 
-      // Alternating row background
-      if (idx % 2 === 0) {
-        pdf.setFillColor(248, 250, 252);
-      } else {
-        pdf.setFillColor(255, 255, 255);
-      }
+      // Alternating stripe
+      pdf.setFillColor(idx % 2 === 0 ? 248 : 255, idx % 2 === 0 ? 250 : 255, idx % 2 === 0 ? 252 : 255);
       pdf.rect(margin, y - 1, usableWidth, rowHeight, 'F');
-
-      // Thin separator line
       pdf.setDrawColor(226, 232, 240);
       pdf.line(margin, y - 1, margin + usableWidth, y - 1);
 
       const empBalances = leaveBalances.filter((b: LeaveBalance) => b.userId === emp.id);
       const totalAvailable = empBalances.reduce((sum: number, b: LeaveBalance) => sum + (b.total - b.taken - b.pending), 0);
-      const leaveStr = empBalances.length > 0 ? `${totalAvailable} days` : '-';
 
-      // --- Row 1: main info ---
+      // ── Row 1: primary info ────────────────────────────────────────────────
       pdf.setFontSize(8);
       pdf.setFont('helvetica', 'bold');
       pdf.setTextColor(30, 41, 59);
       pdf.text(emp.id, col.id, y + 4);
 
-      pdf.setFont('helvetica', 'bold');
       pdf.setTextColor(0, 0, 0);
-      const fullName = `${emp.firstName} ${emp.surname}`;
-      pdf.text(fullName.length > 20 ? fullName.substring(0, 19) + '...' : fullName, col.name, y + 4);
+      pdf.text(trunc(`${emp.firstName} ${emp.surname}`, 28), col.name, y + 4);
 
       pdf.setFont('helvetica', 'normal');
       pdf.setFontSize(7.5);
-      const dept = emp.department || '-';
-      pdf.text(dept.length > 17 ? dept.substring(0, 16) + '...' : dept, col.dept, y + 4);
-      pdf.text(emp.role || '-', col.role, y + 4);
+      pdf.text(trunc(emp.department || '-', 25), col.dept, y + 4);
+      pdf.text(trunc(emp.role === 'worker' ? 'Employee' : (emp.role || '-'), 12), col.role, y + 4);
       pdf.text(emp.startDate ? formatDateForDisplay(emp.startDate) : '-', col.start, y + 4);
       pdf.text(getEmploymentDuration(emp.startDate), col.tenure, y + 4);
+      pdf.setTextColor(empBalances.length > 0 && totalAvailable <= 0 ? 185 : 0, 0, 0);
+      pdf.text(empBalances.length > 0 ? `${totalAvailable} days` : '-', col.leave, y + 4);
+      pdf.setTextColor(0, 0, 0);
 
-      // Leave badge
-      pdf.setFontSize(6.5);
-      pdf.setTextColor(100, 100, 100);
-      pdf.text(`Leave: ${leaveStr}`, col.tenure, y + 10);
-
-      // --- Row 2: secondary info ---
+      // ── Row 2: secondary info (all on one line) ───────────────────────────
       pdf.setFontSize(7);
-      pdf.setTextColor(80, 80, 80);
+      pdf.setTextColor(90, 90, 90);
 
-      // National ID
       pdf.setFont('helvetica', 'bold');
       pdf.text('ID No:', col2.natId, y + 10);
       pdf.setFont('helvetica', 'normal');
-      pdf.text(emp.nationalId || '-', col2.natId + 11, y + 10);
+      pdf.text(trunc(emp.nationalId || '-', 17), col2.natId + 12, y + 10);
 
-      // Tax number
       pdf.setFont('helvetica', 'bold');
       pdf.text('Tax No:', col2.tax, y + 10);
       pdf.setFont('helvetica', 'normal');
-      pdf.text(emp.taxNumber || '-', col2.tax + 13, y + 10);
+      pdf.text(trunc(emp.taxNumber || '-', 14), col2.tax + 13, y + 10);
 
-      // Mobile
       pdf.setFont('helvetica', 'bold');
       pdf.text('Mobile:', col2.mobile, y + 10);
       pdf.setFont('helvetica', 'normal');
-      pdf.text(emp.mobile || '-', col2.mobile + 13, y + 10);
-
-      // Row 3: Emergency contact person + contact number
-      const emgColLabel = margin + 4;
-      const emgColNoLabel = margin + 100;
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('Emergency Contact:', emgColLabel, y + 15);
-      pdf.setFont('helvetica', 'normal');
-      const nextOfKinStr = emp.nextOfKin || '-';
-      pdf.text(nextOfKinStr.length > 23 ? nextOfKinStr.substring(0, 22) + '...' : nextOfKinStr, emgColLabel + 31, y + 15);
+      pdf.text(trunc(emp.mobile || '-', 13), col2.mobile + 13, y + 10);
 
       pdf.setFont('helvetica', 'bold');
-      pdf.text('Contact No:', emgColNoLabel, y + 15);
+      pdf.text('Emergency:', col2.emerg, y + 10);
       pdf.setFont('helvetica', 'normal');
-      pdf.text(emp.emergencyNumber || '-', emgColNoLabel + 19, y + 15);
+      pdf.text(trunc(emp.nextOfKin || '-', 18), col2.emerg + 18, y + 10);
+
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Contact No:', col2.contNo, y + 10);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(trunc(emp.emergencyNumber || '-', 12), col2.contNo + 19, y + 10);
 
       pdf.setTextColor(0, 0, 0);
       y += rowHeight;
