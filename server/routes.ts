@@ -1255,6 +1255,52 @@ export async function registerRoutes(
       if (!updated) {
         return res.status(404).json({ error: "Attendance record not found" });
       }
+
+      // Send follow-up notification email with the reason included
+      try {
+        if (updated.isInfringement && updated.userId) {
+          const user = await storage.getUser(updated.userId);
+          const adminEmailSetting = await storage.getSetting('admin_email');
+          const timezoneSetting = await storage.getSetting('timezone');
+          const timezone = timezoneSetting?.value || 'Africa/Johannesburg';
+
+          if (user && adminEmailSetting) {
+            const infringementType = updated.isInfringement as 'late_arrival' | 'early_departure';
+            const recordTime = new Date(updated.timestamp);
+            const actualTime = recordTime.toLocaleTimeString('en-ZA', {
+              hour: '2-digit', minute: '2-digit', hour12: false, timeZone: timezone
+            });
+
+            const cutoffSettingKey = infringementType === 'late_arrival' ? 'clock_in_cutoff' : 'clock_out_cutoff';
+            const cutoffSetting = await storage.getSetting(cutoffSettingKey);
+            const messageSettingKey = infringementType === 'late_arrival' ? 'late_arrival_message' : 'early_departure_message';
+            const messageSetting = await storage.getSetting(messageSettingKey);
+
+            const emails = adminEmailSetting.value.split('\n').map((e: string) => e.trim()).filter((e: string) => e);
+            for (const recipientEmail of emails) {
+              await sendLateAttendanceNotification(
+                recipientEmail,
+                'noreply@aece.co.za',
+                {
+                  employeeName: `${user.firstName} ${user.surname}`,
+                  firstName: user.firstName,
+                  surname: user.surname,
+                  employeeId: user.id,
+                  department: user.department || undefined,
+                  type: infringementType,
+                  actualTime,
+                  cutoffTime: cutoffSetting?.value || '',
+                  customMessage: messageSetting?.value,
+                  infringementReason,
+                }
+              );
+            }
+          }
+        }
+      } catch (emailError) {
+        console.error("Failed to send infringement reason notification:", emailError);
+      }
+
       return res.json(updated);
     } catch (error) {
       console.error("Update infringement reason error:", error);
