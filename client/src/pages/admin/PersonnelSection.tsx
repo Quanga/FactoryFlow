@@ -753,6 +753,7 @@ export default function PersonnelSection() {
                 <TableHead className="cursor-pointer select-none hover:bg-slate-50" onClick={() => handleSort('department')} data-testid="sort-department">
                   Department <SortIcon field="department" />
                 </TableHead>
+                <TableHead>Company</TableHead>
                 <TableHead className="cursor-pointer select-none hover:bg-slate-50" onClick={() => handleSort('tenure')} data-testid="sort-tenure">
                   Tenure <SortIcon field="tenure" />
                 </TableHead>
@@ -790,6 +791,9 @@ export default function PersonnelSection() {
                         </div>
                       </TableCell>
                       <TableCell>{emp.department || '-'}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {emp.companyId ? (companies.find((c: any) => c.id === emp.companyId)?.name ?? '-') : '-'}
+                      </TableCell>
                       <TableCell>
                         <span className="text-sm" title={emp.startDate ? `Started: ${formatDateForDisplay(emp.startDate)}` : 'Start date not set'}>
                           {getEmploymentDuration(emp.startDate)}
