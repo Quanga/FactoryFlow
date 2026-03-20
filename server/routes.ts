@@ -2639,14 +2639,16 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Invalid API key" });
       }
 
-      const [allUsers, departments, employeeTypes] = await Promise.all([
+      const [allUsers, departments, employeeTypes, allCompanies] = await Promise.all([
         storage.getAllUsers(),
         storage.getAllDepartments(),
         storage.getAllEmployeeTypes(),
+        storage.getAllCompanies(),
       ]);
 
       const deptMap = new Map(departments.map(d => [d.id, d.name]));
       const typeMap = new Map(employeeTypes.map(t => [t.id, t.name]));
+      const companyMap = new Map(allCompanies.map(c => [c.id, c.name]));
 
       const employees = allUsers.map(u => {
         // Strip sensitive / internal fields
@@ -2655,6 +2657,7 @@ export async function registerRoutes(
           ...safe,
           departmentName: u.departmentId ? (deptMap.get(u.departmentId) ?? null) : null,
           employeeTypeName: (u as any).employeeTypeId ? (typeMap.get((u as any).employeeTypeId) ?? null) : null,
+          companyName: (u as any).companyId ? (companyMap.get((u as any).companyId) ?? null) : null,
         };
       });
 
