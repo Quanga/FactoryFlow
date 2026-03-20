@@ -181,7 +181,7 @@ export default function LeaveRequestsSection() {
                       </TableCell>
                       <TableCell className="capitalize">{request.leaveType.replace('_', ' ')}</TableCell>
                       <TableCell>
-                        {format(new Date(request.startDate), 'MMM d')} - {format(new Date(request.endDate), 'MMM d, yyyy')}
+                        {format(new Date(request.startDate), 'd MMM')} - {format(new Date(request.endDate), 'd MMM yyyy')}
                       </TableCell>
                       <TableCell>
                         <Badge variant={statusInfo.variant}>
@@ -382,11 +382,11 @@ export default function LeaveRequestsSection() {
                   </div>
                   <div>
                     <Label className="text-muted-foreground text-sm">Start Date</Label>
-                    <p className="font-medium">{format(new Date(selectedLeaveRequest.startDate), 'MMMM d, yyyy')}</p>
+                    <p className="font-medium">{format(new Date(selectedLeaveRequest.startDate), 'd MMMM yyyy')}</p>
                   </div>
                   <div>
                     <Label className="text-muted-foreground text-sm">End Date</Label>
-                    <p className="font-medium">{format(new Date(selectedLeaveRequest.endDate), 'MMMM d, yyyy')}</p>
+                    <p className="font-medium">{format(new Date(selectedLeaveRequest.endDate), 'd MMMM yyyy')}</p>
                   </div>
                   <div>
                     <Label className="text-muted-foreground text-sm">Status</Label>
@@ -396,7 +396,7 @@ export default function LeaveRequestsSection() {
                   </div>
                   <div>
                     <Label className="text-muted-foreground text-sm">Submitted</Label>
-                    <p className="font-medium">{format(new Date(selectedLeaveRequest.createdAt), 'MMM d, yyyy h:mm a')}</p>
+                    <p className="font-medium">{format(new Date(selectedLeaveRequest.createdAt), 'd MMM yyyy h:mm a')}</p>
                   </div>
                 </div>
                 
@@ -452,7 +452,7 @@ export default function LeaveRequestsSection() {
                           <Badge variant="outline" className="text-xs bg-purple-100 text-purple-700 border-purple-300">Manager Review</Badge>
                           <span className="text-xs text-muted-foreground">
                             {selectedLeaveRequest.managerDecision === 'approved' ? '✓ Approved' : '✗ Rejected'}
-                            {selectedLeaveRequest.managerDecisionAt && ` on ${format(new Date(selectedLeaveRequest.managerDecisionAt), 'MMM d, yyyy')}`}
+                            {selectedLeaveRequest.managerDecisionAt && ` on ${format(new Date(selectedLeaveRequest.managerDecisionAt), 'd MMM yyyy')}`}
                           </span>
                         </div>
                         <p className="text-sm text-purple-800">{selectedLeaveRequest.managerNotes}</p>
@@ -470,7 +470,7 @@ export default function LeaveRequestsSection() {
                           <Badge variant="outline" className="text-xs bg-cyan-100 text-cyan-700 border-cyan-300">HR Review</Badge>
                           <span className="text-xs text-muted-foreground">
                             {selectedLeaveRequest.hrDecision === 'approved' ? '✓ Approved' : '✗ Rejected'}
-                            {selectedLeaveRequest.hrDecisionAt && ` on ${format(new Date(selectedLeaveRequest.hrDecisionAt), 'MMM d, yyyy')}`}
+                            {selectedLeaveRequest.hrDecisionAt && ` on ${format(new Date(selectedLeaveRequest.hrDecisionAt), 'd MMM yyyy')}`}
                           </span>
                         </div>
                         <p className="text-sm text-cyan-800">{selectedLeaveRequest.hrNotes}</p>
@@ -488,7 +488,7 @@ export default function LeaveRequestsSection() {
                           <Badge variant="outline" className="text-xs bg-amber-100 text-amber-700 border-amber-300">MD Review</Badge>
                           <span className="text-xs text-muted-foreground">
                             {selectedLeaveRequest.mdDecision === 'approved' ? '✓ Approved' : '✗ Rejected'}
-                            {selectedLeaveRequest.mdDecisionAt && ` on ${format(new Date(selectedLeaveRequest.mdDecisionAt), 'MMM d, yyyy')}`}
+                            {selectedLeaveRequest.mdDecisionAt && ` on ${format(new Date(selectedLeaveRequest.mdDecisionAt), 'd MMM yyyy')}`}
                           </span>
                         </div>
                         <p className="text-sm text-amber-800">{selectedLeaveRequest.mdNotes}</p>

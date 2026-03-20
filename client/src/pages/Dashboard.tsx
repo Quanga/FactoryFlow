@@ -206,7 +206,7 @@ export default function Dashboard() {
                         <div>
                           <div className="font-medium capitalize">{req.leaveType.replace('_', ' ')}</div>
                           <div className="text-sm text-muted-foreground">
-                            {format(new Date(req.startDate), 'MMM d')} - {format(new Date(req.endDate), 'MMM d, yyyy')}
+                            {format(new Date(req.startDate), 'd MMM')} - {format(new Date(req.endDate), 'd MMM yyyy')}
                           </div>
                         </div>
                       </div>
@@ -328,15 +328,15 @@ export default function Dashboard() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Start Date</p>
-                  <p className="font-medium">{format(new Date(selectedRequest.startDate), 'MMMM d, yyyy')}</p>
+                  <p className="font-medium">{format(new Date(selectedRequest.startDate), 'd MMMM yyyy')}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">End Date</p>
-                  <p className="font-medium">{format(new Date(selectedRequest.endDate), 'MMMM d, yyyy')}</p>
+                  <p className="font-medium">{format(new Date(selectedRequest.endDate), 'd MMMM yyyy')}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Submitted</p>
-                  <p className="font-medium">{format(new Date(selectedRequest.createdAt), 'MMM d, yyyy h:mm a')}</p>
+                  <p className="font-medium">{format(new Date(selectedRequest.createdAt), 'd MMM yyyy h:mm a')}</p>
                 </div>
               </div>
 
@@ -444,7 +444,7 @@ export default function Dashboard() {
               <div className="p-4 bg-slate-50 rounded-lg border">
                 <p className="font-medium capitalize">{selectedRequest.leaveType.replace('_', ' ')}</p>
                 <p className="text-sm text-muted-foreground">
-                  {format(new Date(selectedRequest.startDate), 'MMM d')} - {format(new Date(selectedRequest.endDate), 'MMM d, yyyy')}
+                  {format(new Date(selectedRequest.startDate), 'd MMM')} - {format(new Date(selectedRequest.endDate), 'd MMM yyyy')}
                 </p>
               </div>
             </div>

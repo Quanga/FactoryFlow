@@ -211,7 +211,7 @@ export default function DashboardSection({
                       <div>
                         <p className="font-medium">{employee ? `${employee.firstName} ${employee.surname}` : request.userId}</p>
                         <p className="text-xs text-muted-foreground">
-                          {request.leaveType} • {format(new Date(request.startDate), 'MMM d')} - {format(new Date(request.endDate), 'MMM d')}
+                          {request.leaveType} • {format(new Date(request.startDate), 'd MMM')} - {format(new Date(request.endDate), 'd MMM')}
                         </p>
                         <Badge variant={statusInfo.variant} className="text-xs mt-1">{statusInfo.label}</Badge>
                       </div>

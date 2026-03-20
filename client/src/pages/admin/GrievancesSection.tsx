@@ -87,7 +87,7 @@ export function GrievancesSection() {
                   return (
                     <TableRow key={grievance.id}>
                       <TableCell className="text-sm">
-                        {format(new Date(grievance.submittedAt), 'MMM d, yyyy')}
+                        {format(new Date(grievance.submittedAt), 'd MMM yyyy')}
                       </TableCell>
                       <TableCell>
                         <div className="font-medium">{employee?.firstName} {employee?.surname}</div>
@@ -167,7 +167,7 @@ export function GrievancesSection() {
                   </div>
                   <div>
                     <Label className="text-muted-foreground text-sm">Date Submitted</Label>
-                    <p className="font-medium">{format(new Date(selectedGrievance.submittedAt), 'MMMM d, yyyy h:mm a')}</p>
+                    <p className="font-medium">{format(new Date(selectedGrievance.submittedAt), 'd MMMM yyyy h:mm a')}</p>
                   </div>
                   <div>
                     <Label className="text-muted-foreground text-sm">Target</Label>

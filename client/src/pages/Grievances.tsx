@@ -196,7 +196,7 @@ export default function Grievances() {
                           <span>•</span>
                           <span className="capitalize">{grievance.category.replace('_', ' ')}</span>
                           <span>•</span>
-                          <span>{format(new Date(grievance.submittedAt), 'MMM d, yyyy')}</span>
+                          <span>{format(new Date(grievance.submittedAt), 'd MMM yyyy')}</span>
                         </div>
                       </div>
                     </div>
@@ -392,12 +392,12 @@ export default function Grievances() {
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <p className="text-muted-foreground">Submitted</p>
-                  <p>{format(new Date(selectedGrievance.submittedAt), 'MMM d, yyyy h:mm a')}</p>
+                  <p>{format(new Date(selectedGrievance.submittedAt), 'd MMM yyyy h:mm a')}</p>
                 </div>
                 {selectedGrievance.resolvedAt && (
                   <div>
                     <p className="text-muted-foreground">Resolved</p>
-                    <p>{format(new Date(selectedGrievance.resolvedAt), 'MMM d, yyyy h:mm a')}</p>
+                    <p>{format(new Date(selectedGrievance.resolvedAt), 'd MMM yyyy h:mm a')}</p>
                   </div>
                 )}
               </div>

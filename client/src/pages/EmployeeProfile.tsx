@@ -198,7 +198,7 @@ export default function EmployeeProfile() {
                       </Badge>
                     </div>
                     <span className="text-gray-600">
-                      {format(new Date(record.timestamp), "MMM d, yyyy 'at' h:mm a")}
+                      {format(new Date(record.timestamp), "d MMM yyyy 'at' h:mm a")}
                     </span>
                   </div>
                 ))}

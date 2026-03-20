@@ -205,11 +205,11 @@ export default function LeaveRequest() {
                           {dateRange.from ? (
                             dateRange.to ? (
                               <>
-                                {format(dateRange.from, "LLL dd, y")} -{" "}
-                                {format(dateRange.to, "LLL dd, y")}
+                                {format(dateRange.from, "dd LLL y")} -{" "}
+                                {format(dateRange.to, "dd LLL y")}
                               </>
                             ) : (
-                              format(dateRange.from, "LLL dd, y")
+                              format(dateRange.from, "dd LLL y")
                             )
                           ) : (
                             <span>Pick dates</span>
