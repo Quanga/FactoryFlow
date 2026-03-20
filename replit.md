@@ -100,6 +100,10 @@ Preferred communication style: Simple, everyday language.
 - **Settings**: System-wide configuration (e.g., admin email for notifications, sender email, timezone)
 - **Public Holidays**: Calendar of public holidays for leave calculation exclusions
   - Fields: id, name, date, isRecurring (for annual holidays), description
+- **Companies**: Payroll companies that employees can be assigned to (for payroll segregation across multiple legal entities)
+  - Fields: id, name, registrationNumber, description
+  - Employees are assigned via users.companyId
+  - Not used in the org chart — purely for payroll routing
 - **Org Positions**: Defines position-based org chart hierarchy (position names and structure only)
   - Fields: id, title, department, parentPositionId, sortOrder
   - Employees are assigned to positions via users.orgPositionId (set on the employee edit page)

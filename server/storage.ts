@@ -36,6 +36,8 @@ import type {
   InsertFaceDescriptor,
   OrgPosition,
   InsertOrgPosition,
+  Company,
+  InsertCompany,
 } from "@shared/schema";
 
 const pool = new Pool({
@@ -150,6 +152,13 @@ export interface IStorage {
   createGrievance(grievance: InsertGrievance): Promise<Grievance>;
   updateGrievance(id: number, grievance: Partial<InsertGrievance>): Promise<Grievance | undefined>;
   updateGrievanceStatus(id: number, status: string, adminNotes?: string, resolution?: string): Promise<Grievance | undefined>;
+
+  // Company operations
+  getAllCompanies(): Promise<Company[]>;
+  getCompany(id: number): Promise<Company | undefined>;
+  createCompany(company: InsertCompany): Promise<Company>;
+  updateCompany(id: number, company: Partial<InsertCompany>): Promise<Company | undefined>;
+  deleteCompany(id: number): Promise<boolean>;
 
   // Public Holiday operations
   getAllPublicHolidays(): Promise<PublicHoliday[]>;
@@ -1121,6 +1130,31 @@ export class DrizzleStorage implements IStorage {
 
   async deleteOrgPosition(id: number): Promise<boolean> {
     await db.delete(schema.orgPositions).where(eq(schema.orgPositions.id, id));
+    return true;
+  }
+
+  // Company operations
+  async getAllCompanies(): Promise<Company[]> {
+    return db.select().from(schema.companies).orderBy(schema.companies.name);
+  }
+
+  async getCompany(id: number): Promise<Company | undefined> {
+    const rows = await db.select().from(schema.companies).where(eq(schema.companies.id, id));
+    return rows[0];
+  }
+
+  async createCompany(company: InsertCompany): Promise<Company> {
+    const [newCompany] = await db.insert(schema.companies).values(company).returning();
+    return newCompany;
+  }
+
+  async updateCompany(id: number, company: Partial<InsertCompany>): Promise<Company | undefined> {
+    const [updated] = await db.update(schema.companies).set(company).where(eq(schema.companies.id, id)).returning();
+    return updated;
+  }
+
+  async deleteCompany(id: number): Promise<boolean> {
+    await db.delete(schema.companies).where(eq(schema.companies.id, id));
     return true;
   }
 

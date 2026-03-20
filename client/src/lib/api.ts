@@ -463,6 +463,50 @@ export const settingsApi = {
 };
 
 // Department API
+export const companyApi = {
+  async getAll(): Promise<any[]> {
+    const res = await fetch(`${API_BASE}/companies`);
+    if (!res.ok) throw new Error("Failed to fetch companies");
+    return res.json();
+  },
+
+  async create(company: { name: string; registrationNumber?: string; description?: string }): Promise<any> {
+    const res = await fetch(`${API_BASE}/companies`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(company),
+    });
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.error || "Failed to create company");
+    }
+    return res.json();
+  },
+
+  async update(id: number, company: { name?: string; registrationNumber?: string; description?: string }): Promise<any> {
+    const res = await fetch(`${API_BASE}/companies/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(company),
+    });
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.error || "Failed to update company");
+    }
+    return res.json();
+  },
+
+  async delete(id: number): Promise<void> {
+    const res = await fetch(`${API_BASE}/companies/${id}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.error || "Failed to delete company");
+    }
+  },
+};
+
 export const departmentApi = {
   async getAll(): Promise<Department[]> {
     const res = await fetch(`${API_BASE}/departments`);

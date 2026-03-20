@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { userApi, departmentApi, userGroupApi, leaveBalanceApi, employeeTypeApi, contractHistoryApi, faceDescriptorApi, orgPositionApi } from '@/lib/api';
+import { userApi, departmentApi, userGroupApi, leaveBalanceApi, employeeTypeApi, contractHistoryApi, faceDescriptorApi, orgPositionApi, companyApi } from '@/lib/api';
 import type { User, Department, UserGroup, LeaveBalance, EmployeeType, OrgPosition } from '@shared/schema';
 import { Plus, Pencil, Trash2, Mail, Camera, Loader2, CheckCircle2, UserCog, Shield, Check, X, Search, UserX, Network, ChevronDown, ChevronRight, ArrowUp, ArrowDown, ChevronsUpDown, FileText } from 'lucide-react';
 import jsPDF from 'jspdf';
@@ -53,6 +53,11 @@ export default function PersonnelSection() {
   const { data: orgPositions = [] } = useQuery<OrgPosition[]>({
     queryKey: ['org-positions'],
     queryFn: () => orgPositionApi.getAll(),
+  });
+
+  const { data: companies = [] } = useQuery<any[]>({
+    queryKey: ['companies'],
+    queryFn: companyApi.getAll,
   });
 
   // Employee Search State
@@ -252,6 +257,7 @@ export default function PersonnelSection() {
       terminationDate: currentUser.terminationDate || null,
       contractEndDate: currentUser.contractEndDate || null,
       adminRole: currentUser.userGroupId ? (currentUser.adminRole || 'manager') : null,
+      companyId: currentUser.companyId || null,
     };
 
     if (isEditing) {
@@ -1398,6 +1404,26 @@ export default function PersonnelSection() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="company" className="text-right">Company</Label>
+              <div className="col-span-3">
+                <Select
+                  value={currentUser.companyId?.toString() || 'none'}
+                  onValueChange={(value) => setCurrentUser({ ...currentUser, companyId: value === 'none' ? undefined : parseInt(value) })}
+                >
+                  <SelectTrigger data-testid="select-company">
+                    <SelectValue placeholder="Select company (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">— No company —</SelectItem>
+                    {companies.map((c: any) => (
+                      <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">Payroll company this employee belongs to.</p>
               </div>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">

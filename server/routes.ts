@@ -2543,6 +2543,55 @@ export async function registerRoutes(
     }
   });
 
+  // ── Companies ─────────────────────────────────────────────────────────────
+
+  app.get("/api/companies", async (req, res) => {
+    try {
+      return res.json(await storage.getAllCompanies());
+    } catch (error) {
+      console.error("Get companies error:", error);
+      return res.status(500).json({ error: "Failed to fetch companies" });
+    }
+  });
+
+  app.post("/api/companies", async (req, res) => {
+    try {
+      const { name, registrationNumber, description } = req.body;
+      if (!name) return res.status(400).json({ error: "Company name is required" });
+      const company = await storage.createCompany({ name, registrationNumber: registrationNumber || null, description: description || null });
+      return res.status(201).json(company);
+    } catch (error: any) {
+      console.error("Create company error:", error);
+      if (error.code === '23505') return res.status(409).json({ error: "A company with that name already exists" });
+      return res.status(500).json({ error: "Failed to create company" });
+    }
+  });
+
+  app.patch("/api/companies/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { name, registrationNumber, description } = req.body;
+      const updated = await storage.updateCompany(id, { name, registrationNumber, description });
+      if (!updated) return res.status(404).json({ error: "Company not found" });
+      return res.json(updated);
+    } catch (error: any) {
+      console.error("Update company error:", error);
+      if (error.code === '23505') return res.status(409).json({ error: "A company with that name already exists" });
+      return res.status(500).json({ error: "Failed to update company" });
+    }
+  });
+
+  app.delete("/api/companies/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteCompany(id);
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("Delete company error:", error);
+      return res.status(500).json({ error: "Failed to delete company" });
+    }
+  });
+
   // ── External API ──────────────────────────────────────────────────────────
 
   // Helper: get the stored API key (or generate + store one on first call)

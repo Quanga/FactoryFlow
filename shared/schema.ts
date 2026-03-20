@@ -102,6 +102,22 @@ export const insertLeaveRulePhaseSchema = createInsertSchema(leaveRulePhases).om
 export type InsertLeaveRulePhase = z.infer<typeof insertLeaveRulePhaseSchema>;
 export type LeaveRulePhase = typeof leaveRulePhases.$inferSelect;
 
+// Companies Table (for payroll company assignment)
+export const companies = pgTable("companies", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  registrationNumber: text("registration_number"),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertCompanySchema = createInsertSchema(companies).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertCompany = z.infer<typeof insertCompanySchema>;
+export type Company = typeof companies.$inferSelect;
+
 // Users Table
 export const users = pgTable("users", {
   id: text("id").primaryKey(),
@@ -131,6 +147,7 @@ export const users = pgTable("users", {
   managerId: text("manager_id"), // ID of the employee's direct manager
   secondManagerId: text("second_manager_id"), // ID of a second manager (for shared reporting)
   orgPositionId: integer("org_position_id"), // ID of the org position this employee is assigned to
+  companyId: integer("company_id").references(() => companies.id), // Payroll company
   photoUrl: text("photo_url"),
   faceDescriptor: text("face_descriptor"), // JSON array of 128 face embedding values
   exclude: boolean("exclude").default(false), // Exclude from org chart and attendance (for test/dummy users)

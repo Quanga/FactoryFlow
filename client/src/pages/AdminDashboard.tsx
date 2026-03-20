@@ -26,9 +26,10 @@ import { GrievancesSection } from './admin/GrievancesSection';
 import LeaveCalendarSection from './admin/LeaveCalendarSection';
 import PublicHolidaysSection from './admin/PublicHolidaysSection';
 import OrgPositionsSection from './admin/OrgPositionsSection';
+import CompaniesSection from './admin/CompaniesSection';
 import SettingsSection from './admin/SettingsSection';
 
-type ActiveSection = 'dashboard' | 'employees' | 'leave-requests' | 'attendance' | 'departments' | 'employee-types' | 'leave-rules' | 'grievances' | 'holidays' | 'leave-calendar' | 'positions' | 'settings';
+type ActiveSection = 'dashboard' | 'employees' | 'leave-requests' | 'attendance' | 'departments' | 'employee-types' | 'leave-rules' | 'grievances' | 'holidays' | 'leave-calendar' | 'positions' | 'companies' | 'settings';
 
 export default function AdminDashboard() {
   const [, setLocation] = useLocation();
@@ -307,6 +308,15 @@ export default function AdminDashboard() {
                 <UserCog className="h-4 w-4" /> Employee Types
               </button>
               <button
+                onClick={() => setActiveSection('companies')}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
+                  activeSection === 'companies' ? 'bg-primary text-white' : 'hover:bg-slate-100 text-slate-700'
+                }`}
+                data-testid="nav-companies"
+              >
+                <Building2 className="h-4 w-4" /> Companies
+              </button>
+              <button
                 onClick={() => setActiveSection('leave-rules')}
                 className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
                   activeSection === 'leave-rules' ? 'bg-primary text-white' : 'hover:bg-slate-100 text-slate-700'
@@ -415,6 +425,9 @@ export default function AdminDashboard() {
           )}
           {activeSection === 'positions' && (
             <OrgPositionsSection />
+          )}
+          {activeSection === 'companies' && (
+            <CompaniesSection />
           )}
           {activeSection === 'settings' && (
             <SettingsSection />
