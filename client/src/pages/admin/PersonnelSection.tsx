@@ -263,6 +263,12 @@ export default function PersonnelSection() {
     if (isEditing) {
       const idChanged = currentUser.id && currentUser.id !== originalId;
       if (idChanged) {
+        // Block save if the new ID is already used by another employee
+        const isDuplicate = users.some((u: User) => u.id === currentUser.id);
+        if (isDuplicate) {
+          toast({ variant: "destructive", title: "Duplicate ID", description: `Employee ID "${currentUser.id}" is already in use. Choose a different ID.` });
+          return;
+        }
         // ID has been changed — rename first, then update other fields
         try {
           await userApi.changeId(originalId, currentUser.id!);
@@ -1179,16 +1185,28 @@ export default function PersonnelSection() {
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="userId" className="text-right">Employee ID</Label>
               <div className="col-span-3 space-y-1">
-                <Input 
-                  id="userId" 
-                  value={currentUser.id || ''} 
-                  onChange={(e) => setCurrentUser({...currentUser, id: e.target.value.toUpperCase()})}
-                  placeholder="e.g. AECE0001"
-                  data-testid="input-user-id"
-                />
-                {isEditing && currentUser.id && currentUser.id !== originalId && (
-                  <p className="text-xs text-amber-600">⚠ ID will change from <strong>{originalId}</strong> to <strong>{currentUser.id}</strong>. All linked records will be updated.</p>
-                )}
+                {(() => {
+                  const idChanged = isEditing && currentUser.id && currentUser.id !== originalId;
+                  const isDuplicate = idChanged && users.some((u: User) => u.id === currentUser.id);
+                  return (
+                    <>
+                      <Input 
+                        id="userId" 
+                        value={currentUser.id || ''} 
+                        onChange={(e) => setCurrentUser({...currentUser, id: e.target.value.toUpperCase()})}
+                        placeholder="e.g. AECE0001"
+                        data-testid="input-user-id"
+                        className={isDuplicate ? 'border-red-500 focus-visible:ring-red-500' : ''}
+                      />
+                      {isDuplicate && (
+                        <p className="text-xs text-red-600">✕ Employee ID <strong>{currentUser.id}</strong> is already in use. Choose a different ID.</p>
+                      )}
+                      {idChanged && !isDuplicate && (
+                        <p className="text-xs text-amber-600">⚠ ID will change from <strong>{originalId}</strong> to <strong>{currentUser.id}</strong>. All linked records will be updated.</p>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
