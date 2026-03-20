@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/lib/auth-context';
 import { 
   Settings, Shield, Palette, Mail, Download, Upload, Save, 
-  UserCog, Plus, Pencil, Trash2 
+  UserCog, Plus, Pencil, Trash2, Key, Copy, RefreshCw, Eye, EyeOff
 } from 'lucide-react';
 import { 
   settingsApi, userApi, userGroupApi, backupApi, leaveBalanceApi 
@@ -27,7 +27,13 @@ export default function SettingsSection() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const [settingsTab, setSettingsTab] = useState<'general' | 'user-groups' | 'branding'>('general');
+  const [settingsTab, setSettingsTab] = useState<'general' | 'user-groups' | 'branding' | 'api'>('general');
+
+  // External API Key state
+  const [apiKey, setApiKey] = useState<string>('');
+  const [apiKeyVisible, setApiKeyVisible] = useState(false);
+  const [apiKeyLoading, setApiKeyLoading] = useState(false);
+  const [apiKeyRegenerating, setApiKeyRegenerating] = useState(false);
 
   // General Settings State
   const [emailSettings, setEmailSettings] = useState('');
@@ -159,6 +165,17 @@ export default function SettingsSection() {
   useEffect(() => { if (timezoneSetting) setTimezone(timezoneSetting.value); }, [timezoneSetting]);
   useEffect(() => { if (companyNameSetting) setCompanyName(companyNameSetting.value); }, [companyNameSetting]);
   useEffect(() => { if (companyLogoSetting) setCompanyLogo(companyLogoSetting.value); }, [companyLogoSetting]);
+
+  useEffect(() => {
+    if (settingsTab === 'api' && !apiKey) {
+      setApiKeyLoading(true);
+      fetch('/api/admin/external-api-key')
+        .then(r => r.json())
+        .then(data => setApiKey(data.key || ''))
+        .catch(() => {})
+        .finally(() => setApiKeyLoading(false));
+    }
+  }, [settingsTab]);
   useEffect(() => { if (primaryColorSetting) setPrimaryColor(primaryColorSetting.value); }, [primaryColorSetting]);
   useEffect(() => { if (accentColorSetting) setAccentColor(accentColorSetting.value); }, [accentColorSetting]);
   useEffect(() => { if (termEmployeeSetting) setTermEmployee(termEmployeeSetting.value); }, [termEmployeeSetting]);
@@ -336,6 +353,18 @@ export default function SettingsSection() {
         >
           <Palette className="inline h-4 w-4 mr-2" />
           Branding
+        </button>
+        <button
+          onClick={() => setSettingsTab('api')}
+          className={`px-4 py-2 rounded-t-lg text-sm font-medium transition-colors ${
+            settingsTab === 'api' 
+              ? 'bg-primary text-white' 
+              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+          }`}
+          data-testid="settings-tab-api"
+        >
+          <Key className="inline h-4 w-4 mr-2" />
+          API Access
         </button>
       </div>
       
@@ -1029,6 +1058,132 @@ export default function SettingsSection() {
               <Save className="mr-2 h-4 w-4" />
               Save Branding Settings
             </Button>
+          </CardContent>
+        </Card>
+      </>
+      )}
+
+      {/* API Access Tab */}
+      {settingsTab === 'api' && (
+      <>
+        <Card>
+          <CardHeader>
+            <CardTitle>External Employee API</CardTitle>
+            <CardDescription>
+              Allow external systems to securely pull employee data using this API key.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6 max-w-2xl">
+            {/* Endpoint */}
+            <div className="space-y-2">
+              <Label>API Endpoint</Label>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 bg-slate-100 rounded px-3 py-2 text-sm font-mono break-all">
+                  GET {window.location.origin}/api/external/employees
+                </code>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${window.location.origin}/api/external/employees`);
+                    toast({ title: "Copied", description: "Endpoint URL copied to clipboard" });
+                  }}
+                  data-testid="button-copy-endpoint"
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* API Key */}
+            <div className="space-y-2">
+              <Label>API Key</Label>
+              {apiKeyLoading ? (
+                <p className="text-sm text-muted-foreground">Loading...</p>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 bg-slate-100 rounded px-3 py-2 text-sm font-mono break-all">
+                    {apiKeyVisible ? apiKey : '•'.repeat(Math.min(apiKey.length, 48))}
+                  </code>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setApiKeyVisible(v => !v)}
+                    data-testid="button-toggle-key-visibility"
+                  >
+                    {apiKeyVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      navigator.clipboard.writeText(apiKey);
+                      toast({ title: "Copied", description: "API key copied to clipboard" });
+                    }}
+                    data-testid="button-copy-api-key"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={apiKeyRegenerating}
+                    onClick={async () => {
+                      if (!confirm('Regenerating the key will immediately revoke access for any app using the old key. Continue?')) return;
+                      setApiKeyRegenerating(true);
+                      try {
+                        const res = await fetch('/api/admin/external-api-key/regenerate', { method: 'POST' });
+                        const data = await res.json();
+                        setApiKey(data.key);
+                        setApiKeyVisible(true);
+                        toast({ title: "Key Regenerated", description: "The old key has been revoked. Update all connected apps with the new key." });
+                      } catch {
+                        toast({ variant: "destructive", title: "Error", description: "Failed to regenerate key" });
+                      } finally {
+                        setApiKeyRegenerating(false);
+                      }
+                    }}
+                    data-testid="button-regenerate-api-key"
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-1 ${apiKeyRegenerating ? 'animate-spin' : ''}`} />
+                    Regenerate
+                  </Button>
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Keep this key secret. Treat it like a password — do not share it publicly.
+              </p>
+            </div>
+
+            {/* Usage example */}
+            <div className="space-y-2">
+              <Label>How to Use</Label>
+              <div className="bg-slate-900 text-slate-100 rounded-lg p-4 space-y-3 text-sm font-mono">
+                <p className="text-slate-400"># Pass the key in the X-API-Key header</p>
+                <p>curl \</p>
+                <p className="pl-4">-H "X-API-Key: YOUR_API_KEY" \</p>
+                <p className="pl-4">{window.location.origin}/api/external/employees</p>
+              </div>
+            </div>
+
+            {/* Response shape */}
+            <div className="space-y-2">
+              <Label>Response Format</Label>
+              <div className="bg-slate-100 rounded-lg p-4 text-xs font-mono space-y-1">
+                <p>{'{'}</p>
+                <p className="pl-4">"count": 42,</p>
+                <p className="pl-4">"generatedAt": "2026-01-01T08:00:00.000Z",</p>
+                <p className="pl-4">"employees": [</p>
+                <p className="pl-8">{'{ "id", "firstName", "surname", "nickname", "email", "mobile",'}</p>
+                <p className="pl-10">{'"role", "departmentId", "departmentName", "employeeTypeName",'}</p>
+                <p className="pl-10">{'"managerId", "secondManagerId", "orgPositionId", ... }'}</p>
+                <p className="pl-4">]</p>
+                <p>{'}'}</p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Sensitive fields (face data, password hashes) are always excluded from the response.
+              </p>
+            </div>
           </CardContent>
         </Card>
       </>

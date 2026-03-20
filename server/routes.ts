@@ -2543,5 +2543,82 @@ export async function registerRoutes(
     }
   });
 
+  // ── External API ──────────────────────────────────────────────────────────
+
+  // Helper: get the stored API key (or generate + store one on first call)
+  async function getOrCreateExternalApiKey(): Promise<string> {
+    const existing = await storage.getSetting('external_api_key');
+    if (existing?.value) return existing.value;
+    const newKey = crypto.randomBytes(32).toString('hex');
+    await storage.setSetting('external_api_key', newKey);
+    return newKey;
+  }
+
+  // Admin: view current external API key
+  app.get("/api/admin/external-api-key", async (req, res) => {
+    try {
+      const key = await getOrCreateExternalApiKey();
+      return res.json({ key });
+    } catch (error) {
+      console.error("Get external API key error:", error);
+      return res.status(500).json({ error: "Failed to retrieve API key" });
+    }
+  });
+
+  // Admin: regenerate external API key
+  app.post("/api/admin/external-api-key/regenerate", async (req, res) => {
+    try {
+      const newKey = crypto.randomBytes(32).toString('hex');
+      await storage.setSetting('external_api_key', newKey);
+      return res.json({ key: newKey });
+    } catch (error) {
+      console.error("Regenerate external API key error:", error);
+      return res.status(500).json({ error: "Failed to regenerate API key" });
+    }
+  });
+
+  // External: GET /api/external/employees — returns all employee records
+  // Requires header:  X-API-Key: <key>
+  app.get("/api/external/employees", async (req, res) => {
+    try {
+      const providedKey = req.headers['x-api-key'] as string | undefined;
+      if (!providedKey) {
+        return res.status(401).json({ error: "Missing X-API-Key header" });
+      }
+      const storedKey = await storage.getSetting('external_api_key');
+      if (!storedKey?.value || providedKey !== storedKey.value) {
+        return res.status(403).json({ error: "Invalid API key" });
+      }
+
+      const [allUsers, departments, employeeTypes] = await Promise.all([
+        storage.getAllUsers(),
+        storage.getAllDepartments(),
+        storage.getAllEmployeeTypes(),
+      ]);
+
+      const deptMap = new Map(departments.map(d => [d.id, d.name]));
+      const typeMap = new Map(employeeTypes.map(t => [t.id, t.name]));
+
+      const employees = allUsers.map(u => {
+        // Strip sensitive / internal fields
+        const { faceDescriptor, password, ...safe } = u as any;
+        return {
+          ...safe,
+          departmentName: u.departmentId ? (deptMap.get(u.departmentId) ?? null) : null,
+          employeeTypeName: (u as any).employeeTypeId ? (typeMap.get((u as any).employeeTypeId) ?? null) : null,
+        };
+      });
+
+      return res.json({
+        count: employees.length,
+        generatedAt: new Date().toISOString(),
+        employees,
+      });
+    } catch (error) {
+      console.error("External employees API error:", error);
+      return res.status(500).json({ error: "Failed to fetch employee data" });
+    }
+  });
+
   return httpServer;
 }
