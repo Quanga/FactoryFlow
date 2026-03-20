@@ -119,6 +119,19 @@ export const userApi = {
     if (!res.ok) throw new Error("Failed to delete user");
   },
 
+  async changeId(oldId: string, newId: string): Promise<User> {
+    const res = await fetch(`${API_BASE}/users/${oldId}/change-id`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ newId }),
+    });
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to change employee ID");
+    }
+    return res.json();
+  },
+
   async resendCredentials(id: string): Promise<{ message: string }> {
     const res = await fetch(`${API_BASE}/users/${id}/resend-credentials`, {
       method: "POST",

@@ -94,6 +94,7 @@ export default function PersonnelSection() {
   const [isUserDialogOpen, setIsUserDialogOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<Partial<User>>({});
   const [isEditing, setIsEditing] = useState(false);
+  const [originalId, setOriginalId] = useState<string>('');
   const [isCapturingPhoto, setIsCapturingPhoto] = useState(false);
   const [isMultiAngleCapture, setIsMultiAngleCapture] = useState(false);
   const [extractingFace, setExtractingFace] = useState(false);
@@ -208,7 +209,7 @@ export default function PersonnelSection() {
     },
   });
 
-  const handleSaveUser = () => {
+  const handleSaveUser = async () => {
     if (!currentUser.firstName || !currentUser.surname || !currentUser.id) {
       toast({ variant: "destructive", title: "Error", description: "First name, surname, and ID are required" });
       return;
@@ -254,7 +255,19 @@ export default function PersonnelSection() {
     };
 
     if (isEditing) {
-      updateUserMutation.mutate(userData);
+      const idChanged = currentUser.id && currentUser.id !== originalId;
+      if (idChanged) {
+        // ID has been changed — rename first, then update other fields
+        try {
+          await userApi.changeId(originalId, currentUser.id!);
+          // After rename, update the other fields using the new ID
+          updateUserMutation.mutate({ ...userData, id: currentUser.id });
+        } catch (err: any) {
+          toast({ variant: "destructive", title: "ID Change Failed", description: err.message || "Could not change the Employee ID." });
+        }
+      } else {
+        updateUserMutation.mutate(userData);
+      }
     } else {
       createUserMutation.mutate(userData);
     }
@@ -325,6 +338,7 @@ export default function PersonnelSection() {
 
   const handleOpenEdit = (user: User) => {
     setCurrentUser(user);
+    setOriginalId(user.id);
     setIsEditing(true);
     setIsUserDialogOpen(true);
     setFaceExtracted(!!user.faceDescriptor);
@@ -1154,15 +1168,18 @@ export default function PersonnelSection() {
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="userId" className="text-right">Employee ID</Label>
-              <Input 
-                id="userId" 
-                value={currentUser.id || ''} 
-                onChange={(e) => setCurrentUser({...currentUser, id: e.target.value})}
-                className="col-span-3"
-                disabled={isEditing}
-                placeholder="e.g. EMP001"
-                data-testid="input-user-id"
-              />
+              <div className="col-span-3 space-y-1">
+                <Input 
+                  id="userId" 
+                  value={currentUser.id || ''} 
+                  onChange={(e) => setCurrentUser({...currentUser, id: e.target.value.toUpperCase()})}
+                  placeholder="e.g. AECE0001"
+                  data-testid="input-user-id"
+                />
+                {isEditing && currentUser.id && currentUser.id !== originalId && (
+                  <p className="text-xs text-amber-600">⚠ ID will change from <strong>{originalId}</strong> to <strong>{currentUser.id}</strong>. All linked records will be updated.</p>
+                )}
+              </div>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="email" className="text-right">Email</Label>

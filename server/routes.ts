@@ -422,6 +422,37 @@ export async function registerRoutes(
     }
   });
 
+  // Change user ID (rename — migrates all linked records atomically)
+  app.post("/api/users/:id/change-id", async (req, res) => {
+    try {
+      const oldId = req.params.id;
+      const { newId } = req.body;
+
+      if (!newId || typeof newId !== 'string' || !newId.trim()) {
+        return res.status(400).json({ error: "newId is required" });
+      }
+      const trimmedNewId = newId.trim();
+      if (trimmedNewId === oldId) {
+        return res.status(400).json({ error: "New ID is the same as the current ID" });
+      }
+
+      // Check new ID is not already in use
+      const existing = await storage.getUser(trimmedNewId);
+      if (existing) {
+        return res.status(409).json({ error: `Employee ID "${trimmedNewId}" is already in use` });
+      }
+
+      const updatedUser = await storage.changeUserId(oldId, trimmedNewId);
+      if (!updatedUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      return res.json(updatedUser);
+    } catch (error) {
+      console.error("Change user ID error:", error);
+      return res.status(500).json({ error: "Failed to change employee ID" });
+    }
+  });
+
   // Delete user
   app.delete("/api/users/:id", async (req, res) => {
     try {

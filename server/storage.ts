@@ -59,6 +59,7 @@ export interface IStorage {
   getAllUsers(): Promise<User[]>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, user: Partial<InsertUser>): Promise<User | undefined>;
+  changeUserId(oldId: string, newId: string): Promise<User | undefined>;
   deleteUser(id: string): Promise<void>;
 
   // Leave balance operations
@@ -259,6 +260,57 @@ export class DrizzleStorage implements IStorage {
       .where(eq(schema.users.id, id))
       .returning();
     return updatedUser;
+  }
+
+  async changeUserId(oldId: string, newId: string): Promise<User | undefined> {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // 1. Insert new user row (copy of old with new ID)
+      await client.query(`
+        INSERT INTO users (id, name, email, password, role, department, photo_url, created_at,
+          face_descriptor, first_name, surname, nickname, mobile, home_address, gender,
+          user_group_id, employee_type_id, national_id, tax_number, next_of_kin,
+          emergency_number, popia_waiver_url, start_date, contract_end_date, termination_date,
+          manager_id, admin_role, has_full_admin_access, exclude, attendance_required,
+          second_manager_id, org_position_id)
+        SELECT $1, name, email, password, role, department, photo_url, created_at,
+          face_descriptor, first_name, surname, nickname, mobile, home_address, gender,
+          user_group_id, employee_type_id, national_id, tax_number, next_of_kin,
+          emergency_number, popia_waiver_url, start_date, contract_end_date, termination_date,
+          manager_id, admin_role, has_full_admin_access, exclude, attendance_required,
+          second_manager_id, org_position_id
+        FROM users WHERE id = $2
+      `, [newId, oldId]);
+
+      // 2. Migrate all FK references in child tables
+      await client.query(`UPDATE attendance_records SET user_id = $1 WHERE user_id = $2`, [newId, oldId]);
+      await client.query(`UPDATE contract_history SET user_id = $1 WHERE user_id = $2`, [newId, oldId]);
+      await client.query(`UPDATE contract_history SET performed_by = $1 WHERE performed_by = $2`, [newId, oldId]);
+      await client.query(`UPDATE face_descriptors SET user_id = $1 WHERE user_id = $2`, [newId, oldId]);
+      await client.query(`UPDATE grievances SET user_id = $1 WHERE user_id = $2`, [newId, oldId]);
+      await client.query(`UPDATE grievances SET target_employee_id = $1 WHERE target_employee_id = $2`, [newId, oldId]);
+      await client.query(`UPDATE grievances SET assigned_to = $1 WHERE assigned_to = $2`, [newId, oldId]);
+      await client.query(`UPDATE leave_balances SET user_id = $1 WHERE user_id = $2`, [newId, oldId]);
+      await client.query(`UPDATE leave_requests SET user_id = $1 WHERE user_id = $2`, [newId, oldId]);
+      await client.query(`UPDATE notifications SET user_id = $1 WHERE user_id = $2`, [newId, oldId]);
+      await client.query(`UPDATE users SET manager_id = $1 WHERE manager_id = $2`, [newId, oldId]);
+      await client.query(`UPDATE users SET second_manager_id = $1 WHERE second_manager_id = $2`, [newId, oldId]);
+
+      // 3. Delete the old user row (all references now point to newId)
+      await client.query(`DELETE FROM users WHERE id = $1`, [oldId]);
+
+      await client.query('COMMIT');
+
+      const result = await client.query(`SELECT * FROM users WHERE id = $1`, [newId]);
+      return result.rows[0] as User | undefined;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 
   async deleteUser(id: string): Promise<void> {
