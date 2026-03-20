@@ -212,10 +212,7 @@ export default function ModeSelect() {
 
         <div className="text-center mt-8">
           <button 
-            onClick={() => {
-              sessionStorage.setItem('appMode', 'application');
-              setLocation('/login?mode=admin');
-            }}
+            onClick={() => setLocation('/admin')}
             className="text-slate-500 hover:text-slate-700 text-sm flex items-center gap-2 mx-auto"
             data-testid="button-admin-settings"
           >
