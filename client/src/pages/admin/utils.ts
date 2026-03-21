@@ -2,9 +2,11 @@ import type { LeaveRequest } from '@shared/schema';
 
 export const formatDateForDisplay = (isoDate: string | null | undefined): string => {
   if (!isoDate) return '';
-  const parts = isoDate.split('-');
+  const dateOnly = isoDate.split('T')[0];
+  const parts = dateOnly.split('-');
   if (parts.length !== 3) return isoDate;
-  return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  const [year, month, day] = parts;
+  return `${day}/${month}/${year}`;
 };
 
 export const parseDateFromDisplay = (displayDate: string): string => {
