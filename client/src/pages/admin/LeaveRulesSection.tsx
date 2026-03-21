@@ -331,7 +331,7 @@ export default function LeaveRulesSection() {
             <CardTitle className="text-base">South African BCEA Leave Entitlements</CardTitle>
           </div>
           <CardDescription>
-            Leave balances are calculated per the Basic Conditions of Employment Act (BCEA). Click a leave type to see the formula and examples. Use "Recalculate All" to update every employee's balance to their correct SA-law entitlement based on their start date.
+            Leave balances automatically accrue based on each employee's start date, per the Basic Conditions of Employment Act (BCEA). Balances are recalculated every time they are viewed — no manual intervention needed. Click a leave type to see the formula and examples. Use "Recalculate All" to force a bulk update now.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">

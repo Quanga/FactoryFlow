@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { z } from "zod";
 import { insertUserSchema, insertLeaveRequestSchema, insertAttendanceRecordSchema, insertDepartmentSchema, insertUserGroupSchema, insertEmployeeTypeSchema, insertLeaveRuleSchema, insertLeaveRulePhaseSchema, insertGrievanceSchema } from "@shared/schema";
 import { sendLeaveRequestNotification, sendLateAttendanceNotification, sendAdminWelcomeEmail, sendLeaveStatusNotification, sendPasswordResetEmail, sendAdminCredentialsEmail } from "./email";
+import { calculateBceaEntitlements } from "./bcea";
 import crypto from "crypto";
 import bcrypt from "bcrypt";
 
@@ -480,7 +481,33 @@ export async function registerRoutes(
   // Get leave balances for a user
   app.get("/api/leave-balances/:userId", async (req, res) => {
     try {
-      const balances = await storage.getLeaveBalances(req.params.userId);
+      const userId = req.params.userId;
+      const user = await storage.getUser(userId);
+
+      // Auto-recalculate BCEA entitlements for workers with a start date
+      if (user && user.role === 'worker' && user.startDate && !user.terminationDate) {
+        const entitlements = calculateBceaEntitlements(user.startDate);
+        const existingBalances = await storage.getLeaveBalances(userId);
+
+        const upsert = async (leaveType: string, newTotal: number) => {
+          const existing = existingBalances.find(b => b.leaveType === leaveType);
+          if (existing) {
+            // Only write to DB if the value has meaningfully changed (avoids constant writes)
+            if (Math.abs((existing.total ?? 0) - newTotal) >= 0.05) {
+              await storage.updateLeaveBalance(existing.id, { total: newTotal });
+            }
+          } else {
+            // Create missing balance record
+            await storage.createLeaveBalance({ userId, leaveType, total: newTotal, taken: 0, pending: 0 });
+          }
+        };
+
+        await upsert('Annual Leave', entitlements.annualLeave);
+        await upsert('Sick Leave', entitlements.sickLeave);
+        await upsert('Family Responsibility', entitlements.familyResponsibility);
+      }
+
+      const balances = await storage.getLeaveBalances(userId);
       return res.json(balances);
     } catch (error) {
       console.error("Get balances error:", error);
@@ -600,67 +627,6 @@ export async function registerRoutes(
 
   // ========== SA BCEA LEAVE RECALCULATION ==========
 
-  // Calculate SA BCEA leave entitlement for a given start date (as of today)
-  function calculateSALeaveEntitlements(startDate: string): {
-    annualLeave: number;
-    sickLeave: number;
-    familyResponsibility: number;
-    monthsWorked: number;
-    notes: { annualLeave: string; sickLeave: string; familyResponsibility: string };
-  } {
-    const start = new Date(startDate + 'T00:00:00');
-    const today = new Date();
-
-    // Total months worked (floor)
-    const totalMonths =
-      (today.getFullYear() - start.getFullYear()) * 12 +
-      (today.getMonth() - start.getMonth()) +
-      (today.getDate() >= start.getDate() ? 0 : -1);
-
-    const totalDays = Math.floor((today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-    // Approximate working days (~5/7 of calendar days)
-    const workingDaysWorked = Math.floor(totalDays * 5 / 7);
-
-    // ANNUAL LEAVE — BCEA Section 20
-    // 21 consecutive days per 12-month leave cycle, pro-rated in the current cycle.
-    const currentCycleMonths = totalMonths % 12;
-    const monthsForAnnual = totalMonths > 0 && currentCycleMonths === 0 ? 12 : currentCycleMonths;
-    const annualLeave = Math.round((monthsForAnnual / 12) * 21 * 10) / 10;
-    const annualNote =
-      `${monthsForAnnual} of 12 months completed in current cycle × 21 days = ${annualLeave} days`;
-
-    // SICK LEAVE — BCEA Section 22
-    // First 6 months of each 3-year sick leave cycle: 1 day per 26 days worked.
-    // After 6 months: 30 days for the full 3-year (36-month) cycle.
-    const monthsInCurrentSickCycle = totalMonths % 36;
-    let sickLeave: number;
-    let sickNote: string;
-    if (monthsInCurrentSickCycle < 6) {
-      const workingDaysInSickCycle = Math.floor((monthsInCurrentSickCycle / 12) * 260);
-      sickLeave = Math.min(Math.floor(workingDaysInSickCycle / 26), 5);
-      sickNote = `First 6 months of sick leave cycle: ${sickLeave} days (1 day per 26 days worked)`;
-    } else {
-      sickLeave = 30;
-      sickNote = `30 days — full allocation for current 3-year sick leave cycle`;
-    }
-
-    // FAMILY RESPONSIBILITY — BCEA Section 27
-    // 3 days per leave cycle, only available after 4 months of continuous employment.
-    const familyResponsibility = totalMonths >= 4 ? 3 : 0;
-    const familyNote =
-      totalMonths >= 4
-        ? `3 days per leave cycle (available from month 4)`
-        : `Not yet available — requires 4+ months employment (${totalMonths} months so far)`;
-
-    return {
-      annualLeave,
-      sickLeave,
-      familyResponsibility,
-      monthsWorked: totalMonths,
-      notes: { annualLeave: annualNote, sickLeave: sickNote, familyResponsibility: familyNote },
-    };
-  }
-
   // Recalculate leave balances for all (or specified) employees using SA BCEA rules
   app.post("/api/leave-balances/recalculate-sa", async (req, res) => {
     try {
@@ -684,7 +650,7 @@ export async function registerRoutes(
 
       for (const user of workers) {
         try {
-          const entitlements = calculateSALeaveEntitlements(user.startDate!);
+          const entitlements = calculateBceaEntitlements(user.startDate!);
           const existingBalances = await storage.getLeaveBalances(user.id);
 
           const upsert = async (leaveType: string, total: number) => {
@@ -731,7 +697,7 @@ export async function registerRoutes(
       if (!user) return res.status(404).json({ error: "Employee not found" });
       if (!user.startDate) return res.status(400).json({ error: "Employee has no start date" });
 
-      const entitlements = calculateSALeaveEntitlements(user.startDate);
+      const entitlements = calculateBceaEntitlements(user.startDate);
       return res.json(entitlements);
     } catch (error) {
       console.error("SA preview error:", error);

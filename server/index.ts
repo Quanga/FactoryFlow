@@ -2,6 +2,8 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import { storage } from "./storage";
+import { calculateBceaEntitlements } from "./bcea";
 
 const app = express();
 const httpServer = createServer(app);
@@ -93,6 +95,42 @@ app.use((req, res, next) => {
     },
     () => {
       log(`serving on port ${port}`);
+      // Run BCEA leave recalculation in background after startup
+      recalculateBceaLeaveBalances().catch(err =>
+        console.error('[startup] BCEA recalculation failed:', err)
+      );
     },
   );
 })();
+
+// Recalculate annual/sick/family leave totals for all active workers using SA BCEA rules.
+// Runs silently in the background on startup so stored balances are always current.
+async function recalculateBceaLeaveBalances() {
+  const allUsers = await storage.getAllUsers();
+  const workers = allUsers.filter(u => u.role === 'worker' && u.startDate && !u.terminationDate);
+  let updated = 0;
+  for (const user of workers) {
+    try {
+      const ent = calculateBceaEntitlements(user.startDate!);
+      const balances = await storage.getLeaveBalances(user.id);
+      const upsert = async (leaveType: string, newTotal: number) => {
+        const existing = balances.find(b => b.leaveType === leaveType);
+        if (existing) {
+          if (Math.abs((existing.total ?? 0) - newTotal) >= 0.05) {
+            await storage.updateLeaveBalance(existing.id, { total: newTotal });
+            updated++;
+          }
+        } else {
+          await storage.createLeaveBalance({ userId: user.id, leaveType, total: newTotal, taken: 0, pending: 0 });
+          updated++;
+        }
+      };
+      await upsert('Annual Leave', ent.annualLeave);
+      await upsert('Sick Leave', ent.sickLeave);
+      await upsert('Family Responsibility', ent.familyResponsibility);
+    } catch (err) {
+      console.error(`[startup] BCEA recalc failed for user ${user.id}:`, err);
+    }
+  }
+  if (updated > 0) log(`[startup] BCEA leave recalculation: updated ${updated} balance records for ${workers.length} workers`);
+}
