@@ -51,6 +51,7 @@ interface DailyRecord {
   infringementReason: string | null;
   isHoliday?: boolean;
   holidayName?: string;
+  isFirstDay?: boolean;
 }
 
 interface Anomaly {
@@ -216,12 +217,7 @@ export default function AttendanceReports() {
   const summaries = useMemo(() => {
     if (!activeUsers.length) return [];
 
-    const workingDays = eachDayOfInterval({ start, end }).filter(d => {
-      const now = new Date();
-      const dateKey = format(d, 'yyyy-MM-dd');
-      return !isWeekend(d) && d <= now && !holidayDateSet.has(dateKey);
-    });
-    const totalWorkingDays = workingDays.length;
+    const now = new Date();
 
     const recordsByUser = new Map<string, AttendanceRecord[]>();
     attendanceRecords.forEach(record => {
@@ -231,6 +227,21 @@ export default function AttendanceReports() {
     });
 
     const results: EmployeeAttendanceSummary[] = activeUsers.map(user => {
+      // Effective start: the later of the report period start and the employee's own start date.
+      // This ensures days before the employee joined are never counted as absences.
+      const userStartDate = user.startDate ? parseISO(user.startDate) : start;
+      const effectiveStart = userStartDate > start ? userStartDate : start;
+
+      // Working days for this specific employee (from their effective start)
+      const userWorkingDays = eachDayOfInterval({ start: effectiveStart, end }).filter(d => {
+        const dateKey = format(d, 'yyyy-MM-dd');
+        return !isWeekend(d) && d <= now && !holidayDateSet.has(dateKey);
+      });
+      const userTotalWorkingDays = userWorkingDays.length;
+
+      // The first working day for this employee in the period (used to suppress the late penalty)
+      const firstWorkingDayKey = userWorkingDays.length > 0 ? format(userWorkingDays[0], 'yyyy-MM-dd') : null;
+
       const userRecords = recordsByUser.get(user.id) || [];
       const sortedRecords = [...userRecords].sort(
         (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
@@ -261,8 +272,10 @@ export default function AttendanceReports() {
       const clockOutMinutesArr: number[] = [];
       const dailyRecords: DailyRecord[] = [];
 
-      workingDays.forEach(day => {
+      userWorkingDays.forEach(day => {
         const dateKey = format(day, 'yyyy-MM-dd');
+        // The first day in the period is the employee's registration/start day — never penalize for late
+        const isFirstDay = dateKey === firstWorkingDayKey;
         const dayData = dailyMap.get(dateKey);
 
         if (!dayData || dayData.clockIns.length === 0) {
@@ -274,6 +287,7 @@ export default function AttendanceReports() {
             isLate: false,
             isEarlyDeparture: false,
             infringementReason: null,
+            isFirstDay,
           });
           return;
         }
@@ -284,8 +298,10 @@ export default function AttendanceReports() {
         const clockInTime = format(firstClockIn, 'HH:mm');
         const clockOutTime = lastClockOut ? format(lastClockOut, 'HH:mm') : null;
 
-        const isLate = clockInTime > clockInCutoff;
-        const isEarly = clockOutTime ? clockOutTime < clockOutCutoff : false;
+        // On the first day the employee appears in the system, don't flag as late —
+        // they were being registered/captured, not starting a normal work day.
+        const isLate = !isFirstDay && clockInTime > clockInCutoff;
+        const isEarly = !isFirstDay && (clockOutTime ? clockOutTime < clockOutCutoff : false);
 
         if (isLate) lateArrivals++;
         if (isEarly) earlyDepartures++;
@@ -304,14 +320,12 @@ export default function AttendanceReports() {
           isLate,
           isEarlyDeparture: isEarly,
           infringementReason: dayData.infringementReasons.length > 0 ? dayData.infringementReasons.join('; ') : null,
+          isFirstDay,
         });
       });
 
-      const allDaysInRange = eachDayOfInterval({ start, end }).filter(d => {
-        const now = new Date();
-        return !isWeekend(d) && d <= now;
-      });
-      allDaysInRange.forEach(day => {
+      // Add public holidays from the employee's effective start onwards
+      eachDayOfInterval({ start: effectiveStart, end }).filter(d => !isWeekend(d) && d <= now).forEach(day => {
         const dateKey = format(day, 'yyyy-MM-dd');
         if (holidayDateSet.has(dateKey)) {
           const holiday = holidaysInRange.find(h => h.date === dateKey);
@@ -332,8 +346,8 @@ export default function AttendanceReports() {
       dailyRecords.sort((a, b) => a.date.localeCompare(b.date));
 
       const totalDaysWorked = dailyRecords.filter(r => r.clockIn !== null && !r.isHoliday).length;
-      const missedDays = totalWorkingDays - totalDaysWorked;
-      const attendanceRate = totalWorkingDays > 0 ? (totalDaysWorked / totalWorkingDays) * 100 : 0;
+      const missedDays = userTotalWorkingDays - totalDaysWorked;
+      const attendanceRate = userTotalWorkingDays > 0 ? (totalDaysWorked / userTotalWorkingDays) * 100 : 0;
 
       const avgClockIn = clockInMinutesArr.length > 0
         ? minutesToTimeStr(clockInMinutesArr.reduce((a, b) => a + b, 0) / clockInMinutesArr.length)
@@ -347,7 +361,7 @@ export default function AttendanceReports() {
         name: `${user.firstName} ${user.surname}`,
         department: user.department || 'Unassigned',
         totalDaysWorked,
-        totalWorkingDays,
+        totalWorkingDays: userTotalWorkingDays,
         attendanceRate,
         lateArrivals,
         earlyDepartures,
@@ -891,7 +905,9 @@ export default function AttendanceReports() {
                                         </TableCell>
                                         <TableCell className="text-sm">{record.hoursWorked > 0 ? record.hoursWorked.toFixed(1) : '-'}</TableCell>
                                         <TableCell>
-                                          {!record.clockIn ? (
+                                          {record.isFirstDay && record.clockIn ? (
+                                            <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800 border-blue-200">Registered</Badge>
+                                          ) : !record.clockIn ? (
                                             <Badge variant="destructive" className="text-xs">Absent</Badge>
                                           ) : record.isLate && record.isEarlyDeparture ? (
                                             <Badge variant="destructive" className="text-xs">Late + Early</Badge>
@@ -906,7 +922,9 @@ export default function AttendanceReports() {
                                           )}
                                         </TableCell>
                                         <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">
-                                          {record.infringementReason || '-'}
+                                          {record.isFirstDay && record.clockIn
+                                            ? (record.infringementReason ? `${record.infringementReason}; First day registered` : 'First day registered')
+                                            : (record.infringementReason || '-')}
                                         </TableCell>
                                       </>
                                     )}
