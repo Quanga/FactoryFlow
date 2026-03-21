@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useAuth } from '@/lib/auth-context';
-import { leaveBalanceApi, leaveRequestApi, userApi, attendanceApi } from '@/lib/api';
+import { leaveBalanceApi, leaveRequestApi, userApi, attendanceApi, orgPositionApi } from '@/lib/api';
+import type { OrgPosition } from '@shared/schema';
 import { useToast } from "@/hooks/use-toast";
 import { Clock, Calendar, AlertCircle, CheckCircle2, FileText, Eye, X, XCircle, LogIn, LogOut } from 'lucide-react';
 import { format } from 'date-fns';
@@ -34,12 +35,34 @@ export default function Dashboard() {
     enabled: !!user,
   });
   
-  // Fetch the user's manager details
+  // Fetch org positions for position-based reporting display
+  const { data: orgPositions = [] } = useQuery<OrgPosition[]>({
+    queryKey: ['orgPositions'],
+    queryFn: orgPositionApi.getAll,
+    enabled: !!(user?.reportsToPositionId),
+  });
+
+  // Fetch all users to resolve who holds the reporting position
+  const { data: allUsers = [] } = useQuery({
+    queryKey: ['users'],
+    queryFn: userApi.getAll,
+    enabled: !!(user?.reportsToPositionId),
+  });
+
+  // Fetch the user's manager details (legacy managerId path)
   const { data: manager } = useQuery({
     queryKey: ['manager', user?.managerId],
     queryFn: () => user?.managerId ? userApi.getById(user.managerId) : null,
-    enabled: !!user?.managerId,
+    enabled: !!user?.managerId && !user?.reportsToPositionId,
   });
+
+  // Resolve who the employee reports to (position-based or legacy direct manager)
+  const reportingPositionTitle = user?.reportsToPositionId
+    ? orgPositions.find(p => p.id === user.reportsToPositionId)?.title
+    : null;
+  const resolvedManager = user?.reportsToPositionId
+    ? allUsers.find(u => u.orgPositionId === user.reportsToPositionId)
+    : manager;
 
   // Fetch clock-in status
   const { data: clockStatus } = useQuery({
@@ -297,9 +320,9 @@ export default function Dashboard() {
                           ? 'bg-green-100 text-green-700'
                           : selectedRequest.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'
                     }`}>
-                      <span>1. Manager</span>
-                      {manager && (
-                        <span className="text-[10px] opacity-80">{manager.firstName} {manager.surname}</span>
+                      <span>1. {reportingPositionTitle || 'Manager'}</span>
+                      {resolvedManager && (
+                        <span className="text-[10px] opacity-80">{resolvedManager.firstName} {resolvedManager.surname}</span>
                       )}
                     </div>
                     <span className="text-muted-foreground">→</span>

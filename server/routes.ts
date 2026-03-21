@@ -758,11 +758,22 @@ export async function registerRoutes(
     try {
       const validatedData = insertLeaveRequestSchema.parse(req.body);
       
-      // Determine initial status based on whether user has a manager
+      // Determine initial status based on whether user has a manager/reporting position
       const user = await storage.getUser(validatedData.userId);
       let initialStatus = 'pending_manager';
       
-      if (!user?.managerId) {
+      // Resolve manager: prefer reportsToPositionId (position-based), fall back to managerId (legacy)
+      let resolvedManagerId: string | null = null;
+      if (user?.reportsToPositionId) {
+        // Find the person who currently holds that position
+        const allUsers = await storage.getAllUsers();
+        const positionHolder = allUsers.find(u => u.orgPositionId === user!.reportsToPositionId);
+        resolvedManagerId = positionHolder?.id || null;
+      } else if (user?.managerId) {
+        resolvedManagerId = user.managerId;
+      }
+      
+      if (!resolvedManagerId) {
         // No manager assigned, go directly to HR
         initialStatus = 'pending_hr';
       }
@@ -793,9 +804,9 @@ export async function registerRoutes(
           appUrl: appUrl,
         };
         
-        // Send notification to employee's direct manager
-        if (user?.managerId) {
-          const manager = await storage.getUser(user.managerId);
+        // Send notification to the resolved manager (via position or direct manager ID)
+        if (resolvedManagerId) {
+          const manager = await storage.getUser(resolvedManagerId);
           if (manager?.email) {
             console.log(`Sending leave request notification to manager: ${manager.email}`);
             await sendLeaveRequestNotification(manager.email, senderEmail, emailData);

@@ -251,6 +251,7 @@ export default function PersonnelSection() {
       managerId: currentUser.managerId || null,
       secondManagerId: currentUser.secondManagerId || null,
       orgPositionId: currentUser.orgPositionId || null,
+      reportsToPositionId: currentUser.reportsToPositionId || null,
       exclude: currentUser.exclude || false,
       attendanceRequired: currentUser.attendanceRequired !== false,
       nickname: currentUser.nickname || null,
@@ -875,14 +876,16 @@ export default function PersonnelSection() {
                                   <p className="font-medium">{employeeTypes.find(t => t.id === emp.employeeTypeId)?.name || '-'}</p>
                                 </div>
                               )}
-                              {emp.managerId && (
+                              {(emp.reportsToPositionId || emp.managerId) && (
                                 <div>
-                                  <p className="text-xs text-muted-foreground">Manager</p>
+                                  <p className="text-xs text-muted-foreground">Reports To</p>
                                   <p className="font-medium">
-                                    {(() => {
-                                      const manager = users.find(u => u.id === emp.managerId);
-                                      return manager ? `${manager.firstName} ${manager.surname}` : '-';
-                                    })()}
+                                    {emp.reportsToPositionId
+                                      ? (orgPositions.find(p => p.id === emp.reportsToPositionId)?.title || '-')
+                                      : (() => {
+                                          const manager = users.find(u => u.id === emp.managerId);
+                                          return manager ? `${manager.firstName} ${manager.surname}` : '-';
+                                        })()}
                                   </p>
                                 </div>
                               )}
@@ -1349,28 +1352,29 @@ export default function PersonnelSection() {
               </div>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="manager" className="text-right">Reports To</Label>
+              <Label htmlFor="reportsToPosition" className="text-right">Reports To</Label>
               <div className="col-span-3">
                 <Select 
-                  value={currentUser.managerId || 'none'} 
-                  onValueChange={(value) => setCurrentUser({...currentUser, managerId: value === 'none' ? undefined : value})}
+                  value={currentUser.reportsToPositionId?.toString() || 'none'} 
+                  onValueChange={(value) => setCurrentUser({...currentUser, reportsToPositionId: value === 'none' ? undefined : parseInt(value)})}
                 >
-                  <SelectTrigger data-testid="select-manager">
-                    <SelectValue placeholder="Select a manager (optional)" />
+                  <SelectTrigger data-testid="select-reports-to-position">
+                    <SelectValue placeholder="Select a position (optional)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">No Manager</SelectItem>
-                    {users
-                      .filter(u => u.id !== currentUser.id && u.role === 'manager')
-                      .map((mgr) => (
-                        <SelectItem key={mgr.id} value={mgr.id} data-testid={`option-manager-${mgr.id}`}>
-                          {mgr.firstName} {mgr.surname} {mgr.department ? `(${mgr.department})` : ''}
+                    <SelectItem value="none">No Reporting Position</SelectItem>
+                    {orgPositions
+                      .filter(p => p.id !== currentUser.orgPositionId)
+                      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.title.localeCompare(b.title))
+                      .map((pos) => (
+                        <SelectItem key={pos.id} value={pos.id.toString()} data-testid={`option-reports-to-${pos.id}`}>
+                          {pos.title}{pos.department && pos.department !== pos.title ? ` (${pos.department})` : ''}
                         </SelectItem>
                       ))}
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Select the direct manager for this employee. Only users with "Manager" role are shown.
+                  Select the position this employee reports to. If that position changes hands, no update is needed.
                 </p>
               </div>
             </div>

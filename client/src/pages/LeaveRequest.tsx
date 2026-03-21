@@ -14,7 +14,8 @@ import { CalendarIcon, Upload, X, CheckCircle2, FileText, UserCheck, AlertTriang
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/lib/auth-context';
-import { leaveRequestApi, userApi } from '@/lib/api';
+import { leaveRequestApi, userApi, orgPositionApi } from '@/lib/api';
+import type { OrgPosition } from '@shared/schema';
 
 export default function LeaveRequest() {
   const { toast } = useToast();
@@ -30,12 +31,32 @@ export default function LeaveRequest() {
   const [files, setFiles] = useState<File[]>([]);
   const [fileContents, setFileContents] = useState<{name: string; data: string}[]>([]);
   
-  // Fetch the user's manager details
-  const { data: manager } = useQuery({
+  // Fetch org positions and all users to resolve position-based reporting
+  const { data: orgPositions = [] } = useQuery<OrgPosition[]>({
+    queryKey: ['orgPositions'],
+    queryFn: orgPositionApi.getAll,
+    enabled: !!(user?.reportsToPositionId),
+  });
+  const { data: allUsers = [] } = useQuery({
+    queryKey: ['users'],
+    queryFn: userApi.getAll,
+    enabled: !!(user?.reportsToPositionId),
+  });
+
+  // Fetch the user's manager details (legacy managerId path)
+  const { data: legacyManager } = useQuery({
     queryKey: ['manager', user?.managerId],
     queryFn: () => user?.managerId ? userApi.getById(user.managerId) : null,
-    enabled: !!user?.managerId,
+    enabled: !!user?.managerId && !user?.reportsToPositionId,
   });
+
+  // Resolve reporting: position-based (preferred) or legacy direct manager
+  const reportingPositionTitle = user?.reportsToPositionId
+    ? orgPositions.find(p => p.id === user.reportsToPositionId)?.title
+    : null;
+  const manager = user?.reportsToPositionId
+    ? allUsers.find(u => u.orgPositionId === user.reportsToPositionId)
+    : legacyManager;
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -129,7 +150,7 @@ export default function LeaveRequest() {
       endDate: dateRange.to ? format(dateRange.to, 'yyyy-MM-dd') : format(dateRange.from, 'yyyy-MM-dd'),
       reason,
       comments: comments || undefined,
-      status: user.managerId ? 'pending_manager' : 'pending_hr',
+      status: (user.reportsToPositionId || user.managerId) ? 'pending_manager' : 'pending_hr',
       documents: fileContents.map(f => f.data),
     });
   };
@@ -148,22 +169,30 @@ export default function LeaveRequest() {
               <CardTitle>Application Form</CardTitle>
             </CardHeader>
             <CardContent>
-              {/* Manager notification */}
-              {manager ? (
+              {/* Manager/position notification */}
+              {(user?.reportsToPositionId || user?.managerId) ? (
                 <Alert className="mb-6 border-blue-200 bg-blue-50">
                   <UserCheck className="h-4 w-4 text-blue-600" />
                   <AlertDescription className="text-blue-800">
-                    Your leave request will be reviewed by <strong>{manager.firstName} {manager.surname}</strong> (your manager). They will be notified when you submit this request.
+                    {manager ? (
+                      <>Your leave request will be reviewed by <strong>{manager.firstName} {manager.surname}</strong>
+                      {reportingPositionTitle && <span className="text-blue-600"> ({reportingPositionTitle})</span>}
+                      . They will be notified when you submit this request.</>
+                    ) : reportingPositionTitle ? (
+                      <>Your leave request will go to the <strong>{reportingPositionTitle}</strong> for review. No one currently holds that position, so it will also be sent to HR.</>
+                    ) : (
+                      <>Your leave request will be sent to your manager for review.</>
+                    )}
                   </AlertDescription>
                 </Alert>
-              ) : !user?.managerId ? (
+              ) : (
                 <Alert className="mb-6 border-amber-200 bg-amber-50">
                   <AlertTriangle className="h-4 w-4 text-amber-600" />
                   <AlertDescription className="text-amber-800">
-                    No manager assigned. Your leave request will go directly to HR for review.
+                    No reporting position assigned. Your leave request will go directly to HR for review.
                   </AlertDescription>
                 </Alert>
-              ) : null}
+              )}
               
               <form onSubmit={handleSubmit} className="space-y-6">
                 

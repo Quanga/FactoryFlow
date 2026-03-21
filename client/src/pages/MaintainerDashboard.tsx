@@ -4,7 +4,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
 import Webcam from 'react-webcam';
 import { useAuth } from '@/lib/auth-context';
-import { userApi, departmentApi, employeeTypeApi } from '@/lib/api';
+import { userApi, departmentApi, employeeTypeApi, orgPositionApi } from '@/lib/api';
+import type { OrgPosition } from '@shared/schema';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -57,6 +58,7 @@ export default function MaintainerDashboard() {
     startDate: '',
     contractEndDate: '',
     managerId: '',
+    reportsToPositionId: '',
     password: '',
   });
 
@@ -73,6 +75,11 @@ export default function MaintainerDashboard() {
   const { data: employeeTypes = [] } = useQuery({
     queryKey: ['employeeTypes'],
     queryFn: employeeTypeApi.getAll,
+  });
+
+  const { data: orgPositions = [] } = useQuery<OrgPosition[]>({
+    queryKey: ['orgPositions'],
+    queryFn: orgPositionApi.getAll,
   });
 
   const createUserMutation = useMutation({
@@ -122,6 +129,7 @@ export default function MaintainerDashboard() {
       startDate: '',
       contractEndDate: '',
       managerId: '',
+      reportsToPositionId: '',
       password: '',
     });
   };
@@ -152,6 +160,7 @@ export default function MaintainerDashboard() {
       startDate: employee.startDate || '',
       contractEndDate: employee.contractEndDate || '',
       managerId: employee.managerId || '',
+      reportsToPositionId: employee.reportsToPositionId?.toString() || '',
       password: employee.password || '',
     });
     setShowEditDialog(true);
@@ -235,6 +244,7 @@ export default function MaintainerDashboard() {
       startDate: formData.startDate || null,
       contractEndDate: formData.contractEndDate || null,
       managerId: formData.managerId || null,
+      reportsToPositionId: formData.reportsToPositionId ? parseInt(formData.reportsToPositionId) : null,
       password: formData.password || null,
     };
 
@@ -521,15 +531,18 @@ export default function MaintainerDashboard() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Manager</Label>
-                <Select value={formData.managerId} onValueChange={(v) => setFormData({ ...formData, managerId: v })}>
-                  <SelectTrigger data-testid="select-manager">
-                    <SelectValue placeholder="Select manager" />
+                <Label>Reports To (Position)</Label>
+                <Select value={formData.reportsToPositionId || 'none'} onValueChange={(v) => setFormData({ ...formData, reportsToPositionId: v === 'none' ? '' : v })}>
+                  <SelectTrigger data-testid="select-reports-to-position">
+                    <SelectValue placeholder="Select reporting position (optional)" />
                   </SelectTrigger>
                   <SelectContent>
-                    {managers.map((mgr) => (
-                      <SelectItem key={mgr.id} value={mgr.id}>{mgr.firstName} {mgr.surname}</SelectItem>
-                    ))}
+                    <SelectItem value="none">No Reporting Position</SelectItem>
+                    {orgPositions
+                      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.title.localeCompare(b.title))
+                      .map((pos) => (
+                        <SelectItem key={pos.id} value={pos.id.toString()}>{pos.title}</SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
