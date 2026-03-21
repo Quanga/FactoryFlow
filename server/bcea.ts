@@ -18,10 +18,10 @@ export interface BceaEntitlements {
 /**
  * Calculate SA BCEA leave entitlements for an employee based on their start date.
  *
- * Annual Leave (s20):  21 days per 12-month leave cycle, pro-rated to the
- *                      number of completed months in the current cycle.
- * Sick Leave (s22):    1 day per 26 working days for the first 6 months of
- *                      each 3-year cycle; 30 days thereafter.
+ * Annual Leave (s20):  21 days per 12-month leave cycle, pro-rated monthly.
+ * Sick Leave (s22):    30 days per 3-year (36-month) cycle, pro-rated monthly.
+ *                      This respects the BCEA intent while preventing employees
+ *                      from seeing the full 30 days before they have earned it.
  * Family Responsibility (s27): 3 days per cycle, available from month 4.
  */
 export function calculateBceaEntitlements(startDate: string): BceaEntitlements {
@@ -34,25 +34,22 @@ export function calculateBceaEntitlements(startDate: string): BceaEntitlements {
     (today.getDate() >= start.getDate() ? 0 : -1);
 
   // ANNUAL LEAVE — BCEA Section 20
-  const currentCycleMonths = totalMonths % 12;
-  const monthsForAnnual = totalMonths > 0 && currentCycleMonths === 0 ? 12 : currentCycleMonths;
+  // 21 days per 12-month cycle, pro-rated to months completed in current cycle.
+  const currentAnnualCycleMonths = totalMonths % 12;
+  const monthsForAnnual = totalMonths > 0 && currentAnnualCycleMonths === 0 ? 12 : currentAnnualCycleMonths;
   const annualLeave = Math.round((monthsForAnnual / 12) * 21 * 10) / 10;
   const annualNote = `${monthsForAnnual} of 12 months completed in current cycle × 21 days = ${annualLeave} days`;
 
   // SICK LEAVE — BCEA Section 22
+  // 30 days per 36-month (3-year) sick leave cycle, pro-rated monthly.
+  // This prevents employees from seeing the full 30 days before they have accrued it.
   const monthsInCurrentSickCycle = totalMonths % 36;
-  let sickLeave: number;
-  let sickNote: string;
-  if (monthsInCurrentSickCycle < 6) {
-    const workingDaysInSickCycle = Math.floor((monthsInCurrentSickCycle / 12) * 260);
-    sickLeave = Math.min(Math.floor(workingDaysInSickCycle / 26), 5);
-    sickNote = `First 6 months of sick leave cycle: ${sickLeave} days (1 day per 26 days worked)`;
-  } else {
-    sickLeave = 30;
-    sickNote = `30 days — full allocation for current 3-year sick leave cycle`;
-  }
+  const monthsForSick = totalMonths > 0 && monthsInCurrentSickCycle === 0 ? 36 : monthsInCurrentSickCycle;
+  const sickLeave = Math.round((monthsForSick / 36) * 30 * 10) / 10;
+  const sickNote = `${monthsForSick} of 36 months completed in current sick leave cycle × 30 days = ${sickLeave} days`;
 
   // FAMILY RESPONSIBILITY — BCEA Section 27
+  // 3 days per leave cycle, only available after 4 months of continuous employment.
   const familyResponsibility = totalMonths >= 4 ? 3 : 0;
   const familyNote =
     totalMonths >= 4
