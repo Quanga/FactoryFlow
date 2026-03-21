@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
+import { formatDateForDisplay, parseDateFromDisplay } from './admin/utils';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
 import Webcam from 'react-webcam';
@@ -535,18 +536,20 @@ export default function MaintainerDashboard() {
               <div className="space-y-2">
                 <Label>Start Date</Label>
                 <Input
-                  type="date"
-                  value={formData.startDate}
-                  onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                  type="text"
+                  placeholder="dd/mm/yyyy"
+                  value={formatDateForDisplay(formData.startDate)}
+                  onChange={(e) => setFormData({ ...formData, startDate: parseDateFromDisplay(e.target.value) })}
                   data-testid="input-start-date"
                 />
               </div>
               <div className="space-y-2">
                 <Label>Contract End Date</Label>
                 <Input
-                  type="date"
-                  value={formData.contractEndDate}
-                  onChange={(e) => setFormData({ ...formData, contractEndDate: e.target.value })}
+                  type="text"
+                  placeholder="dd/mm/yyyy"
+                  value={formatDateForDisplay(formData.contractEndDate)}
+                  onChange={(e) => setFormData({ ...formData, contractEndDate: parseDateFromDisplay(e.target.value) })}
                   data-testid="input-contract-end"
                 />
               </div>

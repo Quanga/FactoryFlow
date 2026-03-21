@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { formatDateForDisplay, parseDateFromDisplay } from './admin/utils';
 import { useLocation } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
@@ -530,9 +531,10 @@ export default function AttendanceReports() {
                     <Label htmlFor="start-date">Start Date</Label>
                     <Input
                       id="start-date"
-                      type="date"
-                      value={customStart}
-                      onChange={(e) => setCustomStart(e.target.value)}
+                      type="text"
+                      placeholder="dd/mm/yyyy"
+                      value={formatDateForDisplay(customStart)}
+                      onChange={(e) => setCustomStart(parseDateFromDisplay(e.target.value))}
                       data-testid="input-start-date"
                     />
                   </div>
@@ -540,9 +542,10 @@ export default function AttendanceReports() {
                     <Label htmlFor="end-date">End Date</Label>
                     <Input
                       id="end-date"
-                      type="date"
-                      value={customEnd}
-                      onChange={(e) => setCustomEnd(e.target.value)}
+                      type="text"
+                      placeholder="dd/mm/yyyy"
+                      value={formatDateForDisplay(customEnd)}
+                      onChange={(e) => setCustomEnd(parseDateFromDisplay(e.target.value))}
                       data-testid="input-end-date"
                     />
                   </div>

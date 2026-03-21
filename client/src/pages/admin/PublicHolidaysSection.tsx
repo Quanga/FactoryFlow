@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { formatDateForDisplay, parseDateFromDisplay } from './utils';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -158,9 +159,10 @@ export default function PublicHolidaysSection() {
             <div className="space-y-2">
               <Label>Date</Label>
               <Input
-                type="date"
-                value={currentHoliday.date || ''}
-                onChange={(e) => setCurrentHoliday({ ...currentHoliday, date: e.target.value })}
+                type="text"
+                placeholder="dd/mm/yyyy"
+                value={formatDateForDisplay(currentHoliday.date)}
+                onChange={(e) => setCurrentHoliday({ ...currentHoliday, date: parseDateFromDisplay(e.target.value) })}
                 data-testid="holiday-date"
               />
             </div>

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { formatDateForDisplay, parseDateFromDisplay } from './utils';
   import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
   import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
   import { Button } from "@/components/ui/button";
@@ -306,17 +307,19 @@ import React, { useState } from 'react';
                   </div>
                   <div className="flex gap-2 items-center">
                     <Input
-                      type="date"
-                      value={attendanceStartDate}
-                      onChange={(e) => setAttendanceStartDate(e.target.value)}
+                      type="text"
+                      placeholder="dd/mm/yyyy"
+                      value={formatDateForDisplay(attendanceStartDate)}
+                      onChange={(e) => setAttendanceStartDate(parseDateFromDisplay(e.target.value))}
                       className="w-40"
                       data-testid="input-start-date"
                     />
                     <span className="text-muted-foreground">to</span>
                     <Input
-                      type="date"
-                      value={attendanceEndDate}
-                      onChange={(e) => setAttendanceEndDate(e.target.value)}
+                      type="text"
+                      placeholder="dd/mm/yyyy"
+                      value={formatDateForDisplay(attendanceEndDate)}
+                      onChange={(e) => setAttendanceEndDate(parseDateFromDisplay(e.target.value))}
                       className="w-40"
                       data-testid="input-end-date"
                     />
@@ -794,9 +797,10 @@ import React, { useState } from 'react';
                 <div className="flex items-center gap-2">
                   <Label>Date:</Label>
                   <Input
-                    type="date"
-                    value={manualAttendanceDate}
-                    onChange={(e) => setManualAttendanceDate(e.target.value)}
+                    type="text"
+                    placeholder="dd/mm/yyyy"
+                    value={formatDateForDisplay(manualAttendanceDate)}
+                    onChange={(e) => setManualAttendanceDate(parseDateFromDisplay(e.target.value))}
                     className="w-40"
                     data-testid="input-manual-date"
                   />
@@ -978,17 +982,19 @@ import React, { useState } from 'react';
                 </div>
                 <div className="flex gap-2 items-center flex-wrap">
                   <Input
-                    type="date"
-                    value={awolStartDate}
-                    onChange={(e) => setAwolStartDate(e.target.value)}
+                    type="text"
+                    placeholder="dd/mm/yyyy"
+                    value={formatDateForDisplay(awolStartDate)}
+                    onChange={(e) => setAwolStartDate(parseDateFromDisplay(e.target.value))}
                     className="w-40"
                     data-testid="input-awol-start"
                   />
                   <span className="text-muted-foreground">to</span>
                   <Input
-                    type="date"
-                    value={awolEndDate}
-                    onChange={(e) => setAwolEndDate(e.target.value)}
+                    type="text"
+                    placeholder="dd/mm/yyyy"
+                    value={formatDateForDisplay(awolEndDate)}
+                    onChange={(e) => setAwolEndDate(parseDateFromDisplay(e.target.value))}
                     className="w-40"
                     data-testid="input-awol-end"
                   />
@@ -1170,9 +1176,10 @@ import React, { useState } from 'react';
                 <Label htmlFor="edit-date" className="text-right text-sm">Date</Label>
                 <Input
                   id="edit-date"
-                  type="date"
-                  value={editAttendanceDate}
-                  onChange={(e) => setEditAttendanceDate(e.target.value)}
+                  type="text"
+                  placeholder="dd/mm/yyyy"
+                  value={formatDateForDisplay(editAttendanceDate)}
+                  onChange={(e) => setEditAttendanceDate(parseDateFromDisplay(e.target.value))}
                   className="col-span-3"
                   data-testid="input-edit-date"
                 />
