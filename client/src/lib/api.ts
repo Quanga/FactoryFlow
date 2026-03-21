@@ -187,6 +187,22 @@ export const leaveBalanceApi = {
     if (!res.ok) throw new Error("Failed to import leave balances");
     return res.json();
   },
+
+  async recalculateSA(employeeIds?: string[]): Promise<{ message: string; updated: number; skipped: number; errors: string[]; details: { userId: string; name: string; annualLeave: number; sickLeave: number; familyResponsibility: number; monthsWorked: number }[] }> {
+    const res = await fetch(`${API_BASE}/leave-balances/recalculate-sa`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ employeeIds }),
+    });
+    if (!res.ok) throw new Error("Failed to recalculate SA leave balances");
+    return res.json();
+  },
+
+  async getSAPreview(userId: string): Promise<{ annualLeave: number; sickLeave: number; familyResponsibility: number; monthsWorked: number; notes: { annualLeave: string; sickLeave: string; familyResponsibility: string } }> {
+    const res = await fetch(`${API_BASE}/leave-balances/sa-preview/${userId}`);
+    if (!res.ok) throw new Error("Failed to fetch SA preview");
+    return res.json();
+  },
 };
 
 // Leave Request API

@@ -598,6 +598,147 @@ export async function registerRoutes(
     }
   });
 
+  // ========== SA BCEA LEAVE RECALCULATION ==========
+
+  // Calculate SA BCEA leave entitlement for a given start date (as of today)
+  function calculateSALeaveEntitlements(startDate: string): {
+    annualLeave: number;
+    sickLeave: number;
+    familyResponsibility: number;
+    monthsWorked: number;
+    notes: { annualLeave: string; sickLeave: string; familyResponsibility: string };
+  } {
+    const start = new Date(startDate + 'T00:00:00');
+    const today = new Date();
+
+    // Total months worked (floor)
+    const totalMonths =
+      (today.getFullYear() - start.getFullYear()) * 12 +
+      (today.getMonth() - start.getMonth()) +
+      (today.getDate() >= start.getDate() ? 0 : -1);
+
+    const totalDays = Math.floor((today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    // Approximate working days (~5/7 of calendar days)
+    const workingDaysWorked = Math.floor(totalDays * 5 / 7);
+
+    // ANNUAL LEAVE — BCEA Section 20
+    // 21 consecutive days per 12-month leave cycle, pro-rated in the current cycle.
+    const currentCycleMonths = totalMonths % 12;
+    const monthsForAnnual = totalMonths > 0 && currentCycleMonths === 0 ? 12 : currentCycleMonths;
+    const annualLeave = Math.round((monthsForAnnual / 12) * 21 * 10) / 10;
+    const annualNote =
+      `${monthsForAnnual} of 12 months completed in current cycle × 21 days = ${annualLeave} days`;
+
+    // SICK LEAVE — BCEA Section 22
+    // First 6 months of each 3-year sick leave cycle: 1 day per 26 days worked.
+    // After 6 months: 30 days for the full 3-year (36-month) cycle.
+    const monthsInCurrentSickCycle = totalMonths % 36;
+    let sickLeave: number;
+    let sickNote: string;
+    if (monthsInCurrentSickCycle < 6) {
+      const workingDaysInSickCycle = Math.floor((monthsInCurrentSickCycle / 12) * 260);
+      sickLeave = Math.min(Math.floor(workingDaysInSickCycle / 26), 5);
+      sickNote = `First 6 months of sick leave cycle: ${sickLeave} days (1 day per 26 days worked)`;
+    } else {
+      sickLeave = 30;
+      sickNote = `30 days — full allocation for current 3-year sick leave cycle`;
+    }
+
+    // FAMILY RESPONSIBILITY — BCEA Section 27
+    // 3 days per leave cycle, only available after 4 months of continuous employment.
+    const familyResponsibility = totalMonths >= 4 ? 3 : 0;
+    const familyNote =
+      totalMonths >= 4
+        ? `3 days per leave cycle (available from month 4)`
+        : `Not yet available — requires 4+ months employment (${totalMonths} months so far)`;
+
+    return {
+      annualLeave,
+      sickLeave,
+      familyResponsibility,
+      monthsWorked: totalMonths,
+      notes: { annualLeave: annualNote, sickLeave: sickNote, familyResponsibility: familyNote },
+    };
+  }
+
+  // Recalculate leave balances for all (or specified) employees using SA BCEA rules
+  app.post("/api/leave-balances/recalculate-sa", async (req, res) => {
+    try {
+      const { employeeIds } = req.body as { employeeIds?: string[] };
+
+      const allUsers = await storage.getAllUsers();
+      const workers = allUsers.filter(
+        (u) =>
+          u.role === 'worker' &&
+          u.startDate &&
+          !u.terminationDate &&
+          (!employeeIds || employeeIds.includes(u.id))
+      );
+
+      const results: { updated: number; skipped: number; errors: string[]; details: { userId: string; name: string; annualLeave: number; sickLeave: number; familyResponsibility: number; monthsWorked: number }[] } = {
+        updated: 0,
+        skipped: 0,
+        errors: [],
+        details: [],
+      };
+
+      for (const user of workers) {
+        try {
+          const entitlements = calculateSALeaveEntitlements(user.startDate!);
+          const existingBalances = await storage.getLeaveBalances(user.id);
+
+          const upsert = async (leaveType: string, total: number) => {
+            const existing = existingBalances.find((b) => b.leaveType === leaveType);
+            if (existing) {
+              await storage.updateLeaveBalance(existing.id, { total });
+            } else {
+              await storage.createLeaveBalance({ userId: user.id, leaveType, total, taken: 0, pending: 0 });
+            }
+          };
+
+          await upsert('Annual Leave', entitlements.annualLeave);
+          await upsert('Sick Leave', entitlements.sickLeave);
+          await upsert('Family Responsibility', entitlements.familyResponsibility);
+
+          results.updated++;
+          results.details.push({
+            userId: user.id,
+            name: `${user.firstName} ${user.surname}`,
+            annualLeave: entitlements.annualLeave,
+            sickLeave: entitlements.sickLeave,
+            familyResponsibility: entitlements.familyResponsibility,
+            monthsWorked: entitlements.monthsWorked,
+          });
+        } catch (err) {
+          results.errors.push(`${user.id} (${user.firstName} ${user.surname}): ${err}`);
+        }
+      }
+
+      return res.json({
+        message: `SA BCEA recalculation complete: ${results.updated} employees updated, ${results.errors.length} errors`,
+        ...results,
+      });
+    } catch (error) {
+      console.error("SA BCEA recalculate error:", error);
+      return res.status(500).json({ error: "Failed to recalculate leave balances" });
+    }
+  });
+
+  // Preview SA BCEA entitlements for an employee (by userId or startDate)
+  app.get("/api/leave-balances/sa-preview/:userId", async (req, res) => {
+    try {
+      const user = await storage.getUser(req.params.userId);
+      if (!user) return res.status(404).json({ error: "Employee not found" });
+      if (!user.startDate) return res.status(400).json({ error: "Employee has no start date" });
+
+      const entitlements = calculateSALeaveEntitlements(user.startDate);
+      return res.json(entitlements);
+    } catch (error) {
+      console.error("SA preview error:", error);
+      return res.status(500).json({ error: "Failed to calculate SA preview" });
+    }
+  });
+
   // ========== LEAVE REQUEST ROUTES ==========
   
   // Get all leave requests (or by user)

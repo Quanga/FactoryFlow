@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, integer, timestamp, serial, varchar, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, real, timestamp, serial, varchar, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -166,9 +166,9 @@ export const leaveBalances = pgTable("leave_balances", {
   id: serial("id").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   leaveType: text("leave_type").notNull(), // 'Annual Leave', 'Sick Leave', etc.
-  total: integer("total").notNull().default(0),
-  taken: integer("taken").notNull().default(0),
-  pending: integer("pending").notNull().default(0),
+  total: real("total").notNull().default(0),
+  taken: real("taken").notNull().default(0),
+  pending: real("pending").notNull().default(0),
 });
 
 export const insertLeaveBalanceSchema = createInsertSchema(leaveBalances).omit({

@@ -234,26 +234,56 @@ export class DrizzleStorage implements IStorage {
     };
     const [newUser] = await db.insert(schema.users).values(userWithName).returning();
     
-    // Create default leave balances for new users
+    // Create default leave balances for new users using SA BCEA calculations
     if (user.role === 'worker') {
+      // Calculate pro-rated entitlements based on start date (SA BCEA)
+      let annualLeave = 21;
+      let sickLeave = 30;
+      let familyResponsibility = 3;
+
+      if (user.startDate) {
+        const start = new Date(user.startDate + 'T00:00:00');
+        const today = new Date();
+        const totalMonths =
+          (today.getFullYear() - start.getFullYear()) * 12 +
+          (today.getMonth() - start.getMonth()) +
+          (today.getDate() >= start.getDate() ? 0 : -1);
+        // Annual Leave: 21 days per 12-month cycle, pro-rated
+        const currentCycleMonths = totalMonths % 12;
+        const monthsForAnnual = totalMonths > 0 && currentCycleMonths === 0 ? 12 : currentCycleMonths;
+        annualLeave = Math.round((monthsForAnnual / 12) * 21 * 10) / 10;
+
+        // Sick Leave: 1 per 26 days in first 6 months, 30 days after
+        const monthsInCurrentSickCycle = totalMonths % 36;
+        if (monthsInCurrentSickCycle < 6) {
+          const workingDaysInSickCycle = Math.floor((monthsInCurrentSickCycle / 12) * 260);
+          sickLeave = Math.min(Math.floor(workingDaysInSickCycle / 26), 5);
+        } else {
+          sickLeave = 30;
+        }
+
+        // Family Responsibility: 3 days after 4 months
+        familyResponsibility = totalMonths >= 4 ? 3 : 0;
+      }
+
       await this.createLeaveBalance({
         userId: newUser.id,
         leaveType: 'Annual Leave',
-        total: 21,
+        total: annualLeave,
         taken: 0,
         pending: 0,
       });
       await this.createLeaveBalance({
         userId: newUser.id,
         leaveType: 'Sick Leave',
-        total: 30,
+        total: sickLeave,
         taken: 0,
         pending: 0,
       });
       await this.createLeaveBalance({
         userId: newUser.id,
         leaveType: 'Family Responsibility',
-        total: 3,
+        total: familyResponsibility,
         taken: 0,
         pending: 0,
       });

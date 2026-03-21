@@ -9,16 +9,92 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Pencil, Trash2, Settings, Loader2 } from 'lucide-react';
-import { leaveRuleApi, leaveRulePhaseApi, employeeTypeApi } from '@/lib/api';
+import { Plus, Pencil, Trash2, Settings, Loader2, RefreshCw, ChevronDown, ChevronRight, BookOpen, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { leaveRuleApi, leaveRulePhaseApi, employeeTypeApi, leaveBalanceApi } from '@/lib/api';
 import type { LeaveRule, LeaveRulePhase } from '@shared/schema';
 import { useToast } from "@/hooks/use-toast";
+
+const SA_BCEA_RULES = [
+  {
+    type: 'Annual Leave',
+    section: 'BCEA Section 20',
+    color: 'blue',
+    entitlement: '21 consecutive days per 12-month leave cycle',
+    accrual: '1.75 days per month (pro-rated)',
+    waitingPeriod: 'None — starts accruing from day 1',
+    cycleLength: '12 months from employment start date',
+    notes: 'Employees working 5 days/week earn 21 days. Part-time workers earn 1 day per 17 days worked or 1 hour per 17 hours worked.',
+    formula: 'Months in current cycle ÷ 12 × 21 days',
+    examples: [
+      { tenure: '3 months', days: 5.3 },
+      { tenure: '6 months', days: 10.5 },
+      { tenure: '9 months', days: 15.8 },
+      { tenure: '12 months', days: 21 },
+    ],
+  },
+  {
+    type: 'Sick Leave',
+    section: 'BCEA Section 22',
+    color: 'amber',
+    entitlement: '30 days per 3-year sick leave cycle (after 6 months)',
+    accrual: '1 day per 26 days worked (first 6 months only)',
+    waitingPeriod: 'First 6 months: restricted accrual. Full 30 days from month 6.',
+    cycleLength: '36 months (3 years) from employment start date',
+    notes: 'In the first 6 months employees earn 1 sick day per 26 days worked (maximum ~5 days). From month 6 onwards, the full 30-day sick leave allocation for the 3-year cycle becomes available.',
+    formula: 'If < 6 months: floor(working days ÷ 26). If ≥ 6 months: 30 days.',
+    examples: [
+      { tenure: '2 months', days: 1 },
+      { tenure: '5 months', days: 4 },
+      { tenure: '6 months', days: 30 },
+      { tenure: '36 months', days: 30 },
+    ],
+  },
+  {
+    type: 'Family Responsibility',
+    section: 'BCEA Section 27',
+    color: 'green',
+    entitlement: '3 days per annual leave cycle',
+    accrual: 'Fixed — 3 days once available',
+    waitingPeriod: '4 months of continuous employment required',
+    cycleLength: '12 months (aligned with annual leave cycle)',
+    notes: 'Only applies to employees working 4 or more days per week. Available for: birth of a child, illness or death of a child, spouse/life partner, parent, adoptive parent, grandparent, sibling, or grandchild.',
+    formula: 'If ≥ 4 months employment: 3 days. Otherwise: 0 days.',
+    examples: [
+      { tenure: '3 months', days: 0 },
+      { tenure: '4 months', days: 3 },
+      { tenure: '12 months', days: 3 },
+    ],
+  },
+];
+
+const colorMap: Record<string, { bg: string; border: string; heading: string; text: string; badge: string }> = {
+  blue: {
+    bg: 'bg-blue-50',
+    border: 'border-blue-200',
+    heading: 'text-blue-900',
+    text: 'text-blue-700',
+    badge: 'bg-blue-100 text-blue-800 border-blue-200',
+  },
+  amber: {
+    bg: 'bg-amber-50',
+    border: 'border-amber-200',
+    heading: 'text-amber-900',
+    text: 'text-amber-700',
+    badge: 'bg-amber-100 text-amber-800 border-amber-200',
+  },
+  green: {
+    bg: 'bg-green-50',
+    border: 'border-green-200',
+    heading: 'text-green-900',
+    text: 'text-green-700',
+    badge: 'bg-green-100 text-green-800 border-green-200',
+  },
+};
 
 export default function LeaveRulesSection() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Queries
   const { data: leaveRules = [] } = useQuery({
     queryKey: ['leaveRules'],
     queryFn: leaveRuleApi.getAll,
@@ -29,17 +105,20 @@ export default function LeaveRulesSection() {
     queryFn: employeeTypeApi.getAll,
   });
 
-  // State
   const [isRuleDialogOpen, setIsRuleDialogOpen] = useState(false);
   const [currentRule, setCurrentRule] = useState<Partial<LeaveRule>>({});
   const [isEditingRule, setIsEditingRule] = useState(false);
-  
+
   const [isPhaseDialogOpen, setIsPhaseDialogOpen] = useState(false);
   const [currentPhaseRule, setCurrentPhaseRule] = useState<LeaveRule | null>(null);
   const [phases, setPhases] = useState<LeaveRulePhase[]>([]);
   const [loadingPhases, setLoadingPhases] = useState(false);
 
-  // Mutations
+  const [expandedBCEA, setExpandedBCEA] = useState<string | null>(null);
+  const [recalcResult, setRecalcResult] = useState<null | { updated: number; errors: string[]; details: { userId: string; name: string; annualLeave: number; sickLeave: number; familyResponsibility: number; monthsWorked: number }[] }>(null);
+  const [isRecalcDialogOpen, setIsRecalcDialogOpen] = useState(false);
+  const [isRecalculating, setIsRecalculating] = useState(false);
+
   const createRuleMutation = useMutation({
     mutationFn: leaveRuleApi.create,
     onSuccess: () => {
@@ -79,13 +158,11 @@ export default function LeaveRulesSection() {
     },
   });
 
-  // Handlers
   const handleSaveRule = () => {
     if (!currentRule.name || !currentRule.leaveType) {
       toast({ variant: "destructive", title: "Error", description: "Rule name and leave type are required" });
       return;
     }
-
     if (isEditingRule && currentRule.id) {
       updateRuleMutation.mutate({
         id: currentRule.id,
@@ -145,7 +222,7 @@ export default function LeaveRulesSection() {
     try {
       const rulePhases = await leaveRulePhaseApi.getByRuleId(rule.id);
       setPhases(rulePhases);
-    } catch (error) {
+    } catch {
       toast({ title: "Error", description: "Failed to load phases", variant: "destructive" });
       setPhases([]);
     } finally {
@@ -175,21 +252,14 @@ export default function LeaveRulesSection() {
 
   const handleRemovePhase = (index: number) => {
     const newPhases = phases.filter((_, i) => i !== index);
-    // Re-sequence
-    newPhases.forEach((phase, i) => {
-      phase.sequence = i + 1;
-    });
+    newPhases.forEach((phase, i) => { phase.sequence = i + 1; });
     setPhases(newPhases);
   };
 
   const handleSavePhases = async () => {
     if (!currentPhaseRule) return;
-    
     try {
-      // Delete all existing phases
       await leaveRulePhaseApi.deleteAll(currentPhaseRule.id);
-      
-      // Create new phases
       for (const phase of phases) {
         await leaveRulePhaseApi.create(currentPhaseRule.id, {
           phaseName: phase.phaseName,
@@ -204,29 +274,141 @@ export default function LeaveRulesSection() {
           notes: phase.notes,
         });
       }
-      
       toast({ title: "Success", description: "Phases saved successfully" });
       setIsPhaseDialogOpen(false);
-    } catch (error) {
+    } catch {
       toast({ title: "Error", description: "Failed to save phases", variant: "destructive" });
     }
   };
 
+  const handleRecalculateSA = async () => {
+    setIsRecalculating(true);
+    try {
+      const result = await leaveBalanceApi.recalculateSA();
+      setRecalcResult(result);
+      setIsRecalcDialogOpen(true);
+      queryClient.invalidateQueries({ queryKey: ['leaveBalances'] });
+      toast({ title: "Recalculation Complete", description: result.message });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Error", description: err.message || "Recalculation failed" });
+    } finally {
+      setIsRecalculating(false);
+    }
+  };
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-heading font-bold text-slate-900">Leave Rules</h1>
-          <p className="text-muted-foreground">Configure leave accrual and entitlement rules</p>
+          <p className="text-muted-foreground">SA BCEA-compliant leave calculations and accrual rules</p>
         </div>
-        <Button onClick={handleOpenCreateRule} data-testid="button-create-rule">
-          <Plus className="h-4 w-4 mr-2" /> Add Leave Rule
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={handleRecalculateSA}
+            disabled={isRecalculating}
+            data-testid="button-recalculate-sa"
+          >
+            {isRecalculating ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4 mr-2" />
+            )}
+            Recalculate All (SA BCEA)
+          </Button>
+          <Button onClick={handleOpenCreateRule} data-testid="button-create-rule">
+            <Plus className="h-4 w-4 mr-2" /> Add Leave Rule
+          </Button>
+        </div>
       </div>
+
+      {/* SA BCEA Law Reference */}
+      <Card className="border-slate-200">
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <BookOpen className="h-5 w-5 text-slate-600" />
+            <CardTitle className="text-base">South African BCEA Leave Entitlements</CardTitle>
+          </div>
+          <CardDescription>
+            Leave balances are calculated per the Basic Conditions of Employment Act (BCEA). Click a leave type to see the formula and examples. Use "Recalculate All" to update every employee's balance to their correct SA-law entitlement based on their start date.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {SA_BCEA_RULES.map((rule) => {
+            const c = colorMap[rule.color];
+            const isOpen = expandedBCEA === rule.type;
+            return (
+              <div key={rule.type} className={`rounded-lg border ${c.border} ${c.bg}`}>
+                <button
+                  className="w-full flex items-center justify-between p-4 text-left"
+                  onClick={() => setExpandedBCEA(isOpen ? null : rule.type)}
+                  data-testid={`button-bcea-expand-${rule.type.replace(/\s+/g, '-').toLowerCase()}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div>
+                      <p className={`font-semibold ${c.heading}`}>{rule.type}</p>
+                      <p className={`text-xs ${c.text}`}>{rule.section} — {rule.entitlement}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className={`text-xs ${c.badge}`}>
+                      {rule.waitingPeriod.split('—')[0].trim()}
+                    </Badge>
+                    {isOpen ? <ChevronDown className={`h-4 w-4 ${c.text}`} /> : <ChevronRight className={`h-4 w-4 ${c.text}`} />}
+                  </div>
+                </button>
+
+                {isOpen && (
+                  <div className={`px-4 pb-4 space-y-3 border-t ${c.border}`}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3">
+                      <div className="space-y-2">
+                        <p className={`text-xs font-semibold uppercase tracking-wide ${c.text}`}>Calculation Formula</p>
+                        <p className={`text-sm font-mono ${c.heading} bg-white rounded px-2 py-1 border ${c.border}`}>{rule.formula}</p>
+                        <p className={`text-xs ${c.text} leading-relaxed`}>{rule.notes}</p>
+                      </div>
+                      <div className="space-y-2">
+                        <p className={`text-xs font-semibold uppercase tracking-wide ${c.text}`}>Examples by Tenure</p>
+                        <div className="bg-white rounded border overflow-hidden">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className={`${c.bg}`}>
+                                <th className={`text-left px-3 py-1.5 font-medium ${c.text}`}>Tenure</th>
+                                <th className={`text-right px-3 py-1.5 font-medium ${c.text}`}>Days</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {rule.examples.map((ex) => (
+                                <tr key={ex.tenure} className={`border-t ${c.border}`}>
+                                  <td className={`px-3 py-1.5 ${c.heading}`}>{ex.tenure}</td>
+                                  <td className={`px-3 py-1.5 text-right font-semibold ${c.heading}`}>{ex.days}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                    <div className={`text-xs ${c.text} flex items-start gap-1.5`}>
+                      <span className="font-semibold shrink-0">Cycle:</span>
+                      <span>{rule.cycleLength}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </CardContent>
+      </Card>
+
+      {/* Leave Accrual Rules Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Leave Accrual Rules</CardTitle>
-          <CardDescription>Define how leave is accrued for different employee types and leave types</CardDescription>
+          <CardTitle>Custom Leave Accrual Rules</CardTitle>
+          <CardDescription>
+            Optional rules that extend or override SA BCEA defaults for specific employee types. 
+            BCEA minimums always apply — these rules can only be more generous.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
@@ -242,34 +424,34 @@ export default function LeaveRulesSection() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {leaveRules.map((rule) => {
+              {leaveRules.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center text-muted-foreground py-6">
+                    No custom rules configured. SA BCEA defaults apply to all employees.
+                  </TableCell>
+                </TableRow>
+              ) : leaveRules.map((rule) => {
                 const empType = employeeTypes.find(t => t.id === rule.employeeTypeId);
                 const getFormulaDisplay = () => {
                   if (rule.accrualType === 'days_worked' && rule.daysEarned && rule.periodDaysWorked) {
                     return `${rule.daysEarned} day per ${rule.periodDaysWorked} days worked`;
                   }
-                  if (rule.accrualType === 'tiered') {
-                    return 'Multiple phases (click to manage)';
-                  }
+                  if (rule.accrualType === 'tiered') return 'Multiple phases (click to manage)';
                   return rule.accrualRate || '-';
                 };
                 return (
                   <TableRow key={rule.id} data-testid={`row-rule-${rule.id}`}>
                     <TableCell className="font-medium">{rule.name}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{rule.leaveType}</Badge>
-                    </TableCell>
+                    <TableCell><Badge variant="outline">{rule.leaveType}</Badge></TableCell>
                     <TableCell>{empType?.name || 'All Types'}</TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">{rule.accrualType || 'fixed'}</Badge>
-                    </TableCell>
+                    <TableCell><Badge variant="secondary">{rule.accrualType || 'fixed'}</Badge></TableCell>
                     <TableCell className="text-sm">{getFormulaDisplay()}</TableCell>
                     <TableCell>{rule.maxAccrual ? `${rule.maxAccrual} days` : '-'}</TableCell>
                     <TableCell className="text-right space-x-1">
                       {rule.accrualType === 'tiered' && (
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={() => handleOpenPhaseEditor(rule)}
                           data-testid={`button-manage-phases-${rule.id}`}
                         >
@@ -279,9 +461,9 @@ export default function LeaveRulesSection() {
                       <Button variant="ghost" size="icon" onClick={() => handleOpenEditRule(rule)} data-testid={`button-edit-rule-${rule.id}`}>
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         onClick={() => handleDeleteRule(rule.id)}
                         data-testid={`button-delete-rule-${rule.id}`}
                       >
@@ -296,36 +478,112 @@ export default function LeaveRulesSection() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Leave Calculation Guide</CardTitle>
-          <CardDescription>How leave entitlements are calculated</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="p-4 bg-blue-50 rounded-lg">
-            <h4 className="font-semibold text-blue-900">Annual Leave</h4>
-            <p className="text-sm text-blue-700">Days leave per month, accrued pro-rata based on days worked</p>
-          </div>
-          <div className="p-4 bg-amber-50 rounded-lg">
-            <h4 className="font-semibold text-amber-900">Sick Leave</h4>
-            <p className="text-sm text-amber-700">1 day for every 26 days worked for the first 6 months. After 6 months, 30 days every 3 years.</p>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Recalculation Results Dialog */}
+      <Dialog open={isRecalcDialogOpen} onOpenChange={setIsRecalcDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-green-600" />
+              SA BCEA Recalculation Complete
+            </DialogTitle>
+            <DialogDescription>
+              Leave balances have been updated based on each employee's start date and SA BCEA entitlements.
+              Existing "taken" days are unchanged.
+            </DialogDescription>
+          </DialogHeader>
 
-      {/* Leave Rule Dialog */}
+          {recalcResult && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="text-center p-3 bg-green-50 rounded-lg border border-green-200">
+                  <p className="text-2xl font-bold text-green-700">{recalcResult.updated}</p>
+                  <p className="text-xs text-green-600">Employees Updated</p>
+                </div>
+                <div className="text-center p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <p className="text-2xl font-bold text-blue-700">{recalcResult.details.length}</p>
+                  <p className="text-xs text-blue-600">Records Processed</p>
+                </div>
+                <div className="text-center p-3 bg-red-50 rounded-lg border border-red-200">
+                  <p className="text-2xl font-bold text-red-700">{recalcResult.errors.length}</p>
+                  <p className="text-xs text-red-600">Errors</p>
+                </div>
+              </div>
+
+              {recalcResult.errors.length > 0 && (
+                <div className="p-3 bg-red-50 rounded-lg border border-red-200">
+                  <p className="text-sm font-semibold text-red-800 flex items-center gap-1.5 mb-2">
+                    <AlertTriangle className="h-4 w-4" /> Errors
+                  </p>
+                  {recalcResult.errors.map((e, i) => (
+                    <p key={i} className="text-xs text-red-700">{e}</p>
+                  ))}
+                </div>
+              )}
+
+              <div>
+                <p className="text-sm font-semibold mb-2">Updated Employee Balances</p>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Employee</TableHead>
+                      <TableHead>Tenure</TableHead>
+                      <TableHead className="text-center">Annual Leave</TableHead>
+                      <TableHead className="text-center">Sick Leave</TableHead>
+                      <TableHead className="text-center">Family Resp.</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {recalcResult.details.map((d) => (
+                      <TableRow key={d.userId}>
+                        <TableCell className="font-medium text-sm">{d.name}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {d.monthsWorked} month{d.monthsWorked !== 1 ? 's' : ''}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant="outline" className="bg-blue-50 text-blue-800 border-blue-200">
+                            {d.annualLeave} days
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-200">
+                            {d.sickLeave} days
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant="outline" className="bg-green-50 text-green-800 border-green-200">
+                            {d.familyResponsibility} days
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button onClick={() => setIsRecalcDialogOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Leave Rule Create/Edit Dialog */}
       <Dialog open={isRuleDialogOpen} onOpenChange={setIsRuleDialogOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>{isEditingRule ? 'Edit Leave Rule' : 'Add New Leave Rule'}</DialogTitle>
+            <DialogTitle>{isEditingRule ? 'Edit Leave Rule' : 'Add Custom Leave Rule'}</DialogTitle>
+            <DialogDescription>
+              Custom rules extend SA BCEA minimums for specific employee types or situations.
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="ruleName" className="text-right">Name</Label>
-              <Input 
-                id="ruleName" 
-                value={currentRule.name || ''} 
-                onChange={(e) => setCurrentRule({...currentRule, name: e.target.value})}
+              <Input
+                id="ruleName"
+                value={currentRule.name || ''}
+                onChange={(e) => setCurrentRule({ ...currentRule, name: e.target.value })}
                 className="col-span-3"
                 placeholder="e.g., Annual Leave Accrual"
                 data-testid="input-rule-name"
@@ -334,9 +592,9 @@ export default function LeaveRulesSection() {
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="leaveType" className="text-right">Leave Type</Label>
               <div className="col-span-3">
-                <Select 
-                  value={currentRule.leaveType || ''} 
-                  onValueChange={(value) => setCurrentRule({...currentRule, leaveType: value})}
+                <Select
+                  value={currentRule.leaveType || ''}
+                  onValueChange={(value) => setCurrentRule({ ...currentRule, leaveType: value })}
                 >
                   <SelectTrigger data-testid="select-rule-leave-type">
                     <SelectValue placeholder="Select leave type" />
@@ -354,9 +612,9 @@ export default function LeaveRulesSection() {
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="ruleEmpType" className="text-right">Employee Type</Label>
               <div className="col-span-3">
-                <Select 
-                  value={currentRule.employeeTypeId?.toString() || 'all'} 
-                  onValueChange={(value) => setCurrentRule({...currentRule, employeeTypeId: value === 'all' ? undefined : parseInt(value)})}
+                <Select
+                  value={currentRule.employeeTypeId?.toString() || 'all'}
+                  onValueChange={(value) => setCurrentRule({ ...currentRule, employeeTypeId: value === 'all' ? undefined : parseInt(value) })}
                 >
                   <SelectTrigger data-testid="select-rule-emp-type">
                     <SelectValue placeholder="Select employee type" />
@@ -364,9 +622,7 @@ export default function LeaveRulesSection() {
                   <SelectContent>
                     <SelectItem value="all">All Employee Types</SelectItem>
                     {employeeTypes.map((type) => (
-                      <SelectItem key={type.id} value={type.id.toString()}>
-                        {type.name}
-                      </SelectItem>
+                      <SelectItem key={type.id} value={type.id.toString()}>{type.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -375,9 +631,9 @@ export default function LeaveRulesSection() {
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="accrualType" className="text-right">Accrual Type</Label>
               <div className="col-span-3">
-                <Select 
-                  value={currentRule.accrualType || 'fixed'} 
-                  onValueChange={(value) => setCurrentRule({...currentRule, accrualType: value})}
+                <Select
+                  value={currentRule.accrualType || 'fixed'}
+                  onValueChange={(value) => setCurrentRule({ ...currentRule, accrualType: value })}
                 >
                   <SelectTrigger data-testid="select-accrual-type">
                     <SelectValue placeholder="Select accrual type" />
@@ -392,58 +648,51 @@ export default function LeaveRulesSection() {
                 </Select>
               </div>
             </div>
-            
+
             {currentRule.accrualType === 'days_worked' && (
               <div className="col-span-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                <p className="text-sm font-medium text-blue-900 mb-3">Days Worked Formula: Earn X days for every Y days worked</p>
+                <p className="text-sm font-medium text-blue-900 mb-3">Earn X days for every Y days worked</p>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="daysEarned" className="text-sm">Days Earned</Label>
-                    <Input 
-                      id="daysEarned" 
-                      value={currentRule.daysEarned || '1'} 
-                      onChange={(e) => setCurrentRule({...currentRule, daysEarned: e.target.value})}
+                    <Input
+                      id="daysEarned"
+                      value={currentRule.daysEarned || '1'}
+                      onChange={(e) => setCurrentRule({ ...currentRule, daysEarned: e.target.value })}
                       placeholder="e.g., 1 or 1.6"
                       data-testid="input-days-earned"
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="periodDaysWorked" className="text-sm">Per Days Worked</Label>
-                    <Input 
-                      id="periodDaysWorked" 
+                    <Input
+                      id="periodDaysWorked"
                       type="number"
-                      value={currentRule.periodDaysWorked || 26} 
-                      onChange={(e) => setCurrentRule({...currentRule, periodDaysWorked: e.target.value ? parseInt(e.target.value) : undefined})}
+                      value={currentRule.periodDaysWorked || 26}
+                      onChange={(e) => setCurrentRule({ ...currentRule, periodDaysWorked: e.target.value ? parseInt(e.target.value) : undefined })}
                       placeholder="e.g., 26"
                       data-testid="input-period-days-worked"
                     />
                   </div>
                 </div>
-                <p className="text-xs text-blue-700 mt-2">
-                  Example: "1 day per 26 days worked" = Earn 1 day for every 26 days worked
-                </p>
               </div>
             )}
 
             {currentRule.accrualType === 'tiered' && (
               <div className="col-span-4 p-3 bg-amber-50 rounded-lg border border-amber-200">
                 <p className="text-sm font-medium text-amber-900 mb-2">Tiered Accrual</p>
-                <p className="text-xs text-amber-700 mb-3">
-                  Tiered rules allow different accrual rates based on employment tenure. 
-                  For example: "1 day per 26 days for first 6 months, then 30 days every 3 years."
-                </p>
-                <p className="text-xs text-amber-600">
-                  After saving this rule, click "Manage Phases" to configure the tiered phases.
+                <p className="text-xs text-amber-700">
+                  Different accrual rates based on employment tenure. Save this rule first, then click "Phases" to configure each tier.
                 </p>
               </div>
             )}
 
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="accrualRate" className="text-right">Accrual Rate</Label>
-              <Input 
-                id="accrualRate" 
-                value={currentRule.accrualRate || ''} 
-                onChange={(e) => setCurrentRule({...currentRule, accrualRate: e.target.value})}
+              <Input
+                id="accrualRate"
+                value={currentRule.accrualRate || ''}
+                onChange={(e) => setCurrentRule({ ...currentRule, accrualRate: e.target.value })}
                 className="col-span-3"
                 placeholder="e.g., 1.25 days/month or 15 days/year"
                 data-testid="input-accrual-rate"
@@ -451,11 +700,11 @@ export default function LeaveRulesSection() {
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="maxAccrual" className="text-right">Max Accrual</Label>
-              <Input 
-                id="maxAccrual" 
+              <Input
+                id="maxAccrual"
                 type="number"
-                value={currentRule.maxAccrual || ''} 
-                onChange={(e) => setCurrentRule({...currentRule, maxAccrual: e.target.value ? parseInt(e.target.value) : undefined})}
+                value={currentRule.maxAccrual || ''}
+                onChange={(e) => setCurrentRule({ ...currentRule, maxAccrual: e.target.value ? parseInt(e.target.value) : undefined })}
                 className="col-span-3"
                 placeholder="Maximum days (e.g., 30)"
                 data-testid="input-max-accrual"
@@ -463,11 +712,11 @@ export default function LeaveRulesSection() {
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="waitingPeriod" className="text-right">Waiting Period</Label>
-              <Input 
-                id="waitingPeriod" 
+              <Input
+                id="waitingPeriod"
                 type="number"
-                value={currentRule.waitingPeriodDays || ''} 
-                onChange={(e) => setCurrentRule({...currentRule, waitingPeriodDays: e.target.value ? parseInt(e.target.value) : undefined})}
+                value={currentRule.waitingPeriodDays || ''}
+                onChange={(e) => setCurrentRule({ ...currentRule, waitingPeriodDays: e.target.value ? parseInt(e.target.value) : undefined })}
                 className="col-span-3"
                 placeholder="Days before rule applies (e.g., 180)"
                 data-testid="input-waiting-period"
@@ -475,11 +724,11 @@ export default function LeaveRulesSection() {
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="cycleMonths" className="text-right">Cycle Months</Label>
-              <Input 
-                id="cycleMonths" 
+              <Input
+                id="cycleMonths"
                 type="number"
-                value={currentRule.cycleMonths || ''} 
-                onChange={(e) => setCurrentRule({...currentRule, cycleMonths: e.target.value ? parseInt(e.target.value) : undefined})}
+                value={currentRule.cycleMonths || ''}
+                onChange={(e) => setCurrentRule({ ...currentRule, cycleMonths: e.target.value ? parseInt(e.target.value) : undefined })}
                 className="col-span-3"
                 placeholder="Cycle length in months (e.g., 36)"
                 data-testid="input-cycle-months"
@@ -487,10 +736,10 @@ export default function LeaveRulesSection() {
             </div>
             <div className="grid grid-cols-4 items-start gap-4">
               <Label htmlFor="ruleNotes" className="text-right pt-2">Notes</Label>
-              <Textarea 
-                id="ruleNotes" 
-                value={currentRule.notes || ''} 
-                onChange={(e) => setCurrentRule({...currentRule, notes: e.target.value})}
+              <Textarea
+                id="ruleNotes"
+                value={currentRule.notes || ''}
+                onChange={(e) => setCurrentRule({ ...currentRule, notes: e.target.value })}
                 className="col-span-3"
                 placeholder="Additional notes about this rule"
                 data-testid="input-rule-notes"
@@ -514,7 +763,7 @@ export default function LeaveRulesSection() {
               Configure different accrual rates based on employment tenure for: {currentPhaseRule?.name}
             </DialogDescription>
           </DialogHeader>
-          
+
           {loadingPhases ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -536,72 +785,40 @@ export default function LeaveRulesSection() {
                         placeholder="Phase name"
                         data-testid={`input-phase-name-${index}`}
                       />
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        onClick={() => handleRemovePhase(index)}
-                        data-testid={`button-remove-phase-${index}`}
-                      >
+                      <Button variant="ghost" size="icon" onClick={() => handleRemovePhase(index)} data-testid={`button-remove-phase-${index}`}>
                         <Trash2 className="h-4 w-4 text-red-500" />
                       </Button>
                     </div>
-                    
-                    <div className="grid grid-cols-2 gap-4 mb-3">
-                      <div className="space-y-2">
-                        <Label className="text-sm">Starts After (Months)</Label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Starts After (months)</Label>
                         <Input
                           type="number"
-                          value={phase.startsAfterMonths ?? 0}
-                          onChange={(e) => handleUpdatePhase(index, { startsAfterMonths: parseInt(e.target.value) || 0 })}
-                          placeholder="0 = immediately"
-                          data-testid={`input-phase-start-${index}`}
+                          value={phase.startsAfterMonths ?? ''}
+                          onChange={(e) => handleUpdatePhase(index, { startsAfterMonths: e.target.value ? parseInt(e.target.value) : null })}
+                          placeholder="0"
+                          data-testid={`input-phase-starts-months-${index}`}
                         />
                       </div>
-                      <div className="space-y-2">
-                        <Label className="text-sm">Or Starts After (Days Worked)</Label>
-                        <Input
-                          type="number"
-                          value={phase.startsAfterDaysWorked ?? ''}
-                          onChange={(e) => handleUpdatePhase(index, { startsAfterDaysWorked: e.target.value ? parseInt(e.target.value) : null })}
-                          placeholder="Optional alternative"
-                          data-testid={`input-phase-days-worked-start-${index}`}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4 mb-3">
-                      <div className="space-y-2">
-                        <Label className="text-sm">Accrual Type</Label>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Accrual Type</Label>
                         <Select
                           value={phase.accrualType}
-                          onValueChange={(value) => handleUpdatePhase(index, { accrualType: value })}
+                          onValueChange={(v) => handleUpdatePhase(index, { accrualType: v })}
                         >
                           <SelectTrigger data-testid={`select-phase-accrual-${index}`}>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="per_days_worked">Per Days Worked</SelectItem>
-                            <SelectItem value="fixed_per_cycle">Fixed Per Cycle</SelectItem>
+                            <SelectItem value="monthly">Monthly</SelectItem>
+                            <SelectItem value="annual">Annual</SelectItem>
+                            <SelectItem value="cycle">Cycle</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
-                      {phase.accrualType === 'fixed_per_cycle' && (
-                        <div className="space-y-2">
-                          <Label className="text-sm">Cycle (Months)</Label>
-                          <Input
-                            type="number"
-                            value={phase.cycleMonths ?? ''}
-                            onChange={(e) => handleUpdatePhase(index, { cycleMonths: e.target.value ? parseInt(e.target.value) : null })}
-                            placeholder="e.g., 36 for 3 years"
-                            data-testid={`input-phase-cycle-${index}`}
-                          />
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <Label className="text-sm">Days Earned</Label>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Days Earned</Label>
                         <Input
                           value={phase.daysEarned}
                           onChange={(e) => handleUpdatePhase(index, { daysEarned: e.target.value })}
@@ -609,59 +826,54 @@ export default function LeaveRulesSection() {
                           data-testid={`input-phase-days-earned-${index}`}
                         />
                       </div>
-                      {phase.accrualType === 'per_days_worked' && (
-                        <div className="space-y-2">
-                          <Label className="text-sm">Per Days Worked</Label>
-                          <Input
-                            type="number"
-                            value={phase.periodDaysWorked ?? 26}
-                            onChange={(e) => handleUpdatePhase(index, { periodDaysWorked: parseInt(e.target.value) || 26 })}
-                            placeholder="26"
-                            data-testid={`input-phase-period-${index}`}
-                          />
-                        </div>
-                      )}
-                      <div className="space-y-2">
-                        <Label className="text-sm">Max Balance Days</Label>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Per Days Worked</Label>
+                        <Input
+                          type="number"
+                          value={phase.periodDaysWorked ?? ''}
+                          onChange={(e) => handleUpdatePhase(index, { periodDaysWorked: e.target.value ? parseInt(e.target.value) : null })}
+                          placeholder="26"
+                          data-testid={`input-phase-period-${index}`}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Max Balance (days)</Label>
                         <Input
                           type="number"
                           value={phase.maxBalanceDays ?? ''}
                           onChange={(e) => handleUpdatePhase(index, { maxBalanceDays: e.target.value ? parseInt(e.target.value) : null })}
-                          placeholder="Optional"
-                          data-testid={`input-phase-max-${index}`}
+                          placeholder="No limit"
+                          data-testid={`input-phase-max-balance-${index}`}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Cycle Months</Label>
+                        <Input
+                          type="number"
+                          value={phase.cycleMonths ?? ''}
+                          onChange={(e) => handleUpdatePhase(index, { cycleMonths: e.target.value ? parseInt(e.target.value) : null })}
+                          placeholder="e.g., 36"
+                          data-testid={`input-phase-cycle-${index}`}
                         />
                       </div>
                     </div>
+                    {phase.accrualType === 'per_days_worked' && phase.daysEarned && phase.periodDaysWorked && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        → Earns {phase.daysEarned} day(s) for every {phase.periodDaysWorked} days worked
+                      </p>
+                    )}
                   </Card>
                 ))
               )}
-
-              <Button 
-                variant="outline" 
-                onClick={handleAddPhase} 
-                className="w-full"
-                data-testid="button-add-phase"
-              >
+              <Button variant="outline" onClick={handleAddPhase} className="w-full" data-testid="button-add-phase">
                 <Plus className="h-4 w-4 mr-2" /> Add Phase
               </Button>
-
-              <div className="p-3 bg-slate-50 rounded-lg text-sm text-muted-foreground">
-                <p className="font-medium mb-2">Example: Sick Leave Tiered Accrual</p>
-                <ul className="list-disc list-inside space-y-1 text-xs">
-                  <li><strong>Phase 1:</strong> Months 0-6: 1 day per 26 days worked</li>
-                  <li><strong>Phase 2:</strong> Month 6+: 30 days per 36 month cycle</li>
-                </ul>
-              </div>
             </div>
           )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsPhaseDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSavePhases} data-testid="button-save-phases">
-              Save Phases
-            </Button>
+            <Button variant="outline" onClick={() => setIsPhaseDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSavePhases} data-testid="button-save-phases">Save Phases</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
