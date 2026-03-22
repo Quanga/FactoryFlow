@@ -103,11 +103,11 @@ app.use((req, res, next) => {
   );
 })();
 
-// Recalculate annual/sick/family leave totals for all active workers using SA BCEA rules.
+// Recalculate annual/sick/family leave totals for all active employees (workers and managers) using SA BCEA rules.
 // Runs silently in the background on startup so stored balances are always current.
 async function recalculateBceaLeaveBalances() {
   const allUsers = await storage.getAllUsers();
-  const workers = allUsers.filter(u => u.role === 'worker' && u.startDate && !u.terminationDate);
+  const workers = allUsers.filter(u => u.startDate && !u.terminationDate);
   let updated = 0;
   for (const user of workers) {
     try {
