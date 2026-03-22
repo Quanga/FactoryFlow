@@ -979,9 +979,12 @@ export default function LeaveRequestsSection() {
                   <SelectValue placeholder="Select employee..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {users.filter((u: any) => u.role === 'worker').map((u: any) => (
-                    <SelectItem key={u.id} value={u.id}>{u.firstName} {u.surname}</SelectItem>
-                  ))}
+                  {users
+                    .filter((u: any) => !u.terminationDate && !u.excludeFromLeave)
+                    .sort((a: any, b: any) => `${a.firstName} ${a.surname}`.localeCompare(`${b.firstName} ${b.surname}`))
+                    .map((u: any) => (
+                      <SelectItem key={u.id} value={u.id}>{u.firstName} {u.surname}</SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
