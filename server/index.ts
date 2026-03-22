@@ -107,7 +107,7 @@ app.use((req, res, next) => {
 // Runs silently in the background on startup so stored balances are always current.
 async function recalculateBceaLeaveBalances() {
   const allUsers = await storage.getAllUsers();
-  const workers = allUsers.filter(u => u.startDate && !u.terminationDate);
+  const workers = allUsers.filter(u => u.startDate && !u.terminationDate && !u.excludeFromLeave);
   let updated = 0;
   for (const user of workers) {
     try {

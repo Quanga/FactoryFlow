@@ -253,6 +253,7 @@ export default function PersonnelSection() {
       orgPositionId: currentUser.orgPositionId || null,
       reportsToPositionId: currentUser.reportsToPositionId || null,
       exclude: currentUser.exclude || false,
+      excludeFromLeave: (currentUser as any).excludeFromLeave || false,
       attendanceRequired: currentUser.attendanceRequired !== false,
       nickname: currentUser.nickname || null,
       terminationDate: currentUser.terminationDate || null,
@@ -1565,6 +1566,20 @@ export default function PersonnelSection() {
                 />
                 <p className="text-xs text-muted-foreground">
                   Exclude from org chart and attendance (for test/dummy users).
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="excludeFromLeave" className="text-right">Exclude from Leave</Label>
+              <div className="col-span-3 flex items-center gap-3">
+                <Switch
+                  id="excludeFromLeave"
+                  checked={(currentUser as any).excludeFromLeave || false}
+                  onCheckedChange={(checked) => setCurrentUser({...currentUser, excludeFromLeave: checked} as any)}
+                  data-testid="switch-exclude-from-leave"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Disable leave management for this person (external contractors, system accounts).
                 </p>
               </div>
             </div>

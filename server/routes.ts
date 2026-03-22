@@ -484,8 +484,8 @@ export async function registerRoutes(
       const userId = req.params.userId;
       const user = await storage.getUser(userId);
 
-      // Auto-recalculate BCEA entitlements for all employees (workers and managers) with a start date
-      if (user && user.startDate && !user.terminationDate) {
+      // Auto-recalculate BCEA entitlements for all employees with a start date (skip contractors/system accounts)
+      if (user && user.startDate && !user.terminationDate && !user.excludeFromLeave) {
         const entitlements = calculateBceaEntitlements(user.startDate);
         const existingBalances = await storage.getLeaveBalances(userId);
 
@@ -637,6 +637,7 @@ export async function registerRoutes(
         (u) =>
           u.startDate &&
           !u.terminationDate &&
+          !u.excludeFromLeave &&
           (!employeeIds || employeeIds.includes(u.id))
       );
 
