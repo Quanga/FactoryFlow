@@ -216,6 +216,11 @@ export const leaveRequests = pgTable("leave_requests", {
   finalizedById: text("finalized_by_id"), // Who made the final decision
   finalizedAt: timestamp("finalized_at"), // When it was finalized
   
+  // Historic leave entry fields (admin backfill from physical records)
+  isHistoric: boolean("is_historic").default(false).notNull(),
+  authorizedBy: text("authorized_by"), // Name of the person who authorized in the old system
+  referenceNumber: text("reference_number"), // Reference number from the physical leave book
+  
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

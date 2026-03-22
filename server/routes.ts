@@ -1099,6 +1099,119 @@ export async function registerRoutes(
     }
   });
 
+  // ========== HISTORIC LEAVE REQUEST ROUTES (admin only) ==========
+
+  // Create a historic (pre-approved) leave entry - bypasses approval workflow
+  app.post("/api/leave-requests/historic", async (req, res) => {
+    try {
+      const { userId, leaveType, startDate, endDate, reason, authorizedBy, referenceNumber, notes } = req.body;
+
+      if (!userId || !leaveType || !startDate || !endDate) {
+        return res.status(400).json({ error: "userId, leaveType, startDate, and endDate are required" });
+      }
+
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        return res.status(400).json({ error: "Invalid date format" });
+      }
+      if (end < start) {
+        return res.status(400).json({ error: "End date must be on or after start date" });
+      }
+
+      const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+      const newRequest = await storage.createLeaveRequest({
+        userId,
+        leaveType,
+        startDate,
+        endDate,
+        reason: reason || 'Historic leave entry',
+        status: 'approved',
+        isHistoric: true,
+        authorizedBy: authorizedBy || null,
+        referenceNumber: referenceNumber || null,
+        adminNotes: notes || null,
+        finalizedAt: new Date(),
+      } as any);
+
+      // Deduct taken days from balance
+      const balances = await storage.getLeaveBalances(userId);
+      const balance = balances.find((b: any) => b.leaveType === leaveType);
+      if (balance) {
+        await storage.updateLeaveBalance(balance.id, {
+          taken: balance.taken + days,
+        });
+      }
+
+      return res.status(201).json(newRequest);
+    } catch (error) {
+      console.error("Create historic leave request error:", error);
+      return res.status(500).json({ error: "Failed to create historic leave request" });
+    }
+  });
+
+  // Update a historic leave entry (admin only)
+  app.put("/api/leave-requests/historic/:id", async (req, res) => {
+    try {
+      const requestId = parseInt(req.params.id);
+      const { userId, leaveType, startDate, endDate, reason, authorizedBy, referenceNumber, notes } = req.body;
+
+      const existingRequest = await storage.getLeaveRequest(requestId);
+      if (!existingRequest || !existingRequest.isHistoric) {
+        return res.status(404).json({ error: "Historic leave request not found" });
+      }
+
+      // Credit back old taken days
+      const oldStart = new Date(existingRequest.startDate);
+      const oldEnd = new Date(existingRequest.endDate);
+      const oldDays = Math.ceil((oldEnd.getTime() - oldStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+      const oldBalances = await storage.getLeaveBalances(existingRequest.userId);
+      const oldBalance = oldBalances.find((b: any) => b.leaveType === existingRequest.leaveType);
+      if (oldBalance) {
+        await storage.updateLeaveBalance(oldBalance.id, {
+          taken: Math.max(0, oldBalance.taken - oldDays),
+        });
+      }
+
+      const newUserId = userId || existingRequest.userId;
+      const newLeaveType = leaveType || existingRequest.leaveType;
+      const newStartDate = startDate || existingRequest.startDate;
+      const newEndDate = endDate || existingRequest.endDate;
+
+      const newStart = new Date(newStartDate);
+      const newEnd = new Date(newEndDate);
+      const newDays = Math.ceil((newEnd.getTime() - newStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+      // Deduct new taken days
+      const newBalances = await storage.getLeaveBalances(newUserId);
+      const newBalance = newBalances.find((b: any) => b.leaveType === newLeaveType);
+      if (newBalance) {
+        await storage.updateLeaveBalance(newBalance.id, {
+          taken: newBalance.taken + newDays,
+        });
+      }
+
+      // Update the record via storage
+      const updated = await storage.updateHistoricLeaveRequest(requestId, {
+        userId: newUserId,
+        leaveType: newLeaveType,
+        startDate: newStartDate,
+        endDate: newEndDate,
+        reason: reason !== undefined ? reason : existingRequest.reason,
+        authorizedBy: authorizedBy !== undefined ? authorizedBy : existingRequest.authorizedBy,
+        referenceNumber: referenceNumber !== undefined ? referenceNumber : existingRequest.referenceNumber,
+        adminNotes: notes !== undefined ? notes : existingRequest.adminNotes,
+      });
+
+      return res.json(updated);
+    } catch (error) {
+      console.error("Update historic leave request error:", error);
+      return res.status(500).json({ error: "Failed to update historic leave request" });
+    }
+  });
+
   // Permanently delete leave request (admin only - for test data cleanup)
   app.delete("/api/leave-requests/:id/permanent", async (req, res) => {
     try {

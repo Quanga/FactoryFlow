@@ -77,6 +77,7 @@ export interface IStorage {
   getLeaveRequest(id: number): Promise<LeaveRequest | undefined>;
   createLeaveRequest(request: InsertLeaveRequest): Promise<LeaveRequest>;
   updateLeaveRequestStatus(id: number, status: string, adminNotes?: string): Promise<LeaveRequest | undefined>;
+  updateHistoricLeaveRequest(id: number, fields: Partial<{ userId: string; leaveType: string; startDate: string; endDate: string; reason: string; authorizedBy: string | null; referenceNumber: string | null; adminNotes: string | null; }>): Promise<LeaveRequest | undefined>;
   deleteLeaveRequest(id: number): Promise<boolean>;
   
   // Approval workflow operations
@@ -402,6 +403,15 @@ export class DrizzleStorage implements IStorage {
       .where(eq(schema.leaveRequests.id, id))
       .returning();
     return updatedRequest;
+  }
+
+  async updateHistoricLeaveRequest(id: number, fields: Partial<{ userId: string; leaveType: string; startDate: string; endDate: string; reason: string; authorizedBy: string | null; referenceNumber: string | null; adminNotes: string | null; }>): Promise<LeaveRequest | undefined> {
+    const [updated] = await db
+      .update(schema.leaveRequests)
+      .set({ ...fields, updatedAt: new Date() })
+      .where(eq(schema.leaveRequests.id, id))
+      .returning();
+    return updated;
   }
 
   async deleteLeaveRequest(id: number): Promise<boolean> {

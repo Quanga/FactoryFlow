@@ -316,6 +316,50 @@ export const leaveRequestApi = {
     }
     return res.json();
   },
+
+  async createHistoric(data: {
+    userId: string;
+    leaveType: string;
+    startDate: string;
+    endDate: string;
+    reason?: string;
+    authorizedBy?: string;
+    referenceNumber?: string;
+    notes?: string;
+  }): Promise<LeaveRequest> {
+    const res = await fetch(`${API_BASE}/leave-requests/historic`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Failed to create historic leave entry");
+    }
+    return res.json();
+  },
+
+  async updateHistoric(id: number, data: {
+    userId?: string;
+    leaveType?: string;
+    startDate?: string;
+    endDate?: string;
+    reason?: string;
+    authorizedBy?: string;
+    referenceNumber?: string;
+    notes?: string;
+  }): Promise<LeaveRequest> {
+    const res = await fetch(`${API_BASE}/leave-requests/historic/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Failed to update historic leave entry");
+    }
+    return res.json();
+  },
 };
 
 // Attendance API

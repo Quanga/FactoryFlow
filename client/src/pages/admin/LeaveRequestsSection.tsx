@@ -2,8 +2,11 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/lib/auth-context';
 import { leaveRequestApi, leaveBalanceApi, userApi } from '@/lib/api';
 import type { LeaveRequest, LeaveBalance } from '@shared/schema';
-import { FileText, Check, X, Trash2, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
+import { FileText, Check, X, Trash2, ChevronDown, ChevronRight, Loader2, Plus, Pencil, BookOpen, Lock } from 'lucide-react';
 import { formatLeaveStatus, canTakeAction } from './utils';
 
 export default function LeaveRequestsSection() {
@@ -25,6 +28,20 @@ export default function LeaveRequestsSection() {
   const [selectedLeaveRequest, setSelectedLeaveRequest] = useState<LeaveRequest | null>(null);
   const [adminNotes, setAdminNotes] = useState('');
   const [expandedLeaveBalanceEmployees, setExpandedLeaveBalanceEmployees] = useState<Set<string>>(new Set());
+
+  // Historic leave entry state
+  const [isHistoricDialogOpen, setIsHistoricDialogOpen] = useState(false);
+  const [editingHistoric, setEditingHistoric] = useState<LeaveRequest | null>(null);
+  const [historicForm, setHistoricForm] = useState({
+    userId: '',
+    leaveType: '',
+    startDate: '',
+    endDate: '',
+    reason: '',
+    authorizedBy: '',
+    referenceNumber: '',
+    notes: '',
+  });
 
   // Queries
   const { data: leaveRequests = [] } = useQuery({
@@ -122,12 +139,77 @@ export default function LeaveRequestsSection() {
     mutationFn: leaveRequestApi.permanentDelete,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leave-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['leave-balances'] });
       toast({ title: "Request Deleted", description: "The leave request has been permanently deleted." });
     },
     onError: (error: any) => {
       toast({ variant: "destructive", title: "Error", description: error.message || "Failed to delete request" });
     },
   });
+
+  const createHistoricMutation = useMutation({
+    mutationFn: (data: Parameters<typeof leaveRequestApi.createHistoric>[0]) => leaveRequestApi.createHistoric(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leave-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['leave-balances'] });
+      setIsHistoricDialogOpen(false);
+      setEditingHistoric(null);
+      setHistoricForm({ userId: '', leaveType: '', startDate: '', endDate: '', reason: '', authorizedBy: '', referenceNumber: '', notes: '' });
+      toast({ title: "Historic Entry Added", description: "The leave record has been captured and the balance updated." });
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Error", description: error.message || "Failed to create historic entry" });
+    },
+  });
+
+  const updateHistoricMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Parameters<typeof leaveRequestApi.updateHistoric>[1] }) =>
+      leaveRequestApi.updateHistoric(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leave-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['leave-balances'] });
+      setIsHistoricDialogOpen(false);
+      setEditingHistoric(null);
+      setHistoricForm({ userId: '', leaveType: '', startDate: '', endDate: '', reason: '', authorizedBy: '', referenceNumber: '', notes: '' });
+      toast({ title: "Historic Entry Updated", description: "The leave record has been updated and balances adjusted." });
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Error", description: error.message || "Failed to update historic entry" });
+    },
+  });
+
+  const openAddHistoric = () => {
+    setEditingHistoric(null);
+    setHistoricForm({ userId: '', leaveType: '', startDate: '', endDate: '', reason: '', authorizedBy: '', referenceNumber: '', notes: '' });
+    setIsHistoricDialogOpen(true);
+  };
+
+  const openEditHistoric = (req: LeaveRequest) => {
+    setEditingHistoric(req);
+    setHistoricForm({
+      userId: req.userId,
+      leaveType: req.leaveType,
+      startDate: req.startDate,
+      endDate: req.endDate,
+      reason: req.reason || '',
+      authorizedBy: (req as any).authorizedBy || '',
+      referenceNumber: (req as any).referenceNumber || '',
+      notes: req.adminNotes || '',
+    });
+    setIsHistoricDialogOpen(true);
+  };
+
+  const submitHistoricForm = () => {
+    if (!historicForm.userId || !historicForm.leaveType || !historicForm.startDate || !historicForm.endDate) {
+      toast({ variant: "destructive", title: "Missing Fields", description: "Employee, leave type, start date and end date are required." });
+      return;
+    }
+    if (editingHistoric) {
+      updateHistoricMutation.mutate({ id: editingHistoric.id, data: historicForm });
+    } else {
+      createHistoricMutation.mutate(historicForm);
+    }
+  };
 
   const toggleLeaveBalanceEmployeeExpanded = (userId: string) => {
     setExpandedLeaveBalanceEmployees(prev => {
@@ -141,6 +223,10 @@ export default function LeaveRequestsSection() {
     });
   };
 
+  const historicRequests = (leaveRequests as any[]).filter((r: any) => r.isHistoric);
+  const activeRequests = (leaveRequests as any[]).filter((r: any) => !r.isHistoric);
+  const isAdmin = user?.role === 'manager' || user?.role === 'maintainer';
+
   return (
     <div className="space-y-4">
       <div>
@@ -148,15 +234,28 @@ export default function LeaveRequestsSection() {
         <p className="text-muted-foreground">Review and approve/reject employee leave requests</p>
       </div>
 
+      <Tabs defaultValue="requests">
+        <TabsList className="mb-4">
+          <TabsTrigger value="requests">Active Requests</TabsTrigger>
+          <TabsTrigger value="balances">Leave Balances</TabsTrigger>
+          {isAdmin && (
+            <TabsTrigger value="historic" className="flex items-center gap-1">
+              <BookOpen className="h-3.5 w-3.5" />
+              Historic Entries
+            </TabsTrigger>
+          )}
+        </TabsList>
+
+        <TabsContent value="requests">
       <Card>
         <CardHeader>
-          <CardTitle>Leave Requests</CardTitle>
+          <CardTitle>Active Leave Requests</CardTitle>
           <CardDescription>Review and approve/reject employee leave requests</CardDescription>
         </CardHeader>
         <CardContent>
-          {leaveRequests.length === 0 ? (
+          {activeRequests.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              No leave requests found.
+              No active leave requests found.
             </div>
           ) : (
             <Table>
@@ -170,7 +269,7 @@ export default function LeaveRequestsSection() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {leaveRequests.map((request: LeaveRequest) => {
+                {activeRequests.map((request: LeaveRequest) => {
                   const employee = users.find(u => u.id === request.userId);
                   const statusInfo = formatLeaveStatus(request.status);
                   const actionInfo = canTakeAction(request);
@@ -262,7 +361,9 @@ export default function LeaveRequestsSection() {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
 
+        <TabsContent value="balances">
       <Card>
         <CardHeader>
           <CardTitle>Leave Balances</CardTitle>
@@ -357,6 +458,118 @@ export default function LeaveRequestsSection() {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+
+        {isAdmin && (
+          <TabsContent value="historic">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <BookOpen className="h-5 w-5 text-amber-600" />
+                      Historic Leave Entries
+                    </CardTitle>
+                    <CardDescription>
+                      Backfill past leave records from physical books. These bypass the approval workflow and immediately affect leave balances.
+                    </CardDescription>
+                  </div>
+                  <Button onClick={openAddHistoric} data-testid="button-add-historic">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Historic Entry
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {historicRequests.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <BookOpen className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                    <p className="font-medium">No historic entries yet</p>
+                    <p className="text-sm">Click "Add Historic Entry" to capture leave records from your physical books.</p>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Ref #</TableHead>
+                        <TableHead>Employee</TableHead>
+                        <TableHead>Leave Type</TableHead>
+                        <TableHead>Dates</TableHead>
+                        <TableHead>Days</TableHead>
+                        <TableHead>Authorized By</TableHead>
+                        <TableHead>Reason</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {historicRequests.map((request: any) => {
+                        const employee = users.find((u: any) => u.id === request.userId);
+                        const start = new Date(request.startDate);
+                        const end = new Date(request.endDate);
+                        const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                        return (
+                          <TableRow key={request.id} data-testid={`row-historic-${request.id}`}>
+                            <TableCell>
+                              {request.referenceNumber ? (
+                                <Badge variant="outline" className="font-mono text-xs">{request.referenceNumber}</Badge>
+                              ) : (
+                                <span className="text-muted-foreground text-xs italic">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              {employee ? `${employee.firstName} ${employee.surname}` : request.userId}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="secondary">{request.leaveType}</Badge>
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              {format(start, 'd MMM yyyy')} – {format(end, 'd MMM yyyy')}
+                            </TableCell>
+                            <TableCell>
+                              <span className="font-semibold">{days}</span>
+                              <span className="text-muted-foreground text-xs ml-1">day{days !== 1 ? 's' : ''}</span>
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              {request.authorizedBy || <span className="text-muted-foreground italic">—</span>}
+                            </TableCell>
+                            <TableCell className="text-sm max-w-[200px] truncate">
+                              {request.reason || <span className="text-muted-foreground italic">—</span>}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => openEditHistoric(request)}
+                                data-testid={`button-edit-historic-${request.id}`}
+                                title="Edit"
+                              >
+                                <Pencil className="h-4 w-4 text-blue-500" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                  if (confirm('Delete this historic entry? The leave days will be credited back to the employee\'s balance.')) {
+                                    permanentDeleteMutation.mutate(request.id);
+                                  }
+                                }}
+                                data-testid={`button-delete-historic-${request.id}`}
+                                title="Delete"
+                              >
+                                <Trash2 className="h-4 w-4 text-red-500" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+      </Tabs>
 
       <Dialog open={isReviewDialogOpen} onOpenChange={setIsReviewDialogOpen}>
         <DialogContent className="max-w-2xl">
@@ -742,6 +955,134 @@ export default function LeaveRequestsSection() {
               </div>
             );
           })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* Historic Leave Entry Dialog */}
+      <Dialog open={isHistoricDialogOpen} onOpenChange={setIsHistoricDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BookOpen className="h-5 w-5 text-amber-600" />
+              {editingHistoric ? 'Edit Historic Leave Entry' : 'Add Historic Leave Entry'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+              This entry will be marked as pre-approved and the leave days will be immediately deducted from the employee's balance.
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="h-employee">Employee <span className="text-red-500">*</span></Label>
+              <Select value={historicForm.userId} onValueChange={v => setHistoricForm(f => ({ ...f, userId: v }))}>
+                <SelectTrigger id="h-employee" data-testid="select-historic-employee">
+                  <SelectValue placeholder="Select employee..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {users.filter((u: any) => u.role === 'worker').map((u: any) => (
+                    <SelectItem key={u.id} value={u.id}>{u.firstName} {u.surname}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="h-leavetype">Leave Type <span className="text-red-500">*</span></Label>
+              <Select value={historicForm.leaveType} onValueChange={v => setHistoricForm(f => ({ ...f, leaveType: v }))}>
+                <SelectTrigger id="h-leavetype" data-testid="select-historic-leavetype">
+                  <SelectValue placeholder="Select type..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Annual Leave">Annual Leave</SelectItem>
+                  <SelectItem value="Sick Leave">Sick Leave</SelectItem>
+                  <SelectItem value="Family Responsibility">Family Responsibility</SelectItem>
+                  <SelectItem value="Unpaid Leave">Unpaid Leave</SelectItem>
+                  <SelectItem value="Study Leave">Study Leave</SelectItem>
+                  <SelectItem value="Maternity Leave">Maternity Leave</SelectItem>
+                  <SelectItem value="Paternity Leave">Paternity Leave</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="h-start">Start Date <span className="text-red-500">*</span></Label>
+                <Input
+                  id="h-start"
+                  type="date"
+                  value={historicForm.startDate}
+                  onChange={e => setHistoricForm(f => ({ ...f, startDate: e.target.value }))}
+                  data-testid="input-historic-startdate"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="h-end">End Date <span className="text-red-500">*</span></Label>
+                <Input
+                  id="h-end"
+                  type="date"
+                  value={historicForm.endDate}
+                  onChange={e => setHistoricForm(f => ({ ...f, endDate: e.target.value }))}
+                  data-testid="input-historic-enddate"
+                />
+              </div>
+            </div>
+
+            {historicForm.startDate && historicForm.endDate && historicForm.startDate <= historicForm.endDate && (
+              <div className="text-sm text-muted-foreground bg-slate-50 px-3 py-2 rounded border">
+                Duration: <strong>{Math.ceil((new Date(historicForm.endDate).getTime() - new Date(historicForm.startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1} calendar day(s)</strong>
+              </div>
+            )}
+
+            <div className="space-y-1">
+              <Label htmlFor="h-refnum">Reference Number</Label>
+              <Input
+                id="h-refnum"
+                placeholder="e.g. LV-2023-045"
+                value={historicForm.referenceNumber}
+                onChange={e => setHistoricForm(f => ({ ...f, referenceNumber: e.target.value }))}
+                data-testid="input-historic-refnum"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="h-authby">Authorized By</Label>
+              <Input
+                id="h-authby"
+                placeholder="Name of approving manager"
+                value={historicForm.authorizedBy}
+                onChange={e => setHistoricForm(f => ({ ...f, authorizedBy: e.target.value }))}
+                data-testid="input-historic-authorizedby"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="h-reason">Reason / Notes</Label>
+              <Textarea
+                id="h-reason"
+                placeholder="Brief description or any notes from the leave book..."
+                value={historicForm.reason}
+                onChange={e => setHistoricForm(f => ({ ...f, reason: e.target.value }))}
+                className="min-h-[60px]"
+                data-testid="input-historic-reason"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsHistoricDialogOpen(false)}>Cancel</Button>
+            <Button
+              onClick={submitHistoricForm}
+              disabled={createHistoricMutation.isPending || updateHistoricMutation.isPending}
+              data-testid="button-save-historic"
+            >
+              {(createHistoricMutation.isPending || updateHistoricMutation.isPending) ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</>
+              ) : (
+                editingHistoric ? 'Update Entry' : 'Add Entry'
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
