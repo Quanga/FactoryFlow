@@ -403,19 +403,24 @@ import { formatDateForDisplay, parseDateFromDisplay } from './utils';
                           }
                         });
                         
+                        const pdfTodayStr = format(new Date(), 'yyyy-MM-dd');
+                        const pdfNowTime = format(new Date(), 'HH:mm');
+                        const isPdfWorkDayOngoing = (dateStr: string) =>
+                          dateStr === pdfTodayStr && pdfNowTime < clockOutCutoffTime;
+
                         eligibleEmployees.forEach(emp => {
                           if (attendanceUserFilter && attendanceUserFilter !== 'all' && emp.id !== attendanceUserFilter) {
                             return;
                           }
                           if (!usersWithAttendance.has(emp.id)) {
-                            const dateStr = attendanceStartDate || format(new Date(), 'yyyy-MM-dd');
+                            const dateStr = attendanceStartDate || pdfTodayStr;
                             const key = `${emp.id}-${dateStr}`;
                             pdfRecordsByUserAndDate.set(key, {
                               employee: emp,
                               date: dateStr,
                               clockInTime: null,
                               clockOutTime: null,
-                              isNonAttendance: true,
+                              isNonAttendance: !isPdfWorkDayOngoing(dateStr),
                             });
                           }
                         });
@@ -701,7 +706,10 @@ import { formatDateForDisplay, parseDateFromDisplay } from './utils';
                             issues.push('Early Departure');
                           }
                           if (!clockOutTime && record.clockInRecord) {
-                            issues.push('No Clock Out');
+                            // Only flag "No Clock Out" once the work day is over
+                            if (!isWorkDayStillOngoing(record.date)) {
+                              issues.push('No Clock Out');
+                            }
                           }
                         }
                         
