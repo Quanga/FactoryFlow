@@ -695,6 +695,7 @@ export default function PersonnelSection() {
       { key: 'homeAddress',     label: 'Physical Address' },
       { key: 'nextOfKin',       label: 'Next of Kin (name & relationship)' },
       { key: 'emergencyNumber', label: 'Emergency Contact Number' },
+      { key: 'photoUrl',        label: 'Photograph' },
     ];
 
     const activeEmployees = users.filter((u: any) => !u.terminationDate && !u.excludeFromLeave);
@@ -852,9 +853,22 @@ export default function PersonnelSection() {
         pdf.setTextColor(70, 70, 70);
         pdf.text(`${field.label}:`, margin + 4, fy + 5);
 
-        // Fill-in line (starts after label column, ends near right margin)
+        // Checkbox (4×4mm empty square for ticking when captured)
+        const cbSize = 4;
+        const cbX = margin + usableWidth - 4 - cbSize;
+        const cbY = fy + 2.5;
+        pdf.setDrawColor(100, 110, 120);
+        pdf.setLineWidth(0.5);
+        pdf.rect(cbX, cbY, cbSize, cbSize, 'D');
+        pdf.setLineWidth(0.2);
+        pdf.setFontSize(5.5);
+        pdf.setTextColor(140, 140, 140);
+        pdf.text('captured', cbX - 8.5, cbY + 3.3);
+        pdf.setTextColor(70, 70, 70);
+
+        // Fill-in line (starts after label column, ends before checkbox)
         const lineX1 = margin + 68;
-        const lineX2 = margin + usableWidth - 4;
+        const lineX2 = cbX - 3;
         const lineY  = fy + 8;
         pdf.setDrawColor(120, 130, 140);
         pdf.setLineWidth(0.4);
