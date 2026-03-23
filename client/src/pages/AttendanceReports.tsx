@@ -206,9 +206,18 @@ export default function AttendanceReports() {
     });
   }, [allPublicHolidays, start, end]);
 
+  // Global holiday set (for calendar display and non-per-user purposes)
   const holidayDateSet = useMemo(() => {
     return new Set(holidaysInRange.map(h => h.date));
   }, [holidaysInRange]);
+
+  // Per-user holiday set: filters out religious holidays that don't apply to the user's religion
+  const getHolidayDateSetForUser = (userReligion: string | null | undefined): Set<string> => {
+    const applicable = holidaysInRange.filter(h =>
+      !h.religionGroup || h.religionGroup === (userReligion || '')
+    );
+    return new Set(applicable.map(h => h.date));
+  };
 
   const activeUsers = useMemo(() => {
     return users.filter(u => !u.terminationDate && !u.exclude && u.attendanceRequired !== false && (u.role === 'worker' || u.role === 'manager'));
@@ -232,10 +241,13 @@ export default function AttendanceReports() {
       const userStartDate = user.startDate ? parseISO(user.startDate) : start;
       const effectiveStart = userStartDate > start ? userStartDate : start;
 
+      // Use per-user holiday set that respects their religion
+      const userHolidaySet = getHolidayDateSetForUser((user as any).religion);
+
       // Working days for this specific employee (from their effective start)
       const userWorkingDays = eachDayOfInterval({ start: effectiveStart, end }).filter(d => {
         const dateKey = format(d, 'yyyy-MM-dd');
-        return !isWeekend(d) && d <= now && !holidayDateSet.has(dateKey);
+        return !isWeekend(d) && d <= now && !userHolidaySet.has(dateKey);
       });
       const userTotalWorkingDays = userWorkingDays.length;
 
@@ -324,11 +336,11 @@ export default function AttendanceReports() {
         });
       });
 
-      // Add public holidays from the employee's effective start onwards
+      // Add public holidays applicable to this employee (filtered by their religion)
       eachDayOfInterval({ start: effectiveStart, end }).filter(d => !isWeekend(d) && d <= now).forEach(day => {
         const dateKey = format(day, 'yyyy-MM-dd');
-        if (holidayDateSet.has(dateKey)) {
-          const holiday = holidaysInRange.find(h => h.date === dateKey);
+        if (userHolidaySet.has(dateKey)) {
+          const holiday = holidaysInRange.find(h => h.date === dateKey && (!h.religionGroup || h.religionGroup === (user as any).religion));
           dailyRecords.push({
             date: dateKey,
             clockIn: null,

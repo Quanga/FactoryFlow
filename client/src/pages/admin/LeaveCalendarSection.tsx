@@ -157,6 +157,11 @@ export default function LeaveCalendarSection() {
                   {holiday && (
                     <div className="text-orange-700 text-[9px] leading-tight mt-0.5 truncate font-medium">
                       {holiday.name}
+                      {holiday.religionGroup && (
+                        <span className="ml-1 text-[8px] bg-orange-200 text-orange-800 rounded px-0.5">
+                          {holiday.religionGroup}
+                        </span>
+                      )}
                     </div>
                   )}
 

@@ -130,6 +130,7 @@ export const users = pgTable("users", {
   mobile: text("mobile"),
   homeAddress: text("home_address"),
   gender: text("gender"), // 'male', 'female', 'other'
+  religion: text("religion"), // null/unspecified, 'christian', 'muslim', 'jewish', 'hindu', 'other'
   role: text("role").notNull().default("worker"), // 'worker' or 'manager'
   adminRole: text("admin_role"), // 'manager' (full admin), 'maintainer' (user data only), null (no admin access)
   hasFullAdminAccess: text("has_full_admin_access"), // 'yes' for full access to all employees, null/empty for limited access
@@ -331,6 +332,7 @@ export const publicHolidays = pgTable("public_holidays", {
   date: text("date").notNull(), // YYYY-MM-DD format
   isRecurring: boolean("is_recurring").default(false), // True for annual holidays
   type: text("type").default("public"), // 'public' or 'religious'
+  religionGroup: text("religion_group"), // null = applies to all; 'muslim', 'jewish', 'christian', 'hindu'
   description: text("description"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

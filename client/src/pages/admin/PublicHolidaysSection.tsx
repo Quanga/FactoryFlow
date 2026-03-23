@@ -74,6 +74,7 @@ export default function PublicHolidaysSection() {
                 <TableHead>Date</TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Description</TableHead>
+                <TableHead>Applies To</TableHead>
                 <TableHead>Recurring</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -93,6 +94,23 @@ export default function PublicHolidaysSection() {
                     </TableCell>
                     <TableCell className="font-medium">{holiday.name}</TableCell>
                     <TableCell className="text-muted-foreground">{holiday.description || '-'}</TableCell>
+                    <TableCell>
+                      {holiday.religionGroup ? (() => {
+                        const cls: Record<string, string> = {
+                          muslim: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+                          jewish: 'bg-blue-100 text-blue-800 border-blue-200',
+                          christian: 'bg-purple-100 text-purple-800 border-purple-200',
+                          hindu: 'bg-orange-100 text-orange-800 border-orange-200',
+                        };
+                        return (
+                          <Badge className={cls[holiday.religionGroup!] || 'bg-slate-100 text-slate-700'}>
+                            {holiday.religionGroup!.charAt(0).toUpperCase() + holiday.religionGroup!.slice(1)} only
+                          </Badge>
+                        );
+                      })() : (
+                        <Badge variant="outline" className="text-slate-500">Everyone</Badge>
+                      )}
+                    </TableCell>
                     <TableCell>
                       {holiday.isRecurring ? (
                         <Badge variant="secondary">Annual</Badge>
@@ -174,6 +192,22 @@ export default function PublicHolidaysSection() {
                 placeholder="Brief description"
                 data-testid="holiday-description"
               />
+            </div>
+            <div className="space-y-2">
+              <Label>Applies To</Label>
+              <select
+                className="w-full border rounded-md px-3 py-2 text-sm bg-background"
+                value={currentHoliday.religionGroup || ''}
+                onChange={(e) => setCurrentHoliday({ ...currentHoliday, religionGroup: e.target.value || null })}
+                data-testid="holiday-religion-group"
+              >
+                <option value="">Everyone (public holiday)</option>
+                <option value="christian">Christians only</option>
+                <option value="muslim">Muslims only</option>
+                <option value="jewish">Jewish employees only</option>
+                <option value="hindu">Hindus only</option>
+              </select>
+              <p className="text-xs text-muted-foreground">Religious holidays only count for employees with the matching religion set on their profile.</p>
             </div>
             <div className="flex items-center gap-2">
               <Switch

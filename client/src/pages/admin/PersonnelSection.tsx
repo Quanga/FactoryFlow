@@ -1491,6 +1491,28 @@ export default function PersonnelSection() {
               </div>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="religion" className="text-right">Religion</Label>
+              <div className="col-span-3">
+                <Select
+                  value={currentUser.religion || ''}
+                  onValueChange={(value) => setCurrentUser({...currentUser, religion: value || null})}
+                >
+                  <SelectTrigger data-testid="select-religion">
+                    <SelectValue placeholder="Not specified" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unspecified">Not specified</SelectItem>
+                    <SelectItem value="christian">Christian</SelectItem>
+                    <SelectItem value="muslim">Muslim</SelectItem>
+                    <SelectItem value="jewish">Jewish</SelectItem>
+                    <SelectItem value="hindu">Hindu</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">Used to determine which religious public holidays apply to this employee.</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="dept" className="text-right">Department</Label>
               <div className="col-span-3">
                 <Select 
