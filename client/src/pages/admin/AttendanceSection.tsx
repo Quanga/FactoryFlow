@@ -629,12 +629,20 @@ import { formatDateForDisplay, parseDateFromDisplay } from './utils';
                   }
                 });
                 
+                const todayStr = format(new Date(), 'yyyy-MM-dd');
+                const nowTimeStr = format(new Date(), 'HH:mm');
+                // "No Attendance" is only a confirmed infringement if:
+                //  - the date is in the past, OR
+                //  - the date is today but working hours are over (current time >= clock-out cutoff)
+                const isWorkDayStillOngoing = (dateStr: string) =>
+                  dateStr === todayStr && nowTimeStr < clockOutCutoffTime;
+
                 eligibleEmployees.forEach(emp => {
                   if (attendanceUserFilter && attendanceUserFilter !== 'all' && emp.id !== attendanceUserFilter) {
                     return;
                   }
                   if (!usersWithAttendance.has(emp.id)) {
-                    const dateStr = attendanceStartDate || format(new Date(), 'yyyy-MM-dd');
+                    const dateStr = attendanceStartDate || todayStr;
                     const key = `${emp.id}-${dateStr}`;
                     recordsByUserAndDate.set(key, {
                       odId: key,
@@ -642,7 +650,8 @@ import { formatDateForDisplay, parseDateFromDisplay } from './utils';
                       date: dateStr,
                       clockInRecord: null,
                       clockOutRecord: null,
-                      isNonAttendance: true,
+                      // Only flag as non-attendance if the work day is over
+                      isNonAttendance: !isWorkDayStillOngoing(dateStr),
                     });
                   }
                 });
