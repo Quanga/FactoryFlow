@@ -34,6 +34,7 @@ import { formatDateForDisplay, parseDateFromDisplay } from './utils';
     });
     const [awolEndDate, setAwolEndDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
     const [awolDeptFilter, setAwolDeptFilter] = useState('');
+    const [pdfDeptFilter, setPdfDeptFilter] = useState('all');
 
     const [manualAttendanceDate, setManualAttendanceDate] = useState<string>(() => {
       const now = new Date();
@@ -305,7 +306,7 @@ import { formatDateForDisplay, parseDateFromDisplay } from './utils';
                     <CardTitle>Attendance Records</CardTitle>
                     <CardDescription>View employee clock-in/clock-out history</CardDescription>
                   </div>
-                  <div className="flex gap-2 items-center">
+                  <div className="flex gap-2 items-center flex-wrap">
                     <Input
                       type="text"
                       placeholder="dd/mm/yyyy"
@@ -323,6 +324,17 @@ import { formatDateForDisplay, parseDateFromDisplay } from './utils';
                       className="w-40"
                       data-testid="input-end-date"
                     />
+                    <Select value={pdfDeptFilter} onValueChange={setPdfDeptFilter}>
+                      <SelectTrigger className="w-44" data-testid="select-pdf-dept-filter">
+                        <SelectValue placeholder="All Departments" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Departments</SelectItem>
+                        {Array.from(new Set(users.filter((u: any) => u.department).map((u: any) => u.department!))).sort().map(dept => (
+                          <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <Button
                       variant="outline"
                       onClick={() => {
@@ -332,6 +344,10 @@ import { formatDateForDisplay, parseDateFromDisplay } from './utils';
                         const filteredRecords = attendanceRecords.filter((record: AttendanceRecord) => {
                           if (attendanceUserFilter && attendanceUserFilter !== 'all' && record.userId !== attendanceUserFilter) {
                             return false;
+                          }
+                          if (pdfDeptFilter && pdfDeptFilter !== 'all') {
+                            const emp = users.find((u: any) => u.id === record.userId);
+                            if (!emp || emp.department !== pdfDeptFilter) return false;
                           }
                           if (attendanceInfringementFilter) {
                             const recordTime = new Date(record.timestamp);
@@ -345,7 +361,7 @@ import { formatDateForDisplay, parseDateFromDisplay } from './utils';
                           return true;
                         });
                         
-                        const eligibleEmployees = users.filter(u => !u.exclude && !u.terminationDate && u.attendanceRequired !== false);
+                        const eligibleEmployees = users.filter((u: any) => !u.exclude && !u.terminationDate && u.attendanceRequired !== false && (pdfDeptFilter === 'all' || !pdfDeptFilter || u.department === pdfDeptFilter));
                         const usersWithAttendance = new Set(filteredRecords.map((r: AttendanceRecord) => r.userId));
                         
                         type PdfConsolidated = {
@@ -491,6 +507,15 @@ import { formatDateForDisplay, parseDateFromDisplay } from './utils';
                     >
                       <FileText className="h-4 w-4 mr-2" />
                       Export PDF
+                    </Button>
+                    <Button
+                      variant="default"
+                      className="bg-amber-600 hover:bg-amber-700 text-white"
+                      onClick={() => setAttendanceTab('manual-entry')}
+                      data-testid="button-add-missed-entry"
+                    >
+                      <Clock className="h-4 w-4 mr-2" />
+                      Add Missed Entry
                     </Button>
                   </div>
                 </div>

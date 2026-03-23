@@ -9,9 +9,10 @@ import {
   CheckCircle2, 
   AlertTriangle, 
   Check, 
-  X 
+  X,
+  TrendingUp
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, subDays } from 'date-fns';
 import { 
   userApi, 
   leaveRequestApi, 
@@ -54,9 +55,17 @@ export default function DashboardSection({
   });
 
   const todayStr = format(new Date(), 'yyyy-MM-dd');
+  const sevenDaysAgoStr = format(subDays(new Date(), 6), 'yyyy-MM-dd');
+
   const { data: attendanceRecords = [] } = useQuery({
     queryKey: ['attendance', todayStr, todayStr],
     queryFn: () => attendanceApi.getAll(todayStr, todayStr),
+  });
+
+  const { data: weekAttendance = [] } = useQuery({
+    queryKey: ['attendance', sevenDaysAgoStr, todayStr],
+    queryFn: () => attendanceApi.getAll(sevenDaysAgoStr, todayStr),
+    refetchInterval: 300000,
   });
 
   const { data: dashboardStats } = useQuery({
@@ -92,6 +101,23 @@ export default function DashboardSection({
     }
   });
 
+  const activeEmployees = React.useMemo(() =>
+    users.filter((u: any) => !u.terminationDate && !u.excludeFromLeave),
+  [users]);
+
+  const sevenDayTrend = React.useMemo(() => {
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = subDays(new Date(), 6 - i);
+      const dayStr = format(d, 'yyyy-MM-dd');
+      const count = new Set(
+        (weekAttendance as AttendanceRecord[])
+          .filter(r => r.type === 'in' && format(new Date(r.timestamp), 'yyyy-MM-dd') === dayStr)
+          .map(r => r.userId)
+      ).size;
+      return { dayStr, label: format(d, 'EEE'), count, isToday: dayStr === todayStr };
+    });
+  }, [weekAttendance, todayStr]);
+
   const pendingCounts = React.useMemo(() => {
     const pending = leaveRequests.filter((r: LeaveRequest) => 
       ['pending_manager', 'pending_hr', 'pending_md', 'pending'].includes(r.status)
@@ -120,8 +146,9 @@ export default function DashboardSection({
                 <Users className="h-6 w-6 text-blue-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{users.filter(u => u.role === 'worker').length}</p>
+                <p className="text-2xl font-bold">{activeEmployees.length}</p>
                 <p className="text-sm text-muted-foreground">Total Personnel</p>
+                <p className="text-xs text-muted-foreground">{users.filter((u: any) => u.role === 'worker' && !u.terminationDate).length} workers · {users.filter((u: any) => u.role === 'manager' && !u.terminationDate).length} managers</p>
               </div>
             </div>
           </CardContent>
@@ -172,7 +199,7 @@ export default function DashboardSection({
               </div>
               <div>
                 <p className="text-2xl font-bold">
-                  {users.filter(u => u.role === 'worker').filter(emp => {
+                  {activeEmployees.filter((emp: any) => {
                     const empBalances = leaveBalances.filter((b: LeaveBalance) => b.userId === emp.id);
                     return empBalances.some((b: LeaveBalance) => (b.total - b.taken - b.pending) <= 2 && b.total > 0);
                   }).length}
@@ -183,6 +210,41 @@ export default function DashboardSection({
           </CardContent>
         </Card>
       </div>
+
+      {/* 7-Day Attendance Trend */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <TrendingUp className="h-5 w-5 text-green-500" />
+            7-Day Attendance Trend
+          </CardTitle>
+          <CardDescription>Unique employees clocked in each day</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-end gap-2 h-28">
+            {sevenDayTrend.map(({ label, count, isToday }) => {
+              const maxCount = Math.max(...sevenDayTrend.map(d => d.count), 1);
+              const heightPct = Math.max((count / maxCount) * 100, 4);
+              return (
+                <div key={label} className="flex-1 flex flex-col items-center gap-1">
+                  <span className="text-xs font-semibold text-muted-foreground">{count > 0 ? count : ''}</span>
+                  <div className="w-full flex items-end" style={{ height: '80px' }}>
+                    <div
+                      className={`w-full rounded-t transition-all ${isToday ? 'bg-green-500' : 'bg-green-200'}`}
+                      style={{ height: `${heightPct}%` }}
+                      title={`${count} clocked in`}
+                    />
+                  </div>
+                  <span className={`text-xs ${isToday ? 'font-bold text-green-700' : 'text-muted-foreground'}`}>{label}</span>
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-xs text-muted-foreground mt-2 text-right">
+            Total active employees: {activeEmployees.length}
+          </p>
+        </CardContent>
+      </Card>
 
       {/* Pending Leave Requests */}
       <Card>
@@ -285,7 +347,7 @@ export default function DashboardSection({
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
-            {users.filter(u => u.role === 'worker').map(emp => {
+            {activeEmployees.map((emp: any) => {
               const empBalances = leaveBalances.filter((b: LeaveBalance) => b.userId === emp.id);
               const lowBalances = empBalances.filter((b: LeaveBalance) => (b.total - b.taken - b.pending) <= 2 && b.total > 0);
               if (lowBalances.length === 0) return null;

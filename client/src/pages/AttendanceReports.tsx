@@ -942,6 +942,92 @@ export default function AttendanceReports() {
             )}
           </CardContent>
         </Card>
+
+        {/* Department-Level Attendance Summary (#23) */}
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-blue-500" />
+              Department Attendance Summary
+            </CardTitle>
+            <CardDescription>Aggregate attendance rates and infringements by department for the selected period</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {(() => {
+              const departments = Array.from(new Set(summaries.map(s => s.department || 'Unassigned'))).sort();
+              const deptRows = departments.map(dept => {
+                const deptSummaries = summaries.filter(s => (s.department || 'Unassigned') === dept);
+                const totalWorking = deptSummaries.reduce((a, s) => a + s.totalWorkingDays, 0);
+                const totalWorked = deptSummaries.reduce((a, s) => a + s.totalDaysWorked, 0);
+                const totalLate = deptSummaries.reduce((a, s) => a + s.lateArrivals, 0);
+                const totalEarly = deptSummaries.reduce((a, s) => a + s.earlyDepartures, 0);
+                const totalMissed = deptSummaries.reduce((a, s) => a + s.missedDays, 0);
+                const avgRate = totalWorking > 0 ? (totalWorked / totalWorking) * 100 : 0;
+                return { dept, count: deptSummaries.length, totalWorking, totalWorked, totalLate, totalEarly, totalMissed, avgRate };
+              });
+
+              if (!deptRows.length) return <p className="text-sm text-muted-foreground">No data for the selected period.</p>;
+
+              return (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Department</TableHead>
+                      <TableHead className="text-center">Headcount</TableHead>
+                      <TableHead className="text-center">Working Days</TableHead>
+                      <TableHead className="text-center">Days Present</TableHead>
+                      <TableHead className="text-center">Attendance Rate</TableHead>
+                      <TableHead className="text-center">Late Arrivals</TableHead>
+                      <TableHead className="text-center">Early Departures</TableHead>
+                      <TableHead className="text-center">Absent Days</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {deptRows.map(row => (
+                      <TableRow key={row.dept}>
+                        <TableCell className="font-medium">{row.dept}</TableCell>
+                        <TableCell className="text-center">{row.count}</TableCell>
+                        <TableCell className="text-center">{row.totalWorking}</TableCell>
+                        <TableCell className="text-center">{row.totalWorked}</TableCell>
+                        <TableCell className="text-center">
+                          <span className={`font-semibold ${row.avgRate >= 90 ? 'text-green-600' : row.avgRate >= 75 ? 'text-amber-600' : 'text-red-600'}`}>
+                            {row.avgRate.toFixed(1)}%
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <span className={row.totalLate > 0 ? 'text-orange-600 font-medium' : ''}>{row.totalLate}</span>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <span className={row.totalEarly > 0 ? 'text-amber-600 font-medium' : ''}>{row.totalEarly}</span>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <span className={row.totalMissed > 0 ? 'text-red-600 font-medium' : ''}>{row.totalMissed}</span>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {/* Totals row */}
+                    <TableRow className="border-t-2 bg-slate-50 font-semibold">
+                      <TableCell>TOTAL</TableCell>
+                      <TableCell className="text-center">{deptRows.reduce((a, r) => a + r.count, 0)}</TableCell>
+                      <TableCell className="text-center">{deptRows.reduce((a, r) => a + r.totalWorking, 0)}</TableCell>
+                      <TableCell className="text-center">{deptRows.reduce((a, r) => a + r.totalWorked, 0)}</TableCell>
+                      <TableCell className="text-center">
+                        {(() => {
+                          const tw = deptRows.reduce((a, r) => a + r.totalWorking, 0);
+                          const tp = deptRows.reduce((a, r) => a + r.totalWorked, 0);
+                          return tw > 0 ? ((tp / tw) * 100).toFixed(1) + '%' : '-';
+                        })()}
+                      </TableCell>
+                      <TableCell className="text-center">{deptRows.reduce((a, r) => a + r.totalLate, 0)}</TableCell>
+                      <TableCell className="text-center">{deptRows.reduce((a, r) => a + r.totalEarly, 0)}</TableCell>
+                      <TableCell className="text-center">{deptRows.reduce((a, r) => a + r.totalMissed, 0)}</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              );
+            })()}
+          </CardContent>
+        </Card>
       </div>
     </Layout>
   );

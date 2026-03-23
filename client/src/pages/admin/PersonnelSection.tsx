@@ -1185,6 +1185,11 @@ export default function PersonnelSection() {
                                           </div>
                                           <div className="flex justify-between"><span>Taken:</span><span>{balance.taken}</span></div>
                                           <div className="flex justify-between"><span>Pending:</span><span>{balance.pending}</span></div>
+                                          {balance.carryOverDays > 0 && (
+                                            <div className="flex justify-between text-blue-600 font-medium">
+                                              <span>Carried over:</span><span>+{balance.carryOverDays}</span>
+                                            </div>
+                                          )}
                                         </div>
                                       </>
                                     ) : (

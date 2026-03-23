@@ -171,6 +171,7 @@ export const leaveBalances = pgTable("leave_balances", {
   total: real("total").notNull().default(0),
   taken: real("taken").notNull().default(0),
   pending: real("pending").notNull().default(0),
+  carryOverDays: real("carry_over_days").notNull().default(0), // Unused days carried forward from previous cycle
 });
 
 export const insertLeaveBalanceSchema = createInsertSchema(leaveBalances).omit({

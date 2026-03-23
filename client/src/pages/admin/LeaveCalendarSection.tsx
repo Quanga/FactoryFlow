@@ -1,11 +1,25 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { format } from 'date-fns';
+import { Button } from "@/components/ui/button";
+import { format, addMonths, subMonths, startOfMonth, getDaysInMonth, getDay } from 'date-fns';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { leaveRequestApi, userApi, publicHolidayApi } from '@/lib/api';
 import type { LeaveRequest, PublicHoliday, User } from '@shared/schema';
 
+const LEAVE_TYPE_COLORS: Record<string, { bg: string; dot: string }> = {
+  'Annual Leave':           { bg: 'bg-blue-100',   dot: 'bg-blue-500' },
+  'Sick Leave':             { bg: 'bg-red-100',    dot: 'bg-red-500' },
+  'Family Responsibility':  { bg: 'bg-purple-100', dot: 'bg-purple-500' },
+  'Maternity Leave':        { bg: 'bg-pink-100',   dot: 'bg-pink-500' },
+  'Study Leave':            { bg: 'bg-green-100',  dot: 'bg-green-500' },
+  'Unpaid Leave':           { bg: 'bg-gray-100',   dot: 'bg-gray-500' },
+};
+const DEFAULT_LEAVE = { bg: 'bg-emerald-100', dot: 'bg-emerald-500' };
+
 export default function LeaveCalendarSection() {
+  const [displayDate, setDisplayDate] = useState(() => startOfMonth(new Date()));
+
   const { data: leaveRequests = [] } = useQuery({
     queryKey: ['leave-requests'],
     queryFn: () => leaveRequestApi.getAll(),
@@ -22,15 +36,25 @@ export default function LeaveCalendarSection() {
   });
 
   const today = new Date();
-  const currentMonth = today.getMonth();
-  const currentYear = today.getFullYear();
-  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
-  
-  const approvedLeaves = (leaveRequests as LeaveRequest[]).filter((lr: LeaveRequest) => lr.status === 'approved');
+  const currentMonth = displayDate.getMonth();
+  const currentYear = displayDate.getFullYear();
+  const daysInMonth = getDaysInMonth(displayDate);
+  const firstDayOfWeek = getDay(displayDate); // 0 = Sunday
+
+  const approvedLeaves = (leaveRequests as LeaveRequest[]).filter((lr: LeaveRequest) => lr.status === 'approved' && !lr.isHistoric);
+
   const monthHolidays = (publicHolidays as PublicHoliday[]).filter((h: PublicHoliday) => {
-    const hDate = new Date(h.date);
+    const hDate = new Date(h.date + 'T00:00:00');
+    // Include recurring holidays (match month+day) and fixed holidays (match full date)
+    if (h.isRecurring) {
+      return hDate.getMonth() === currentMonth;
+    }
     return hDate.getMonth() === currentMonth && hDate.getFullYear() === currentYear;
+  });
+
+  const upcomingLeaves = approvedLeaves.filter((lr: LeaveRequest) => {
+    const start = new Date(lr.startDate + 'T00:00:00');
+    return start.getMonth() === currentMonth && start.getFullYear() === currentYear;
   });
 
   return (
@@ -39,89 +63,168 @@ export default function LeaveCalendarSection() {
         <h1 className="text-3xl font-heading font-bold text-slate-900 dark:text-slate-100">Leave Calendar</h1>
         <p className="text-muted-foreground">Visual overview of employee leave schedules</p>
       </div>
-      
+
       <Card>
         <CardHeader>
-          <CardTitle>Monthly Leave Overview</CardTitle>
-          <CardDescription>See who is on leave and when</CardDescription>
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <CardTitle>Monthly Leave Overview</CardTitle>
+              <CardDescription>See who is on leave and when</CardDescription>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button variant="outline" size="sm" onClick={() => setDisplayDate(d => subMonths(d, 1))}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="font-semibold text-lg min-w-[140px] text-center">
+                {format(displayDate, 'MMMM yyyy')}
+              </span>
+              <Button variant="outline" size="sm" onClick={() => setDisplayDate(d => addMonths(d, 1))}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setDisplayDate(startOfMonth(new Date()))}>
+                Today
+              </Button>
+            </div>
+          </div>
+
+          {/* Legend */}
+          <div className="flex flex-wrap gap-3 mt-2 text-sm">
+            <span className="flex items-center gap-1.5">
+              <div className="w-3 h-3 bg-orange-200 border border-orange-400 rounded"></div>
+              Public Holiday
+            </span>
+            {Object.entries(LEAVE_TYPE_COLORS).map(([type, colors]) => (
+              <span key={type} className="flex items-center gap-1.5">
+                <div className={`w-3 h-3 ${colors.dot} rounded-full`}></div>
+                {type}
+              </span>
+            ))}
+          </div>
         </CardHeader>
+
         <CardContent>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">
-                {format(today, 'MMMM yyyy')}
-              </h3>
-              <div className="flex gap-4 text-sm">
-                <span className="flex items-center gap-1">
-                  <div className="w-3 h-3 bg-green-500 rounded"></div> Approved Leave
-                </span>
-                <span className="flex items-center gap-1">
-                  <div className="w-3 h-3 bg-red-500 rounded"></div> Public Holiday
-                </span>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-7 gap-1 text-center text-sm">
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
-                <div key={d} className="font-semibold py-2 text-muted-foreground">{d}</div>
-              ))}
-              
-              {Array.from({ length: new Date(currentYear, currentMonth, 1).getDay() }).map((_, i) => (
-                <div key={`empty-${i}`} className="py-2"></div>
-              ))}
-              
-              {days.map(day => {
-                const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                const isHoliday = monthHolidays.some((h: PublicHoliday) => h.date === dateStr);
-                const leavesOnDay = approvedLeaves.filter((lr: LeaveRequest) => 
-                  lr.startDate <= dateStr && lr.endDate >= dateStr
-                );
-                const isToday = day === today.getDate();
-                
-                return (
-                  <div 
-                    key={day} 
-                    className={`py-2 rounded relative ${isToday ? 'ring-2 ring-primary' : ''} ${isHoliday ? 'bg-red-100 dark:bg-red-900' : leavesOnDay.length > 0 ? 'bg-green-100 dark:bg-green-900' : 'bg-muted/30'}`}
-                    title={isHoliday ? monthHolidays.find((h: PublicHoliday) => h.date === dateStr)?.name : leavesOnDay.length > 0 ? `${leavesOnDay.length} on leave` : undefined}
-                  >
-                    <span className={isToday ? 'font-bold' : ''}>{day}</span>
-                    {leavesOnDay.length > 0 && !isHoliday && (
-                      <span className="absolute bottom-0 right-0 text-xs bg-green-500 text-white rounded-full w-4 h-4 flex items-center justify-center">
-                        {leavesOnDay.length}
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            
-            <div className="mt-6">
-              <h4 className="font-semibold mb-2">Upcoming Leave This Month</h4>
-              {approvedLeaves.filter((lr: LeaveRequest) => {
-                const start = new Date(lr.startDate);
-                return start.getMonth() === currentMonth && start.getFullYear() === currentYear;
-              }).length === 0 ? (
-                <p className="text-muted-foreground text-sm">No approved leave this month</p>
-              ) : (
-                <div className="space-y-2">
-                  {approvedLeaves.filter((lr: LeaveRequest) => {
-                    const start = new Date(lr.startDate);
-                    return start.getMonth() === currentMonth && start.getFullYear() === currentYear;
-                  }).map((lr: LeaveRequest) => {
+          {/* Calendar Grid */}
+          <div className="grid grid-cols-7 gap-1 text-center text-sm">
+            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
+              <div key={d} className="font-semibold py-2 text-muted-foreground text-xs">{d}</div>
+            ))}
+
+            {/* Empty cells before month starts */}
+            {Array.from({ length: firstDayOfWeek }).map((_, i) => (
+              <div key={`empty-${i}`} className="py-2"></div>
+            ))}
+
+            {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
+              const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+              const holiday = monthHolidays.find((h: PublicHoliday) => {
+                const hDate = new Date(h.date + 'T00:00:00');
+                if (h.isRecurring) {
+                  return hDate.getMonth() === currentMonth && hDate.getDate() === day;
+                }
+                return h.date === dateStr;
+              });
+              const leavesOnDay = approvedLeaves.filter((lr: LeaveRequest) =>
+                lr.startDate <= dateStr && lr.endDate >= dateStr
+              );
+              const isToday = currentMonth === today.getMonth() && currentYear === today.getFullYear() && day === today.getDate();
+              const isWeekendDay = [0, 6].includes(new Date(dateStr).getDay());
+
+              // Determine background colour
+              let cellBg = isWeekendDay ? 'bg-slate-50' : 'bg-muted/20';
+              if (holiday) cellBg = 'bg-orange-100 border border-orange-300';
+              else if (leavesOnDay.length > 0) {
+                const firstType = leavesOnDay[0].leaveType;
+                cellBg = (LEAVE_TYPE_COLORS[firstType] || DEFAULT_LEAVE).bg;
+              }
+
+              const leaveTypeDotsSet = new Set(leavesOnDay.map((lr: LeaveRequest) => lr.leaveType));
+              const leaveDots = Array.from(leaveTypeDotsSet).slice(0, 4);
+
+              return (
+                <div
+                  key={day}
+                  className={`relative min-h-[52px] rounded p-1 ${isToday ? 'ring-2 ring-primary ring-offset-1' : ''} ${cellBg}`}
+                  title={[
+                    holiday ? `🎉 ${holiday.name}` : null,
+                    leavesOnDay.length > 0 ? `${leavesOnDay.length} on leave` : null,
+                  ].filter(Boolean).join(' | ') || undefined}
+                >
+                  <span className={`text-xs font-medium ${isToday ? 'font-bold text-primary' : isWeekendDay ? 'text-slate-400' : ''}`}>
+                    {day}
+                  </span>
+
+                  {/* Holiday label */}
+                  {holiday && (
+                    <div className="text-orange-700 text-[9px] leading-tight mt-0.5 truncate font-medium">
+                      {holiday.name}
+                    </div>
+                  )}
+
+                  {/* Leave type colour dots + count badge */}
+                  {leavesOnDay.length > 0 && (
+                    <div className="absolute bottom-1 right-1 flex items-center gap-0.5">
+                      {leaveDots.map((type: string) => (
+                        <div
+                          key={type}
+                          className={`w-2 h-2 rounded-full ${(LEAVE_TYPE_COLORS[type] || DEFAULT_LEAVE).dot}`}
+                          title={type}
+                        />
+                      ))}
+                      <span className="text-[9px] font-bold text-slate-600 ml-0.5">{leavesOnDay.length}</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Upcoming Leave List */}
+          <div className="mt-6">
+            <h4 className="font-semibold mb-3">Leave This Month
+              <span className="ml-2 text-sm font-normal text-muted-foreground">
+                ({upcomingLeaves.length} approved)
+              </span>
+            </h4>
+            {upcomingLeaves.length === 0 ? (
+              <p className="text-muted-foreground text-sm">No approved leave this month</p>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                {upcomingLeaves
+                  .sort((a: LeaveRequest, b: LeaveRequest) => a.startDate.localeCompare(b.startDate))
+                  .map((lr: LeaveRequest) => {
                     const emp = (users as User[]).find(u => u.id === lr.userId);
+                    const colors = LEAVE_TYPE_COLORS[lr.leaveType] || DEFAULT_LEAVE;
                     return (
-                      <div key={lr.id} className="flex items-center justify-between p-2 bg-muted/50 rounded">
-                        <span className="font-medium">{emp?.firstName} {emp?.surname}</span>
-                        <span className="text-sm text-muted-foreground">
-                          {format(new Date(lr.startDate), 'dd/MM')} - {format(new Date(lr.endDate), 'dd/MM')} ({lr.leaveType})
+                      <div key={lr.id} className="flex items-center justify-between p-2 bg-muted/40 rounded">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-2.5 h-2.5 rounded-full ${colors.dot} flex-shrink-0`} />
+                          <span className="font-medium text-sm">{emp?.firstName} {emp?.surname}</span>
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          {format(new Date(lr.startDate + 'T00:00:00'), 'dd MMM')}
+                          {lr.startDate !== lr.endDate && ` – ${format(new Date(lr.endDate + 'T00:00:00'), 'dd MMM')}`}
+                          {' '}· {lr.leaveType}
                         </span>
                       </div>
                     );
                   })}
-                </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
+
+          {/* Public Holidays This Month */}
+          {monthHolidays.length > 0 && (
+            <div className="mt-4 pt-4 border-t">
+              <h4 className="font-semibold mb-2 text-sm">Public Holidays This Month</h4>
+              <div className="flex flex-wrap gap-2">
+                {monthHolidays.map((h: PublicHoliday) => (
+                  <span key={h.id} className="text-xs bg-orange-100 text-orange-800 border border-orange-200 rounded px-2 py-1">
+                    {format(new Date(h.date + 'T00:00:00'), 'dd MMM')} · {h.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

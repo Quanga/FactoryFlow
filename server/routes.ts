@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
 import { insertUserSchema, insertLeaveRequestSchema, insertAttendanceRecordSchema, insertDepartmentSchema, insertUserGroupSchema, insertEmployeeTypeSchema, insertLeaveRuleSchema, insertLeaveRulePhaseSchema, insertGrievanceSchema } from "@shared/schema";
-import { sendLeaveRequestNotification, sendLateAttendanceNotification, sendAdminWelcomeEmail, sendLeaveStatusNotification, sendPasswordResetEmail, sendAdminCredentialsEmail } from "./email";
+import { sendLeaveRequestNotification, sendLateAttendanceNotification, sendAdminWelcomeEmail, sendLeaveStatusNotification, sendPasswordResetEmail, sendAdminCredentialsEmail, sendManagerMissedClockOutAlert, sendLeaveStageNotification, sendLeaveEscalationReminder, sendAWOLAlert } from "./email";
 import { calculateBceaEntitlements } from "./bcea";
 import crypto from "crypto";
 import bcrypt from "bcrypt";
@@ -489,20 +489,35 @@ export async function registerRoutes(
         const entitlements = calculateBceaEntitlements(user.startDate);
         const existingBalances = await storage.getLeaveBalances(userId);
 
+        const upsertAnnualBalance = async (newTotal: number) => {
+          const existing = existingBalances.find(b => b.leaveType === 'Annual Leave');
+          if (existing) {
+            const currentCarryOver = existing.carryOverDays || 0;
+            const purePrev = existing.total - currentCarryOver;
+            const cycleReset = purePrev > newTotal + 5;
+            if (cycleReset) {
+              const unusedDays = Math.max(0, Math.round((existing.total - existing.taken - existing.pending) * 10) / 10);
+              await storage.updateLeaveBalance(existing.id, { total: newTotal + unusedDays, carryOverDays: unusedDays });
+            } else if (Math.abs((existing.total - currentCarryOver) - newTotal) >= 0.05) {
+              await storage.updateLeaveBalance(existing.id, { total: newTotal + currentCarryOver });
+            }
+          } else {
+            await storage.createLeaveBalance({ userId, leaveType: 'Annual Leave', total: newTotal, taken: 0, pending: 0, carryOverDays: 0 });
+          }
+        };
+
         const upsert = async (leaveType: string, newTotal: number) => {
           const existing = existingBalances.find(b => b.leaveType === leaveType);
           if (existing) {
-            // Only write to DB if the value has meaningfully changed (avoids constant writes)
             if (Math.abs((existing.total ?? 0) - newTotal) >= 0.05) {
               await storage.updateLeaveBalance(existing.id, { total: newTotal });
             }
           } else {
-            // Create missing balance record
-            await storage.createLeaveBalance({ userId, leaveType, total: newTotal, taken: 0, pending: 0 });
+            await storage.createLeaveBalance({ userId, leaveType, total: newTotal, taken: 0, pending: 0, carryOverDays: 0 });
           }
         };
 
-        await upsert('Annual Leave', entitlements.annualLeave);
+        await upsertAnnualBalance(entitlements.annualLeave);
         await upsert('Sick Leave', entitlements.sickLeave);
         await upsert('Family Responsibility', entitlements.familyResponsibility);
       }
@@ -653,16 +668,35 @@ export async function registerRoutes(
           const entitlements = calculateBceaEntitlements(user.startDate!);
           const existingBalances = await storage.getLeaveBalances(user.id);
 
+          const upsertAnnual = async (total: number) => {
+            const existing = existingBalances.find((b) => b.leaveType === 'Annual Leave');
+            if (existing) {
+              const currentCarryOver = existing.carryOverDays || 0;
+              const purePrevTotal = existing.total - currentCarryOver;
+              // Detect cycle reset: pure entitlement dropped by more than 5 days
+              const cycleReset = purePrevTotal > total + 5;
+              if (cycleReset) {
+                const unusedDays = Math.max(0, Math.round((existing.total - existing.taken - existing.pending) * 10) / 10);
+                const newCarryOver = unusedDays;
+                await storage.updateLeaveBalance(existing.id, { total: total + newCarryOver, carryOverDays: newCarryOver });
+              } else {
+                await storage.updateLeaveBalance(existing.id, { total: total + currentCarryOver });
+              }
+            } else {
+              await storage.createLeaveBalance({ userId: user.id, leaveType: 'Annual Leave', total, taken: 0, pending: 0, carryOverDays: 0 });
+            }
+          };
+
           const upsert = async (leaveType: string, total: number) => {
             const existing = existingBalances.find((b) => b.leaveType === leaveType);
             if (existing) {
               await storage.updateLeaveBalance(existing.id, { total });
             } else {
-              await storage.createLeaveBalance({ userId: user.id, leaveType, total, taken: 0, pending: 0 });
+              await storage.createLeaveBalance({ userId: user.id, leaveType, total, taken: 0, pending: 0, carryOverDays: 0 });
             }
           };
 
-          await upsert('Annual Leave', entitlements.annualLeave);
+          await upsertAnnual(entitlements.annualLeave);
           await upsert('Sick Leave', entitlements.sickLeave);
           await upsert('Family Responsibility', entitlements.familyResponsibility);
 
@@ -897,9 +931,42 @@ export async function registerRoutes(
       }
       
       const updatedRequest = await storage.updateManagerDecision(requestId, approverId, decision, notes);
-      
-      // TODO: Send email notification based on decision
-      
+
+      // Send notifications after manager decision
+      try {
+        const senderEmail = (await storage.getSetting('sender_email'))?.value || 'noreply@aece.co.za';
+        const employee = await storage.getUser(request.userId);
+        const emailData = {
+          employeeName: employee ? `${employee.firstName} ${employee.surname}` : request.userId,
+          leaveType: request.leaveType,
+          startDate: request.startDate,
+          endDate: request.endDate,
+        };
+        if (decision === 'approved') {
+          // Notify HR (admin_email recipients) that request is now pending HR review
+          const adminEmailSetting = await storage.getSetting('admin_email');
+          const hrEmails = adminEmailSetting?.value?.split('\n').map((e: string) => e.trim()).filter(Boolean) || [];
+          for (const hrEmail of hrEmails) {
+            await sendLeaveStageNotification(hrEmail, senderEmail, {
+              recipientName: 'HR',
+              ...emailData,
+              newStage: 'pending_hr',
+              notes: notes || undefined,
+            });
+          }
+        } else if (decision === 'rejected' && employee?.email) {
+          // Notify employee their request was rejected by manager
+          await sendLeaveStageNotification(employee.email, senderEmail, {
+            recipientName: employee.firstName,
+            ...emailData,
+            newStage: 'rejected',
+            notes: notes || undefined,
+          });
+        }
+      } catch (emailError) {
+        console.error('Failed to send manager decision notification:', emailError);
+      }
+
       return res.json(updatedRequest);
     } catch (error) {
       console.error("Manager decision error:", error);
@@ -932,9 +999,41 @@ export async function registerRoutes(
       }
       
       const updatedRequest = await storage.updateHRDecision(requestId, approverId, decision, notes);
-      
-      // TODO: Send email notification based on decision
-      
+
+      // Send notifications after HR decision
+      try {
+        const senderEmail = (await storage.getSetting('sender_email'))?.value || 'noreply@aece.co.za';
+        const employee = await storage.getUser(request.userId);
+        const emailData = {
+          employeeName: employee ? `${employee.firstName} ${employee.surname}` : request.userId,
+          leaveType: request.leaveType,
+          startDate: request.startDate,
+          endDate: request.endDate,
+        };
+        if (decision === 'approved') {
+          // Notify admin_email (MD) that request is now pending MD approval
+          const adminEmailSetting = await storage.getSetting('admin_email');
+          const mdEmails = adminEmailSetting?.value?.split('\n').map((e: string) => e.trim()).filter(Boolean) || [];
+          for (const mdEmail of mdEmails) {
+            await sendLeaveStageNotification(mdEmail, senderEmail, {
+              recipientName: 'Management',
+              ...emailData,
+              newStage: 'pending_md',
+              notes: notes || undefined,
+            });
+          }
+        } else if (decision === 'rejected' && employee?.email) {
+          await sendLeaveStageNotification(employee.email, senderEmail, {
+            recipientName: employee.firstName,
+            ...emailData,
+            newStage: 'rejected',
+            notes: notes || undefined,
+          });
+        }
+      } catch (emailError) {
+        console.error('Failed to send HR decision notification:', emailError);
+      }
+
       return res.json(updatedRequest);
     } catch (error) {
       console.error("HR decision error:", error);
@@ -1601,18 +1700,19 @@ export async function registerRoutes(
   app.post("/api/attendance/auto-reset", async (req, res) => {
     try {
       const today = new Date();
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
       const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0);
+      const startOfYesterday = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 0, 0, 0);
       
       const usersNotClockedOut = await storage.getUsersNotClockedOut(startOfToday);
       
-      if (usersNotClockedOut.length === 0) {
-        return res.json({ message: "No users needed auto clock-out", processed: 0 });
-      }
-
       const senderSetting = await storage.getSetting('sender_email');
       const senderEmail = senderSetting?.value || 'noreply@aece.co.za';
 
       const results = [];
+      
+      // ── Missed clock-out auto-reset ──────────────────────────────────────
       for (const { user, lastClockIn } of usersNotClockedOut) {
         try {
           const clockInDate = new Date(lastClockIn.timestamp);
@@ -1621,6 +1721,8 @@ export async function registerRoutes(
           
           await storage.createSystemAutoClockOut(user.id, autoClockOutTime);
           
+          const clockInDateStr = clockInDate.toLocaleDateString('en-ZA', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
           if (user.email) {
             const { sendMissedClockOutNotification } = await import('./email');
             await sendMissedClockOutNotification(user.email, senderEmail, {
@@ -1629,9 +1731,24 @@ export async function registerRoutes(
               employeeId: user.id,
               department: user.department || undefined,
               clockInTime: clockInDate.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' }),
-              clockInDate: clockInDate.toLocaleDateString('en-ZA', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+              clockInDate: clockInDateStr,
               autoClockOutTime: autoClockOutTime.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' }),
             });
+          }
+
+          // #12: Also alert the employee's manager(s)
+          const managerIds = [user.managerId, user.secondManagerId].filter(Boolean) as string[];
+          for (const mgId of managerIds) {
+            const manager = await storage.getUser(mgId);
+            if (manager?.email) {
+              await sendManagerMissedClockOutAlert(manager.email, senderEmail, {
+                managerName: `${manager.firstName} ${manager.surname}`,
+                employeeName: `${user.firstName} ${user.surname}`,
+                employeeId: user.id,
+                department: user.department || undefined,
+                clockInDate: clockInDateStr,
+              });
+            }
           }
           
           results.push({ userId: user.id, name: `${user.firstName} ${user.surname}`, success: true });
@@ -1641,14 +1758,150 @@ export async function registerRoutes(
         }
       }
 
+      // ── #10 AWOL detection: workers with no clock-in and no approved leave yesterday ──
+      try {
+        const allWorkers = await storage.getUsers();
+        const activeWorkers = allWorkers.filter((u: any) => u.role === 'worker' && !u.terminationDate && !u.excludeFromLeave);
+        const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+        // Get yesterday's attendance records
+        const yesterdayAttendance = await storage.getAttendanceRecords(startOfYesterday, startOfToday);
+        const workersClockedInYesterday = new Set(yesterdayAttendance.map((r: any) => r.userId));
+
+        // Get approved leave for yesterday
+        const allLeaveRequests = await storage.getLeaveRequests();
+        const approvedLeaveYesterday = new Set(
+          allLeaveRequests
+            .filter((lr: any) => lr.status === 'approved' && lr.startDate <= yesterdayStr && lr.endDate >= yesterdayStr)
+            .map((lr: any) => lr.userId)
+        );
+
+        // Identify AWOL: not clocked in and not on approved leave
+        const awolWorkers = activeWorkers.filter((w: any) =>
+          !workersClockedInYesterday.has(w.id) && !approvedLeaveYesterday.has(w.id)
+        );
+
+        if (awolWorkers.length > 0) {
+          // Create AWOL notifications for each worker
+          for (const worker of awolWorkers) {
+            await storage.createNotification({
+              userId: worker.id,
+              type: 'awol',
+              title: 'AWOL – Unexplained Absence',
+              message: `No clock-in recorded and no approved leave for ${yesterdayStr}. Please contact your manager.`,
+              isRead: false,
+            }).catch(() => {}); // Graceful: notifications table may not have this type
+          }
+
+          // Group AWOL workers by manager and send per-manager alert
+          const managerToWorkers: Record<string, { manager: any; workers: any[] }> = {};
+          for (const worker of awolWorkers) {
+            const managerIds = [worker.managerId, worker.secondManagerId].filter(Boolean) as string[];
+            if (managerIds.length === 0) {
+              // Fall back to admin_email
+              const adminSetting = await storage.getSetting('admin_email');
+              const adminEmails = adminSetting?.value?.split('\n').map((e: string) => e.trim()).filter(Boolean) || [];
+              for (const email of adminEmails) {
+                if (!managerToWorkers[email]) managerToWorkers[email] = { manager: { firstName: 'Admin', surname: '', email }, workers: [] };
+                managerToWorkers[email].workers.push(worker);
+              }
+            }
+            for (const mgId of managerIds) {
+              if (!managerToWorkers[mgId]) {
+                const manager = await storage.getUser(mgId);
+                if (manager?.email) managerToWorkers[mgId] = { manager, workers: [] };
+              }
+              if (managerToWorkers[mgId]) managerToWorkers[mgId].workers.push(worker);
+            }
+          }
+
+          for (const [, { manager, workers }] of Object.entries(managerToWorkers)) {
+            if (manager?.email) {
+              await sendAWOLAlert(manager.email, senderEmail, {
+                managerName: `${manager.firstName} ${manager.surname}`.trim(),
+                awolEmployees: workers.map((w: any) => ({
+                  name: `${w.firstName} ${w.surname}`,
+                  id: w.id,
+                  department: w.department || undefined,
+                })),
+                date: yesterdayStr,
+              });
+            }
+          }
+        }
+
+        results.push({ userId: 'awol-check', name: `AWOL check: ${awolWorkers.length} flagged`, success: true });
+      } catch (awolErr) {
+        console.error('AWOL detection error:', awolErr);
+      }
+
       return res.json({ 
-        message: `Processed ${results.length} users`, 
-        processed: results.filter(r => r.success).length,
+        message: `Processed ${results.filter(r => r.userId !== 'awol-check').length} clock-out reset(s)`, 
+        processed: results.filter(r => r.success && r.userId !== 'awol-check').length,
         results 
       });
     } catch (error) {
       console.error("Auto-reset error:", error);
       return res.status(500).json({ error: "Failed to process auto clock-out" });
+    }
+  });
+
+  // #17 Leave escalation: send reminders for requests pending > 3 days
+  app.post("/api/leave-requests/send-escalation-reminders", async (req, res) => {
+    try {
+      const senderSetting = await storage.getSetting('sender_email');
+      const senderEmail = senderSetting?.value || 'noreply@aece.co.za';
+      
+      const allRequests = await storage.getLeaveRequests();
+      const now = new Date();
+      const sent: any[] = [];
+
+      for (const request of allRequests) {
+        if (!['pending_manager', 'pending_hr'].includes(request.status)) continue;
+        
+        const submittedAt = new Date((request as any).createdAt || request.startDate);
+        const daysPending = Math.floor((now.getTime() - submittedAt.getTime()) / (1000 * 60 * 60 * 24));
+        if (daysPending < 3) continue;
+
+        const employee = await storage.getUser(request.userId);
+        const emailData = {
+          employeeName: employee ? `${employee.firstName} ${employee.surname}` : request.userId,
+          leaveType: request.leaveType,
+          startDate: request.startDate,
+          endDate: request.endDate,
+          daysPending,
+          requestId: request.id,
+        };
+
+        if (request.status === 'pending_manager') {
+          const managerIds = [employee?.managerId, employee?.secondManagerId].filter(Boolean) as string[];
+          for (const mgId of managerIds) {
+            const manager = await storage.getUser(mgId);
+            if (manager?.email) {
+              await sendLeaveEscalationReminder(manager.email, senderEmail, {
+                managerName: `${manager.firstName} ${manager.surname}`,
+                ...emailData,
+              });
+              sent.push({ requestId: request.id, sentTo: manager.email });
+            }
+          }
+        } else if (request.status === 'pending_hr') {
+          const adminSetting = await storage.getSetting('admin_email');
+          const hrEmails = adminSetting?.value?.split('\n').map((e: string) => e.trim()).filter(Boolean) || [];
+          for (const hrEmail of hrEmails) {
+            await sendLeaveEscalationReminder(hrEmail, senderEmail, {
+              managerName: 'HR',
+              ...emailData,
+            });
+            sent.push({ requestId: request.id, sentTo: hrEmail });
+          }
+        }
+      }
+
+      return res.json({ message: `Sent ${sent.length} escalation reminder(s)`, sent });
+    } catch (error) {
+      console.error("Escalation reminder error:", error);
+      return res.status(500).json({ error: "Failed to send escalation reminders" });
     }
   });
 
