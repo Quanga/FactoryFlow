@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { userApi, departmentApi, userGroupApi, leaveBalanceApi, employeeTypeApi, contractHistoryApi, faceDescriptorApi, orgPositionApi, companyApi } from '@/lib/api';
 import type { User, Department, UserGroup, LeaveBalance, EmployeeType, OrgPosition } from '@shared/schema';
-import { Plus, Pencil, Trash2, Mail, Camera, Loader2, CheckCircle2, UserCog, Shield, Check, X, Search, UserX, Network, ChevronDown, ChevronRight, ArrowUp, ArrowDown, ChevronsUpDown, FileText } from 'lucide-react';
+import { Plus, Pencil, Trash2, Mail, Camera, Loader2, CheckCircle2, UserCog, Shield, Check, X, Search, UserX, Network, ChevronDown, ChevronRight, ArrowUp, ArrowDown, ChevronsUpDown, FileText, ClipboardList } from 'lucide-react';
 import jsPDF from 'jspdf';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/lib/auth-context';
@@ -686,6 +686,197 @@ export default function PersonnelSection() {
     toast({ title: 'PDF Exported', description: `${filteredUsers.length} employee(s) exported.` });
   };
 
+  const handleExportMissingInfoPdf = () => {
+    const FIELDS: { key: keyof typeof users[0]; label: string }[] = [
+      { key: 'nationalId',      label: 'National ID Number' },
+      { key: 'taxNumber',       label: 'Tax Number' },
+      { key: 'mobile',          label: 'Mobile Number' },
+      { key: 'email',           label: 'Email Address' },
+      { key: 'homeAddress',     label: 'Physical Address' },
+      { key: 'nextOfKin',       label: 'Next of Kin (name & relationship)' },
+      { key: 'emergencyNumber', label: 'Emergency Contact Number' },
+    ];
+
+    const activeEmployees = users.filter((u: any) => !u.terminationDate && !u.excludeFromLeave);
+    const employeesWithMissing = activeEmployees
+      .map((emp: any) => ({
+        emp,
+        missing: FIELDS.filter(f => !emp[f.key] || String(emp[f.key]).trim() === ''),
+      }))
+      .filter(({ missing }) => missing.length > 0)
+      .sort((a: any, b: any) =>
+        `${a.emp.firstName} ${a.emp.surname}`.localeCompare(`${b.emp.firstName} ${b.emp.surname}`)
+      );
+
+    if (employeesWithMissing.length === 0) {
+      toast({ title: 'No Missing Information', description: 'All active employees have complete records.' });
+      return;
+    }
+
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pageWidth  = pdf.internal.pageSize.getWidth();   // 210
+    const pageHeight = pdf.internal.pageSize.getHeight();  // 297
+    const margin = 14;
+    const usableWidth = pageWidth - margin * 2;            // 182
+    const now = new Date();
+    const generatedStr = now.toLocaleDateString('en-ZA', { day: '2-digit', month: '2-digit', year: 'numeric' })
+      + '  ' + now.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' });
+    let pageNum = 1;
+
+    const addFooter = () => {
+      pdf.setFontSize(7);
+      pdf.setTextColor(160, 160, 160);
+      pdf.text('AEC Electronics (Pty) Ltd  —  CONFIDENTIAL', margin, pageHeight - 6);
+      pdf.text(`Page ${pageNum}`, pageWidth - margin - 14, pageHeight - 6);
+      pdf.setTextColor(0, 0, 0);
+    };
+
+    const newPage = () => {
+      addFooter();
+      pdf.addPage();
+      pageNum++;
+      return 28;
+    };
+
+    // ── Cover / summary page ───────────────────────────────────────────────────
+    pdf.setFillColor(30, 41, 59);
+    pdf.rect(0, 0, pageWidth, 28, 'F');
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFontSize(16);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('Missing Information Report', margin, 12);
+    pdf.setFontSize(8);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text(`AEC Electronics (Pty) Ltd   |   Generated: ${generatedStr}`, margin, 20);
+    pdf.setTextColor(0, 0, 0);
+
+    // Summary stats box
+    let y = 38;
+    pdf.setFillColor(241, 245, 249);
+    pdf.roundedRect(margin, y, usableWidth, 22, 2, 2, 'F');
+    pdf.setFontSize(9);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text(`${employeesWithMissing.length} employee(s) have incomplete records`, margin + 4, y + 8);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(8);
+    const fieldCounts = FIELDS.map(f => ({
+      label: f.label,
+      count: employeesWithMissing.filter(({ missing }) => missing.some(m => m.key === f.key)).length,
+    })).filter(fc => fc.count > 0);
+    const summaryText = fieldCounts.map(fc => `${fc.label}: ${fc.count}`).join('   |   ');
+    pdf.text(summaryText, margin + 4, y + 16, { maxWidth: usableWidth - 8 });
+    y += 30;
+
+    // Instructions box
+    pdf.setDrawColor(202, 138, 4);
+    pdf.setFillColor(254, 252, 232);
+    pdf.roundedRect(margin, y, usableWidth, 14, 2, 2, 'FD');
+    pdf.setFontSize(8);
+    pdf.setTextColor(120, 80, 0);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('Instructions:', margin + 4, y + 6);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text(
+      'Print this form, complete the missing fields by hand, and return to HR for capture. Only fields with missing data are shown.',
+      margin + 26, y + 6, { maxWidth: usableWidth - 30 }
+    );
+    pdf.setTextColor(0, 0, 0);
+    y += 22;
+
+    // Summary table — overview of missing fields per employee
+    pdf.setFillColor(51, 65, 85);
+    pdf.rect(margin, y, usableWidth, 7, 'F');
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFontSize(7.5);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('EMPLOYEE', margin + 2, y + 5);
+    pdf.text('EMP ID', margin + 62, y + 5);
+    pdf.text('MISSING FIELDS', margin + 86, y + 5);
+    pdf.setTextColor(0, 0, 0);
+    y += 7;
+
+    employeesWithMissing.forEach(({ emp, missing }, idx) => {
+      const rowH = 7;
+      if (y + rowH > pageHeight - 14) { y = newPage(); }
+      pdf.setFillColor(idx % 2 === 0 ? 248 : 255, idx % 2 === 0 ? 250 : 255, idx % 2 === 0 ? 252 : 255);
+      pdf.rect(margin, y, usableWidth, rowH, 'F');
+      pdf.setDrawColor(226, 232, 240);
+      pdf.line(margin, y + rowH, margin + usableWidth, y + rowH);
+      pdf.setFontSize(7.5);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(30, 41, 59);
+      pdf.text(`${emp.firstName} ${emp.surname}`, margin + 2, y + 5, { maxWidth: 58 });
+      pdf.setTextColor(100, 100, 100);
+      pdf.text(emp.id, margin + 62, y + 5);
+      pdf.setTextColor(0, 0, 0);
+      pdf.text(missing.map((m: any) => m.label).join(', '), margin + 86, y + 5, { maxWidth: usableWidth - 88 });
+      y += rowH;
+    });
+
+    // ── Employee fill-in blocks (one per employee) ─────────────────────────────
+    employeesWithMissing.forEach(({ emp, missing }) => {
+      const FIELD_ROW_H = 14;
+      const blockH = 10 + missing.length * FIELD_ROW_H + 6;
+
+      if (y + blockH + 10 > pageHeight - 14) { y = newPage(); }
+
+      // Employee header bar
+      pdf.setFillColor(30, 41, 59);
+      pdf.rect(margin, y, usableWidth, 9, 'F');
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(9);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(`${emp.firstName} ${emp.surname}`, margin + 4, y + 6.5);
+      pdf.setFontSize(7.5);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`ID: ${emp.id}`, margin + usableWidth - 40, y + 6.5);
+      if (emp.department) pdf.text(`Dept: ${emp.department}`, margin + usableWidth - 100, y + 6.5);
+      pdf.setTextColor(0, 0, 0);
+      y += 10;
+
+      // Outer box for the block
+      pdf.setDrawColor(200, 210, 220);
+      pdf.rect(margin, y, usableWidth, missing.length * FIELD_ROW_H + 4, 'D');
+
+      missing.forEach((field: any, fi: number) => {
+        const fy = y + 4 + fi * FIELD_ROW_H;
+
+        if (fy + FIELD_ROW_H > pageHeight - 14) {
+          // shouldn't happen since we pre-checked, but safety guard
+          return;
+        }
+
+        // Label
+        pdf.setFontSize(7.5);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setTextColor(70, 70, 70);
+        pdf.text(`${field.label}:`, margin + 4, fy + 5);
+
+        // Fill-in line (starts after label column, ends near right margin)
+        const lineX1 = margin + 68;
+        const lineX2 = margin + usableWidth - 4;
+        const lineY  = fy + 8;
+        pdf.setDrawColor(120, 130, 140);
+        pdf.setLineWidth(0.4);
+        pdf.line(lineX1, lineY, lineX2, lineY);
+        pdf.setLineWidth(0.2);
+
+        // Light separator between fields (not after last)
+        if (fi < missing.length - 1) {
+          pdf.setDrawColor(230, 235, 240);
+          pdf.line(margin + 1, fy + FIELD_ROW_H, margin + usableWidth - 1, fy + FIELD_ROW_H);
+        }
+      });
+
+      y += missing.length * FIELD_ROW_H + 4 + 8; // block + gap between employees
+    });
+
+    addFooter();
+    const date = now.toISOString().split('T')[0];
+    pdf.save(`missing-information-report-${date}.pdf`);
+    toast({ title: 'Report Exported', description: `${employeesWithMissing.length} employee(s) with missing information.` });
+  };
+
   return (
     <div className="space-y-4">
       <div>
@@ -705,6 +896,9 @@ export default function PersonnelSection() {
               </Button>
               <Button variant="outline" onClick={handleExportPdf} data-testid="button-export-pdf">
                 <FileText className="mr-2 h-4 w-4" /> Export PDF
+              </Button>
+              <Button variant="outline" onClick={handleExportMissingInfoPdf} data-testid="button-missing-info-report">
+                <ClipboardList className="mr-2 h-4 w-4" /> Missing Information
               </Button>
               <Button onClick={handleOpenCreate} className="btn-industrial bg-primary text-white">
                 <Plus className="mr-2 h-4 w-4" /> Add Person
