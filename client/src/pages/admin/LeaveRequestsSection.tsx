@@ -15,8 +15,11 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/lib/auth-context';
 import { leaveRequestApi, leaveBalanceApi, userApi, publicHolidayApi } from '@/lib/api';
 import type { LeaveRequest, LeaveBalance } from '@shared/schema';
-import { FileText, Check, X, Trash2, ChevronDown, ChevronRight, Loader2, Plus, Pencil, BookOpen, Lock } from 'lucide-react';
+import { FileText, Check, X, Trash2, ChevronDown, ChevronRight, Loader2, Plus, Pencil, BookOpen, Lock, CalendarIcon } from 'lucide-react';
 import { formatLeaveStatus, canTakeAction } from './utils';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarPicker } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
 
 export default function LeaveRequestsSection() {
   const { toast } = useToast();
@@ -64,11 +67,14 @@ export default function LeaveRequestsSection() {
     queryFn: () => publicHolidayApi.getAll(),
   });
 
-  // Count Mon–Fri working days between two date strings, excluding public holidays
-  function countWorkingDays(startStr: string, endStr: string): number {
+  // Count Mon–Fri working days between two date strings, excluding public holidays.
+  // Religion-specific holidays are only excluded when the employee's religion matches.
+  function countWorkingDays(startStr: string, endStr: string, employeeReligion?: string | null): number {
     const recurringMmDd = new Set<string>();
     const specificYmd = new Set<string>();
     for (const h of publicHolidays as any[]) {
+      // Skip religion-specific holidays unless the employee shares that religion
+      if (h.religionGroup && h.religionGroup !== employeeReligion) continue;
       const d = new Date(h.date + 'T00:00:00');
       const mmdd = `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       if (h.isRecurring) recurringMmDd.add(mmdd);
@@ -535,7 +541,7 @@ export default function LeaveRequestsSection() {
                     <TableBody>
                       {historicRequests.map((request: any) => {
                         const employee = users.find((u: any) => u.id === request.userId);
-                        const days = countWorkingDays(request.startDate, request.endDate);
+                        const days = countWorkingDays(request.startDate, request.endDate, (employee as any)?.religion || null);
                         return (
                           <TableRow key={request.id} data-testid={`row-historic-${request.id}`}>
                             <TableCell>
@@ -1039,33 +1045,65 @@ export default function LeaveRequestsSection() {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label htmlFor="h-start">Start Date <span className="text-red-500">*</span></Label>
-                <Input
-                  id="h-start"
-                  type="date"
-                  value={historicForm.startDate}
-                  onChange={e => setHistoricForm(f => ({ ...f, startDate: e.target.value }))}
-                  data-testid="input-historic-startdate"
-                />
+                <Label>Start Date <span className="text-red-500">*</span></Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn("w-full justify-start text-left font-normal", !historicForm.startDate && "text-muted-foreground")}
+                      data-testid="input-historic-startdate"
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {historicForm.startDate ? format(new Date(historicForm.startDate + 'T00:00:00'), 'dd MMM yyyy') : 'Pick a date'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarPicker
+                      mode="single"
+                      selected={historicForm.startDate ? new Date(historicForm.startDate + 'T00:00:00') : undefined}
+                      onSelect={date => date && setHistoricForm(f => ({ ...f, startDate: format(date, 'yyyy-MM-dd') }))}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
               <div className="space-y-1">
-                <Label htmlFor="h-end">End Date <span className="text-red-500">*</span></Label>
-                <Input
-                  id="h-end"
-                  type="date"
-                  value={historicForm.endDate}
-                  onChange={e => setHistoricForm(f => ({ ...f, endDate: e.target.value }))}
-                  data-testid="input-historic-enddate"
-                />
+                <Label>End Date <span className="text-red-500">*</span></Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn("w-full justify-start text-left font-normal", !historicForm.endDate && "text-muted-foreground")}
+                      data-testid="input-historic-enddate"
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {historicForm.endDate ? format(new Date(historicForm.endDate + 'T00:00:00'), 'dd MMM yyyy') : 'Pick a date'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarPicker
+                      mode="single"
+                      selected={historicForm.endDate ? new Date(historicForm.endDate + 'T00:00:00') : undefined}
+                      onSelect={date => date && setHistoricForm(f => ({ ...f, endDate: format(date, 'yyyy-MM-dd') }))}
+                      disabled={date => historicForm.startDate ? date < new Date(historicForm.startDate + 'T00:00:00') : false}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
 
-            {historicForm.startDate && historicForm.endDate && historicForm.startDate <= historicForm.endDate && (
-              <div className="text-sm text-muted-foreground bg-slate-50 px-3 py-2 rounded border">
-                Duration: <strong>{countWorkingDays(historicForm.startDate, historicForm.endDate)} working day(s)</strong>
-                <span className="ml-1 text-xs">(weekends &amp; public holidays excluded)</span>
-              </div>
-            )}
+            {historicForm.startDate && historicForm.endDate && historicForm.startDate <= historicForm.endDate && (() => {
+              const selEmp = (users as any[]).find(u => u.id === historicForm.userId);
+              const empReligion = selEmp?.religion || null;
+              const days = countWorkingDays(historicForm.startDate, historicForm.endDate, empReligion);
+              return (
+                <div className="text-sm text-muted-foreground bg-slate-50 px-3 py-2 rounded border">
+                  Duration: <strong>{days} working day{days !== 1 ? 's' : ''}</strong>
+                  <span className="ml-1 text-xs">(weekends &amp; public holidays excluded)</span>
+                </div>
+              );
+            })()}
 
             <div className="space-y-1">
               <Label htmlFor="h-refnum">Reference Number</Label>

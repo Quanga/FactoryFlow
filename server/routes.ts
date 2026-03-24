@@ -16,14 +16,17 @@ async function hashPassword(password: string): Promise<string> {
 
 /**
  * Count working days (Mon–Fri) between two date strings (inclusive),
- * excluding any public holidays stored in the database.
+ * excluding public holidays stored in the database.
+ * Religion-specific holidays are only excluded when the employee's religion matches.
  * Recurring holidays match on month+day across any year.
  */
-async function countWorkingDays(startStr: string, endStr: string): Promise<number> {
+async function countWorkingDays(startStr: string, endStr: string, employeeReligion?: string | null): Promise<number> {
   const holidays = await storage.getAllPublicHolidays();
   const recurringMmDd = new Set<string>();
   const specificYmd = new Set<string>();
   for (const h of holidays) {
+    // Skip religion-specific holidays unless the employee shares that religion
+    if ((h as any).religionGroup && (h as any).religionGroup !== employeeReligion) continue;
     const d = new Date(h.date + 'T00:00:00');
     const mmdd = `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     if (h.isRecurring) {
@@ -1212,7 +1215,8 @@ export async function registerRoutes(
       // If the leave was already approved, we need to credit back the leave balance
       if (wasApproved && updatedRequest) {
         // Calculate working days (Mon–Fri, excluding public holidays)
-        const days = await countWorkingDays(request.startDate, request.endDate);
+        const cancelEmployee = await storage.getUser(request.userId);
+        const days = await countWorkingDays(request.startDate, request.endDate, (cancelEmployee as any)?.religion || null);
         
         // Credit back the taken days
         const balances = await storage.getLeaveBalances(request.userId);
@@ -1275,7 +1279,8 @@ export async function registerRoutes(
         return res.status(400).json({ error: "End date must be on or after start date" });
       }
 
-      const days = await countWorkingDays(startDate, endDate);
+      const employee = await storage.getUser(userId);
+      const days = await countWorkingDays(startDate, endDate, (employee as any)?.religion || null);
 
       const newRequest = await storage.createLeaveRequest({
         userId,
@@ -1319,7 +1324,8 @@ export async function registerRoutes(
       }
 
       // Credit back old working days
-      const oldDays = await countWorkingDays(existingRequest.startDate, existingRequest.endDate);
+      const oldEmployee = await storage.getUser(existingRequest.userId);
+      const oldDays = await countWorkingDays(existingRequest.startDate, existingRequest.endDate, (oldEmployee as any)?.religion || null);
 
       const oldBalances = await storage.getLeaveBalances(existingRequest.userId);
       const oldBalance = oldBalances.find((b: any) => b.leaveType === existingRequest.leaveType);
@@ -1334,7 +1340,8 @@ export async function registerRoutes(
       const newStartDate = startDate || existingRequest.startDate;
       const newEndDate = endDate || existingRequest.endDate;
 
-      const newDays = await countWorkingDays(newStartDate, newEndDate);
+      const newEmployee = newUserId !== existingRequest.userId ? await storage.getUser(newUserId) : oldEmployee;
+      const newDays = await countWorkingDays(newStartDate, newEndDate, (newEmployee as any)?.religion || null);
 
       // Deduct new working days
       const newBalances = await storage.getLeaveBalances(newUserId);
@@ -1376,7 +1383,8 @@ export async function registerRoutes(
       
       // If the leave was approved, credit back the balance before deleting
       if (request.status === 'approved') {
-        const days = await countWorkingDays(request.startDate, request.endDate);
+        const deleteEmployee = await storage.getUser(request.userId);
+        const days = await countWorkingDays(request.startDate, request.endDate, (deleteEmployee as any)?.religion || null);
         
         const balances = await storage.getLeaveBalances(request.userId);
         const balance = balances.find(b => b.leaveType === request.leaveType);
