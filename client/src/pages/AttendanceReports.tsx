@@ -433,6 +433,26 @@ export default function AttendanceReports() {
     return { total, avgAttendance, totalLate, totalEarly, employeesWithAnomalies, totalHours };
   }, [filteredSummaries]);
 
+  const departmentAbsenteeism = useMemo(() => {
+    const map: Record<string, { dept: string; employees: number; totalDaysWorked: number; totalWorkingDays: number; totalLate: number; totalEarly: number; totalHours: number; withAnomalies: number }> = {};
+    for (const s of filteredSummaries) {
+      const dept = s.department || 'Unassigned';
+      if (!map[dept]) map[dept] = { dept, employees: 0, totalDaysWorked: 0, totalWorkingDays: 0, totalLate: 0, totalEarly: 0, totalHours: 0, withAnomalies: 0 };
+      map[dept].employees++;
+      map[dept].totalDaysWorked += s.totalDaysWorked;
+      map[dept].totalWorkingDays += s.totalWorkingDays;
+      map[dept].totalLate += s.lateArrivals;
+      map[dept].totalEarly += s.earlyDepartures;
+      map[dept].totalHours += s.totalHoursWorked;
+      if (s.anomalies.length > 0) map[dept].withAnomalies++;
+    }
+    return Object.values(map).sort((a, b) => {
+      const rateA = a.totalWorkingDays > 0 ? a.totalDaysWorked / a.totalWorkingDays : 1;
+      const rateB = b.totalWorkingDays > 0 ? b.totalDaysWorked / b.totalWorkingDays : 1;
+      return rateA - rateB;
+    });
+  }, [filteredSummaries]);
+
   const exportPdf = () => {
     const pdf = new jsPDF('landscape');
     const periodLabel = period === 'custom'
@@ -626,6 +646,59 @@ export default function AttendanceReports() {
               </CardContent>
             </Card>
           </div>
+        )}
+
+        {departmentAbsenteeism.length > 1 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-blue-500" />
+                Department Absenteeism Summary
+              </CardTitle>
+              <CardDescription>Sorted by lowest attendance rate first</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Department</TableHead>
+                    <TableHead className="text-center">Employees</TableHead>
+                    <TableHead className="text-center">Attendance %</TableHead>
+                    <TableHead className="text-center">Late Arrivals</TableHead>
+                    <TableHead className="text-center">Early Departures</TableHead>
+                    <TableHead className="text-center">Total Hours</TableHead>
+                    <TableHead className="text-center">With Issues</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {departmentAbsenteeism.map((d) => {
+                    const rate = d.totalWorkingDays > 0 ? (d.totalDaysWorked / d.totalWorkingDays) * 100 : 100;
+                    return (
+                      <TableRow key={d.dept} data-testid={`dept-row-${d.dept}`}>
+                        <TableCell className="font-medium">{d.dept}</TableCell>
+                        <TableCell className="text-center">{d.employees}</TableCell>
+                        <TableCell className="text-center">
+                          <span className={`font-semibold ${rate >= 90 ? 'text-green-600' : rate >= 70 ? 'text-amber-600' : 'text-red-600'}`}>
+                            {rate.toFixed(0)}%
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-center">{d.totalLate}</TableCell>
+                        <TableCell className="text-center">{d.totalEarly}</TableCell>
+                        <TableCell className="text-center">{d.totalHours.toFixed(0)}</TableCell>
+                        <TableCell className="text-center">
+                          {d.withAnomalies > 0 ? (
+                            <Badge variant="destructive" className="text-xs">{d.withAnomalies}</Badge>
+                          ) : (
+                            <span className="text-green-600 text-xs">None</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
         )}
 
         {holidaysInRange.length > 0 && (

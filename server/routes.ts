@@ -1835,9 +1835,61 @@ export async function registerRoutes(
         console.error('AWOL detection error:', awolErr);
       }
 
+      // ── #17 Auto escalation: remind approvers of leave pending > 3 days ──
+      let escalationsSent = 0;
+      try {
+        const allRequests = await storage.getLeaveRequests();
+        const now = new Date();
+        for (const request of allRequests) {
+          if (!['pending_manager', 'pending_hr'].includes(request.status)) continue;
+          const submittedAt = new Date((request as any).createdAt || request.startDate);
+          const daysPending = Math.floor((now.getTime() - submittedAt.getTime()) / (1000 * 60 * 60 * 24));
+          if (daysPending < 3) continue;
+
+          const employee = await storage.getUser(request.userId);
+          const emailData = {
+            employeeName: employee ? `${employee.firstName} ${employee.surname}` : request.userId,
+            leaveType: request.leaveType,
+            startDate: request.startDate,
+            endDate: request.endDate,
+            daysPending,
+            requestId: request.id,
+          };
+
+          if (request.status === 'pending_manager') {
+            const managerIds = [employee?.managerId, employee?.secondManagerId].filter(Boolean) as string[];
+            for (const mgId of managerIds) {
+              const manager = await storage.getUser(mgId);
+              if (manager?.email) {
+                await sendLeaveEscalationReminder(manager.email, senderEmail, {
+                  managerName: `${manager.firstName} ${manager.surname}`,
+                  ...emailData,
+                });
+                escalationsSent++;
+              }
+            }
+          } else if (request.status === 'pending_hr') {
+            const adminSetting = await storage.getSetting('admin_email');
+            const hrEmails = adminSetting?.value?.split('\n').map((e: string) => e.trim()).filter(Boolean) || [];
+            for (const hrEmail of hrEmails) {
+              await sendLeaveEscalationReminder(hrEmail, senderEmail, {
+                managerName: 'HR',
+                ...emailData,
+              });
+              escalationsSent++;
+            }
+          }
+        }
+        if (escalationsSent > 0) {
+          results.push({ userId: 'escalation', name: `Escalation reminders: ${escalationsSent} sent`, success: true });
+        }
+      } catch (escErr) {
+        console.error('Escalation auto-trigger error:', escErr);
+      }
+
       return res.json({ 
-        message: `Processed ${results.filter(r => r.userId !== 'awol-check').length} clock-out reset(s)`, 
-        processed: results.filter(r => r.success && r.userId !== 'awol-check').length,
+        message: `Processed ${results.filter(r => r.userId !== 'awol-check' && r.userId !== 'escalation').length} clock-out reset(s)`, 
+        processed: results.filter(r => r.success && r.userId !== 'awol-check' && r.userId !== 'escalation').length,
         results 
       });
     } catch (error) {

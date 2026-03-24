@@ -24,7 +24,6 @@ import EmployeeTypesSection from './admin/EmployeeTypesSection';
 import LeaveRulesSection from './admin/LeaveRulesSection';
 import { GrievancesSection } from './admin/GrievancesSection';
 import LeaveCalendarSection from './admin/LeaveCalendarSection';
-import PublicHolidaysSection from './admin/PublicHolidaysSection';
 import OrgPositionsSection from './admin/OrgPositionsSection';
 import CompaniesSection from './admin/CompaniesSection';
 import SettingsSection from './admin/SettingsSection';
@@ -246,13 +245,6 @@ export default function AdminDashboard() {
                 <Network className="h-4 w-4" /> Organization Chart
               </button>
               <button
-                onClick={() => setLocation('/admin/leave-calendar')}
-                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors hover:bg-slate-100 text-slate-700"
-                data-testid="nav-leave-calendar"
-              >
-                <CalendarDays className="h-4 w-4" /> Leave Calendar
-              </button>
-              <button
                 onClick={() => setActiveSection('leave-requests')}
                 className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
                   activeSection === 'leave-requests' ? 'bg-primary text-white' : 'hover:bg-slate-100 text-slate-700'
@@ -335,15 +327,6 @@ export default function AdminDashboard() {
                 <CalendarDays className="h-4 w-4" /> Leave Calendar
               </button>
               <button
-                onClick={() => setActiveSection('holidays')}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
-                  activeSection === 'holidays' ? 'bg-primary text-white' : 'hover:bg-slate-100 text-slate-700'
-                }`}
-                data-testid="nav-holidays"
-              >
-                <CalendarDays className="h-4 w-4" /> Public Holidays
-              </button>
-              <button
                 onClick={() => setActiveSection('positions')}
                 className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
                   activeSection === 'positions' ? 'bg-primary text-white' : 'hover:bg-slate-100 text-slate-700'
@@ -419,9 +402,6 @@ export default function AdminDashboard() {
           )}
           {activeSection === 'leave-calendar' && (
             <LeaveCalendarSection />
-          )}
-          {activeSection === 'holidays' && (
-            <PublicHolidaysSection />
           )}
           {activeSection === 'positions' && (
             <OrgPositionsSection />
