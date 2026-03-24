@@ -17,7 +17,7 @@ import { useAuth } from '@/lib/auth-context';
 import { leaveRequestApi, userApi, orgPositionApi } from '@/lib/api';
 import type { OrgPosition } from '@shared/schema';
 
-export default function LeaveRequest() {
+export function LeaveRequest() {
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -156,12 +156,11 @@ export default function LeaveRequest() {
   };
 
   return (
-    <Layout>
-      <div className="max-w-3xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-heading font-bold">Request Leave</h1>
-          <p className="text-muted-foreground">Submit a new application for time off.</p>
-        </div>
+    <div className="max-w-3xl mx-auto">
+      <div className="mb-8">
+        <h1 className="text-3xl font-heading font-bold">Request Leave</h1>
+        <p className="text-muted-foreground">Submit a new application for time off.</p>
+      </div>
 
         <div className="grid gap-8 md:grid-cols-[2fr_1fr]">
           <Card className="md:col-span-2 shadow-md border-t-4 border-t-primary">
@@ -341,8 +340,16 @@ export default function LeaveRequest() {
               </form>
             </CardContent>
           </Card>
-        </div>
       </div>
+    </div>
+  );
+}
+
+// Standalone page (used at /leave-request route)
+export default function LeaveRequestPage() {
+  return (
+    <Layout>
+      <LeaveRequest />
     </Layout>
   );
 }

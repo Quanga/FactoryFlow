@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Users, Settings, Camera, Building2, Loader2, CheckCircle2, UserCog, Calendar, Clock, FileText, LayoutDashboard, LogOut, Network, MessageSquareWarning, CalendarDays, TrendingUp } from 'lucide-react';
+import { Users, Settings, Camera, Building2, Loader2, CheckCircle2, UserCog, Calendar, Clock, FileText, LayoutDashboard, LogOut, Network, MessageSquareWarning, CalendarDays, TrendingUp, Briefcase } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { NotificationBell } from '@/components/NotificationBell';
 import { useToast } from "@/hooks/use-toast";
@@ -27,8 +27,9 @@ import LeaveCalendarSection from './admin/LeaveCalendarSection';
 import OrgPositionsSection from './admin/OrgPositionsSection';
 import CompaniesSection from './admin/CompaniesSection';
 import SettingsSection from './admin/SettingsSection';
+import { LeaveRequest as LeaveRequestForm } from './LeaveRequest';
 
-type ActiveSection = 'dashboard' | 'employees' | 'leave-requests' | 'attendance' | 'departments' | 'employee-types' | 'leave-rules' | 'grievances' | 'holidays' | 'leave-calendar' | 'positions' | 'companies' | 'settings';
+type ActiveSection = 'dashboard' | 'employees' | 'leave-requests' | 'attendance' | 'departments' | 'employee-types' | 'leave-rules' | 'grievances' | 'holidays' | 'leave-calendar' | 'positions' | 'companies' | 'settings' | 'apply-leave' | 'employee-grievances';
 
 export default function AdminDashboard() {
   const [, setLocation] = useLocation();
@@ -259,13 +260,6 @@ export default function AdminDashboard() {
                 )}
               </button>
               <button
-                onClick={() => setLocation('/leave-request')}
-                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors hover:bg-slate-100 text-slate-700"
-                data-testid="nav-apply-leave"
-              >
-                <Calendar className="h-4 w-4" /> Apply for Leave
-              </button>
-              <button
                 onClick={() => setActiveSection('attendance')}
                 className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
                   activeSection === 'attendance' ? 'bg-primary text-white' : 'hover:bg-slate-100 text-slate-700'
@@ -336,20 +330,6 @@ export default function AdminDashboard() {
                 <Network className="h-4 w-4" /> Org Positions
               </button>
               <button
-                onClick={() => setActiveSection('grievances')}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
-                  activeSection === 'grievances' ? 'bg-primary text-white' : 'hover:bg-slate-100 text-slate-700'
-                }`}
-                data-testid="nav-grievances"
-              >
-                <MessageSquareWarning className="h-4 w-4" /> Grievances
-                {openGrievanceCount > 0 && (
-                  <Badge className="ml-auto bg-red-500 text-white text-xs">
-                    {openGrievanceCount}
-                  </Badge>
-                )}
-              </button>
-              <button
                 onClick={() => setActiveSection('settings')}
                 className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
                   activeSection === 'settings' ? 'bg-primary text-white' : 'hover:bg-slate-100 text-slate-700'
@@ -359,7 +339,36 @@ export default function AdminDashboard() {
                 <Settings className="h-4 w-4" /> Settings
               </button>
 
-              <div className="pt-4 mt-4 border-t">
+              <div className="pt-3 mt-3 border-t">
+                <p className="px-3 py-1 text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                  <Briefcase className="h-3 w-3" /> Employee Tools
+                </p>
+                <button
+                  onClick={() => setActiveSection('apply-leave')}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
+                    activeSection === 'apply-leave' ? 'bg-primary text-white' : 'hover:bg-slate-100 text-slate-700'
+                  }`}
+                  data-testid="nav-apply-leave"
+                >
+                  <Calendar className="h-4 w-4" /> Apply for Leave
+                </button>
+                <button
+                  onClick={() => setActiveSection('employee-grievances')}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
+                    activeSection === 'employee-grievances' ? 'bg-primary text-white' : 'hover:bg-slate-100 text-slate-700'
+                  }`}
+                  data-testid="nav-grievances"
+                >
+                  <MessageSquareWarning className="h-4 w-4" /> Grievances
+                  {openGrievanceCount > 0 && (
+                    <Badge className="ml-auto bg-red-500 text-white text-xs">
+                      {openGrievanceCount}
+                    </Badge>
+                  )}
+                </button>
+              </div>
+
+              <div className="pt-2 mt-1 border-t">
                 <button
                   onClick={() => {
                     logout();
@@ -411,6 +420,12 @@ export default function AdminDashboard() {
           )}
           {activeSection === 'settings' && (
             <SettingsSection />
+          )}
+          {activeSection === 'apply-leave' && (
+            <LeaveRequestForm />
+          )}
+          {activeSection === 'employee-grievances' && (
+            <GrievancesSection />
           )}
         </div>
       </div>
