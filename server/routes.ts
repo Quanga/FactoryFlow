@@ -1819,7 +1819,7 @@ export async function registerRoutes(
 
       // ── #10 AWOL detection: workers with no clock-in and no approved leave yesterday ──
       try {
-        const allWorkers = await storage.getUsers();
+        const allWorkers = await storage.getAllUsers();
         const yesterdayStr = yesterday.toISOString().split('T')[0];
         const activeWorkers = allWorkers.filter((u: any) =>
           u.role === 'worker' &&
@@ -1829,7 +1829,7 @@ export async function registerRoutes(
         );
 
         // Get yesterday's attendance records
-        const yesterdayAttendance = await storage.getAttendanceRecords(startOfYesterday, startOfToday);
+        const yesterdayAttendance = await storage.getAllAttendanceRecords(startOfYesterday, startOfToday);
         const workersClockedInYesterday = new Set(yesterdayAttendance.map((r: any) => r.userId));
 
         // Get approved leave for yesterday

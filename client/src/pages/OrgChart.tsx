@@ -600,26 +600,28 @@ export default function OrgChart() {
     }
   }, [user, setLocation]);
 
-  const { data: users = [], isLoading: usersLoading } = useQuery<User[]>({
+  const { data: users = [], isLoading: usersLoading, isError: usersError } = useQuery<User[]>({
     queryKey: ['users'],
     queryFn: userApi.getAll,
   });
 
-  const { data: departments = [], isLoading: deptsLoading } = useQuery<Department[]>({
+  const { data: departments = [], isLoading: deptsLoading, isError: deptsError } = useQuery<Department[]>({
     queryKey: ['departments'],
     queryFn: departmentApi.getAll,
   });
 
-  const { data: orgPositions = [], isLoading: positionsLoading } = useQuery<OrgPosition[]>({
+  const { data: orgPositions = [], isLoading: positionsLoading, isError: positionsError } = useQuery<OrgPosition[]>({
     queryKey: ['org-positions'],
     queryFn: orgPositionApi.getAll,
   });
 
   const isLoading = usersLoading || deptsLoading || positionsLoading;
+  const isError = usersError || deptsError || positionsError;
 
   const activeUsers = useMemo(() => users.filter(u => !u.terminationDate && !u.exclude), [users]);
 
   const { treeData, dimensions } = useMemo(() => {
+    try {
     if (activeUsers.length === 0 && orgPositions.length === 0) {
       return { treeData: null, dimensions: { width: 800, height: 400, offsetX: 0 } };
     }
@@ -1018,6 +1020,10 @@ export default function OrgChart() {
       treeData: tree,
       dimensions: { width, height, offsetX },
     };
+    } catch (err) {
+      console.error('OrgChart tree computation error:', err);
+      return { treeData: null, dimensions: { width: 800, height: 400, offsetX: 0 } };
+    }
   }, [activeUsers, orgPositions]);
 
   const totalManagers = activeUsers.filter(u => u.role === 'manager').length;
@@ -1099,6 +1105,13 @@ export default function OrgChart() {
                 <Skeleton className="h-24 w-48" />
                 <Skeleton className="h-24 w-48" />
               </div>
+            </CardContent>
+          </Card>
+        ) : isError ? (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <p className="text-lg font-medium text-destructive">Failed to load org chart data</p>
+              <p className="text-sm text-muted-foreground mt-1">Please refresh the page to try again</p>
             </CardContent>
           </Card>
         ) : treeData ? (
