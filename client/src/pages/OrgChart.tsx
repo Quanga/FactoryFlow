@@ -199,10 +199,14 @@ function OrgNode({ data, x, y, showAttendance, clockedInUserIds }: { data: OrgNo
   return <ManagerNode data={data} x={x} y={y} showAttendance={showAttendance} clockedInUserIds={clockedInUserIds} />;
 }
 
-function Connector({ source, target, sourceHeight }: { source: { x: number; y: number }; target: { x: number; y: number }; sourceHeight: number }) {
+function Connector({ source, target, sourceHeight, targetTier = 1 }: { source: { x: number; y: number }; target: { x: number; y: number }; sourceHeight: number; targetTier?: number }) {
   const sourceBottom = source.y + sourceHeight;
   const targetTop = target.y;
-  const midY = (sourceBottom + targetTop) / 2;
+  // For tiered nodes the elbow stays close to the parent so the long drop is vertical,
+  // not diagonal — this way the line still visually "comes from" the parent level.
+  const midY = targetTier > 1
+    ? sourceBottom + 20
+    : (sourceBottom + targetTop) / 2;
   
   const path = `
     M ${source.x} ${sourceBottom}
@@ -296,7 +300,9 @@ export default function OrgChart() {
       const sourceY = link.source.y + link.source.data.data.nodeHeight;
       const targetX = link.target.x;
       const targetY = link.target.y;
-      const midY = (sourceY + targetY) / 2;
+      const targetTierVal = (link.target.data.data.tier || 1) as number;
+      // Same elbow logic as React Connector: tiered nodes keep elbow near parent
+      const midY = targetTierVal > 1 ? sourceY + 20 : (sourceY + targetY) / 2;
       
       const path = document.createElementNS(svgNs, 'path');
       path.setAttribute('d', `M${sourceX},${sourceY} L${sourceX},${midY} L${targetX},${midY} L${targetX},${targetY}`);
@@ -1209,6 +1215,7 @@ export default function OrgChart() {
                         source={{ x: link.source.x, y: link.source.y }}
                         target={{ x: link.target.x, y: link.target.y }}
                         sourceHeight={link.source.data.data.nodeHeight}
+                        targetTier={link.target.data.data.tier || 1}
                       />
                     ))}
                     
