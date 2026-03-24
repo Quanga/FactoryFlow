@@ -1761,8 +1761,13 @@ export async function registerRoutes(
       // ── #10 AWOL detection: workers with no clock-in and no approved leave yesterday ──
       try {
         const allWorkers = await storage.getUsers();
-        const activeWorkers = allWorkers.filter((u: any) => u.role === 'worker' && !u.terminationDate && !u.excludeFromLeave);
         const yesterdayStr = yesterday.toISOString().split('T')[0];
+        const activeWorkers = allWorkers.filter((u: any) =>
+          u.role === 'worker' &&
+          !u.terminationDate &&
+          !u.excludeFromLeave &&
+          (!u.startDate || u.startDate <= yesterdayStr)
+        );
 
         // Get yesterday's attendance records
         const yesterdayAttendance = await storage.getAttendanceRecords(startOfYesterday, startOfToday);
@@ -2985,9 +2990,10 @@ export async function registerRoutes(
       const attendanceRecords = await storage.getAllAttendanceRecords(startOfDay, endOfDay);
       const holidays = await storage.getAllPublicHolidays();
       
-      // Active employees (not terminated, not excluded)
-      const activeEmployees = users.filter(u => !u.terminationDate && !u.exclude);
-      const eligibleForAttendance = activeEmployees.filter(u => u.attendanceRequired !== false && (u.role === 'worker' || u.role === 'manager'));
+      const todayDateStr = today.toISOString().split('T')[0];
+      // Active employees (not terminated, not excluded, and already started)
+      const activeEmployees = users.filter((u: any) => !u.terminationDate && !u.exclude && (!u.startDate || u.startDate <= todayDateStr));
+      const eligibleForAttendance = activeEmployees.filter((u: any) => u.attendanceRequired !== false && (u.role === 'worker' || u.role === 'manager'));
       
       // Clocked in today
       const clockedInUsers = new Set<string>();

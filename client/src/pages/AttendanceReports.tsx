@@ -235,7 +235,7 @@ export default function AttendanceReports() {
       recordsByUser.set(record.userId, existing);
     });
 
-    const results: EmployeeAttendanceSummary[] = activeUsers.map(user => {
+    const results: (EmployeeAttendanceSummary | null)[] = activeUsers.map(user => {
       // Effective start: the later of the report period start and the employee's own start date.
       // This ensures days before the employee joined are never counted as absences.
       const userStartDate = user.startDate ? parseISO(user.startDate) : start;
@@ -245,6 +245,8 @@ export default function AttendanceReports() {
       const userHolidaySet = getHolidayDateSetForUser((user as any).religion);
 
       // Working days for this specific employee (from their effective start)
+      // If the employee hasn't started yet within this period, return empty summary
+      if (effectiveStart > end) return null;
       const userWorkingDays = eachDayOfInterval({ start: effectiveStart, end }).filter(d => {
         const dateKey = format(d, 'yyyy-MM-dd');
         return !isWeekend(d) && d <= now && !userHolidaySet.has(dateKey);
@@ -391,7 +393,7 @@ export default function AttendanceReports() {
       };
     });
 
-    return results;
+    return results.filter((r): r is EmployeeAttendanceSummary => r !== null);
   }, [activeUsers, attendanceRecords, start, end, clockInCutoff, clockOutCutoff, holidayDateSet, holidaysInRange]);
 
   const filteredSummaries = useMemo(() => {

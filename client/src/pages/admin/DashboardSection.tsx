@@ -103,27 +103,29 @@ export default function DashboardSection({
   });
 
   const activeEmployees = React.useMemo(() =>
-    users.filter((u: any) => !u.terminationDate && !u.excludeFromLeave),
-  [users]);
+    users.filter((u: any) => !u.terminationDate && !u.excludeFromLeave && (!u.startDate || u.startDate <= todayStr)),
+  [users, todayStr]);
 
   const sevenDayTrend = React.useMemo(() => {
-    const workers = activeEmployees.filter((u: any) => u.role === 'worker');
+    const allWorkers = activeEmployees.filter((u: any) => u.role === 'worker');
     return Array.from({ length: 7 }, (_, i) => {
       const d = subDays(new Date(), 6 - i);
       const dayStr = format(d, 'yyyy-MM-dd');
       const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-      const clockedInIds = new Set(
+      // Only count workers who had started on or before this day
+      const workersForDay = allWorkers.filter((u: any) => !u.startDate || u.startDate <= dayStr);
+      const clockedInWorkerIds = new Set(
         (weekAttendance as AttendanceRecord[])
-          .filter(r => r.type === 'in' && format(new Date(r.timestamp), 'yyyy-MM-dd') === dayStr)
+          .filter(r => r.type === 'in' && format(new Date(r.timestamp), 'yyyy-MM-dd') === dayStr && workersForDay.some((u: any) => u.id === r.userId))
           .map(r => r.userId)
       );
-      const count = clockedInIds.size;
+      const count = clockedInWorkerIds.size;
       const missingUsers = isWeekend
         ? []
-        : workers
-            .filter((u: any) => !clockedInIds.has(u.id))
+        : workersForDay
+            .filter((u: any) => !clockedInWorkerIds.has(u.id))
             .map((u: any) => `${u.firstName} ${u.surname}`);
-      return { dayStr, label: format(d, 'EEE'), count, isToday: dayStr === todayStr, isWeekend, missingUsers };
+      return { dayStr, label: format(d, 'EEE'), count, total: workersForDay.length, isToday: dayStr === todayStr, isWeekend, missingUsers };
     });
   }, [weekAttendance, todayStr, activeEmployees]);
 
@@ -232,10 +234,9 @@ export default function DashboardSection({
         <CardContent>
           <TooltipProvider delayDuration={200}>
             <div className="flex items-end gap-2 h-28">
-              {sevenDayTrend.map(({ label, count, isToday, isWeekend, missingUsers }, idx) => {
+              {sevenDayTrend.map(({ label, count, total, isToday, isWeekend, missingUsers }, idx) => {
                 const maxCount = Math.max(...sevenDayTrend.map(d => d.count), 1);
                 const heightPct = Math.max((count / maxCount) * 100, 4);
-                const workers = activeEmployees.filter((u: any) => u.role === 'worker');
                 const side = idx < 2 ? 'right' : idx > 4 ? 'left' : 'top';
                 return (
                   <Tooltip key={label}>
@@ -253,7 +254,7 @@ export default function DashboardSection({
                     </TooltipTrigger>
                     <TooltipContent side={side} className="max-w-[200px] p-3">
                       <p className="font-semibold text-sm mb-1">
-                        {isWeekend ? 'Weekend' : `${count} / ${workers.length} clocked in`}
+                        {isWeekend ? 'Weekend' : `${count} / ${total} clocked in`}
                       </p>
                       {!isWeekend && missingUsers.length > 0 && (
                         <>

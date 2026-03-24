@@ -209,7 +209,7 @@ import { formatDateForDisplay, parseDateFromDisplay } from './utils';
         {/* Clocked In Summary */}
         {(() => {
           const todayStr = format(new Date(), 'yyyy-MM-dd');
-          const eligibleEmployees = users.filter(u => !u.exclude && !u.terminationDate && u.attendanceRequired !== false);
+          const eligibleEmployees = users.filter(u => !u.exclude && !u.terminationDate && u.attendanceRequired !== false && (!(u as any).startDate || (u as any).startDate <= todayStr));
           const todayRecords = attendanceRecords.filter((r: AttendanceRecord) => 
             format(new Date(r.timestamp), 'yyyy-MM-dd') === todayStr
           );
@@ -361,7 +361,7 @@ import { formatDateForDisplay, parseDateFromDisplay } from './utils';
                           return true;
                         });
                         
-                        const eligibleEmployees = users.filter((u: any) => !u.exclude && !u.terminationDate && u.attendanceRequired !== false && (pdfDeptFilter === 'all' || !pdfDeptFilter || u.department === pdfDeptFilter));
+                        const eligibleEmployees = users.filter((u: any) => !u.exclude && !u.terminationDate && u.attendanceRequired !== false && (!u.startDate || u.startDate <= today) && (pdfDeptFilter === 'all' || !pdfDeptFilter || u.department === pdfDeptFilter));
                         const usersWithAttendance = new Set(filteredRecords.map((r: AttendanceRecord) => r.userId));
                         
                         type PdfConsolidated = {
@@ -591,7 +591,7 @@ import { formatDateForDisplay, parseDateFromDisplay } from './utils';
                   return true;
                 });
                 
-                const eligibleEmployees = users.filter(u => !u.exclude && !u.terminationDate && u.attendanceRequired !== false);
+                const eligibleEmployees = users.filter(u => !u.exclude && !u.terminationDate && u.attendanceRequired !== false && (!(u as any).startDate || (u as any).startDate <= today));
                 const usersWithAttendance = new Set(filteredRecords.map((r: AttendanceRecord) => r.userId));
                 
                 type ConsolidatedRecord = {
@@ -860,7 +860,7 @@ import { formatDateForDisplay, parseDateFromDisplay } from './utils';
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {users.filter(u => !u.exclude && !u.terminationDate).map(u => (
+                  {users.filter(u => !u.exclude && !u.terminationDate && (!(u as any).startDate || (u as any).startDate <= today)).map(u => (
                     <TableRow key={u.id}>
                       <TableCell>
                         <div className="font-medium">{u.firstName} {u.surname}</div>
@@ -1060,6 +1060,7 @@ import { formatDateForDisplay, parseDateFromDisplay } from './utils';
                   !u.terminationDate && 
                   u.attendanceRequired !== false && 
                   !u.exclude &&
+                  (!(u as any).startDate || (u as any).startDate <= awolEndDate) &&
                   (!awolDeptFilter || u.department === awolDeptFilter)
                 );
 
