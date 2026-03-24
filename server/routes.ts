@@ -3256,7 +3256,7 @@ export async function registerRoutes(
         const { faceDescriptor, password, ...safe } = u as any;
         return {
           ...safe,
-          departmentName: u.departmentId ? (deptMap.get(u.departmentId) ?? null) : null,
+          departmentName: u.department ?? null,
           employeeTypeName: (u as any).employeeTypeId ? (typeMap.get((u as any).employeeTypeId) ?? null) : null,
           companyName: (u as any).companyId ? (companyMap.get((u as any).companyId) ?? null) : null,
         };

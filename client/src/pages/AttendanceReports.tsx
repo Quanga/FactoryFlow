@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { formatDateForDisplay, parseDateFromDisplay } from './admin/utils';
+import { formatDateForDisplay, parseDateFromDisplay, isValidDateFormat } from './admin/utils';
 import { useLocation } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
@@ -166,6 +166,8 @@ export default function AttendanceReports() {
   const [period, setPeriod] = useState<ReportPeriod>('weekly');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
+  const [customStartInput, setCustomStartInput] = useState('');
+  const [customEndInput, setCustomEndInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState<string>('all');
   const [expandedEmployee, setExpandedEmployee] = useState<string | null>(null);
@@ -581,8 +583,20 @@ export default function AttendanceReports() {
                       id="start-date"
                       type="text"
                       placeholder="dd/mm/yyyy"
-                      value={formatDateForDisplay(customStart)}
-                      onChange={(e) => setCustomStart(parseDateFromDisplay(e.target.value))}
+                      value={customStartInput}
+                      onChange={(e) => {
+                        setCustomStartInput(e.target.value);
+                        if (isValidDateFormat(e.target.value)) {
+                          setCustomStart(parseDateFromDisplay(e.target.value));
+                        } else if (!e.target.value) {
+                          setCustomStart('');
+                        }
+                      }}
+                      onBlur={(e) => {
+                        if (!isValidDateFormat(e.target.value)) {
+                          setCustomStartInput(formatDateForDisplay(customStart));
+                        }
+                      }}
                       data-testid="input-start-date"
                     />
                   </div>
@@ -592,8 +606,20 @@ export default function AttendanceReports() {
                       id="end-date"
                       type="text"
                       placeholder="dd/mm/yyyy"
-                      value={formatDateForDisplay(customEnd)}
-                      onChange={(e) => setCustomEnd(parseDateFromDisplay(e.target.value))}
+                      value={customEndInput}
+                      onChange={(e) => {
+                        setCustomEndInput(e.target.value);
+                        if (isValidDateFormat(e.target.value)) {
+                          setCustomEnd(parseDateFromDisplay(e.target.value));
+                        } else if (!e.target.value) {
+                          setCustomEnd('');
+                        }
+                      }}
+                      onBlur={(e) => {
+                        if (!isValidDateFormat(e.target.value)) {
+                          setCustomEndInput(formatDateForDisplay(customEnd));
+                        }
+                      }}
                       data-testid="input-end-date"
                     />
                   </div>

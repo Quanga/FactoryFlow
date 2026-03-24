@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { formatDateForDisplay, parseDateFromDisplay } from './utils';
+import { formatDateForDisplay, parseDateFromDisplay, isValidDateFormat } from './utils';
   import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
   import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
   import { Button } from "@/components/ui/button";
@@ -24,6 +24,9 @@ import { formatDateForDisplay, parseDateFromDisplay } from './utils';
     const today = format(new Date(), 'yyyy-MM-dd');
     const [attendanceStartDate, setAttendanceStartDate] = useState(today);
     const [attendanceEndDate, setAttendanceEndDate] = useState(today);
+    // Separate display states so partial typing doesn't crash the query/rendering
+    const [attendanceStartInput, setAttendanceStartInput] = useState(formatDateForDisplay(today));
+    const [attendanceEndInput, setAttendanceEndInput] = useState(formatDateForDisplay(today));
     const [attendanceUserFilter, setAttendanceUserFilter] = useState('');
     const [attendanceInfringementFilter, setAttendanceInfringementFilter] = useState(false);
     const [attendanceTab, setAttendanceTab] = useState<'records' | 'manual-entry' | 'trends' | 'awol'>('records');
@@ -310,8 +313,20 @@ import { formatDateForDisplay, parseDateFromDisplay } from './utils';
                     <Input
                       type="text"
                       placeholder="dd/mm/yyyy"
-                      value={formatDateForDisplay(attendanceStartDate)}
-                      onChange={(e) => setAttendanceStartDate(parseDateFromDisplay(e.target.value))}
+                      value={attendanceStartInput}
+                      onChange={(e) => {
+                        setAttendanceStartInput(e.target.value);
+                        if (isValidDateFormat(e.target.value)) {
+                          setAttendanceStartDate(parseDateFromDisplay(e.target.value));
+                        } else if (!e.target.value) {
+                          setAttendanceStartDate('');
+                        }
+                      }}
+                      onBlur={(e) => {
+                        if (!isValidDateFormat(e.target.value)) {
+                          setAttendanceStartInput(formatDateForDisplay(attendanceStartDate));
+                        }
+                      }}
                       className="w-40"
                       data-testid="input-start-date"
                     />
@@ -319,8 +334,20 @@ import { formatDateForDisplay, parseDateFromDisplay } from './utils';
                     <Input
                       type="text"
                       placeholder="dd/mm/yyyy"
-                      value={formatDateForDisplay(attendanceEndDate)}
-                      onChange={(e) => setAttendanceEndDate(parseDateFromDisplay(e.target.value))}
+                      value={attendanceEndInput}
+                      onChange={(e) => {
+                        setAttendanceEndInput(e.target.value);
+                        if (isValidDateFormat(e.target.value)) {
+                          setAttendanceEndDate(parseDateFromDisplay(e.target.value));
+                        } else if (!e.target.value) {
+                          setAttendanceEndDate('');
+                        }
+                      }}
+                      onBlur={(e) => {
+                        if (!isValidDateFormat(e.target.value)) {
+                          setAttendanceEndInput(formatDateForDisplay(attendanceEndDate));
+                        }
+                      }}
                       className="w-40"
                       data-testid="input-end-date"
                     />
@@ -557,6 +584,8 @@ import { formatDateForDisplay, parseDateFromDisplay } from './utils';
                     onClick={() => {
                       setAttendanceStartDate('');
                       setAttendanceEndDate('');
+                      setAttendanceStartInput('');
+                      setAttendanceEndInput('');
                       setAttendanceUserFilter('');
                       setAttendanceInfringementFilter(false);
                     }}

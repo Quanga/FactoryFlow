@@ -159,15 +159,28 @@ export default function EmployeeProfile() {
             <CardContent>
               {leaveBalances && leaveBalances.length > 0 ? (
                 <div className="space-y-4">
-                  {leaveBalances.map((balance: LeaveBalance) => (
-                    <div key={balance.id} className="flex justify-between items-center" data-testid={`leave-balance-${balance.id}`}>
-                      <span className="font-medium capitalize">{balance.leaveType.replace('_', ' ')}</span>
-                      <div className="text-right">
-                        <span className="text-green-600 font-bold">{(balance.total ?? 0) - (balance.taken ?? 0) - (balance.pending ?? 0)}</span>
-                        <span className="text-gray-500 text-sm"> / {balance.total} days</span>
+                  {leaveBalances.map((balance: LeaveBalance) => {
+                    const carryOver = (balance as any).carryOverDays as number | undefined;
+                    const carryOverExpiry = (balance as any).carryOverExpiry as string | null | undefined;
+                    const available = (balance.total ?? 0) - (balance.taken ?? 0) - (balance.pending ?? 0);
+                    return (
+                      <div key={balance.id} className="space-y-0.5" data-testid={`leave-balance-${balance.id}`}>
+                        <div className="flex justify-between items-center">
+                          <span className="font-medium capitalize">{balance.leaveType.replace('_', ' ')}</span>
+                          <div className="text-right">
+                            <span className="text-green-600 font-bold">{available}</span>
+                            <span className="text-gray-500 text-sm"> / {balance.total} days</span>
+                          </div>
+                        </div>
+                        {carryOver && carryOver > 0 && (
+                          <p className="text-xs text-amber-600">
+                            +{carryOver} carried over
+                            {carryOverExpiry && ` (expires ${new Date(carryOverExpiry).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })})`}
+                          </p>
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="text-gray-500">No leave balances found.</p>
