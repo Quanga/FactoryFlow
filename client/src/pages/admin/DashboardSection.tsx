@@ -106,28 +106,32 @@ export default function DashboardSection({
     users.filter((u: any) => !u.terminationDate && !u.excludeFromLeave && (!u.startDate || u.startDate <= todayStr)),
   [users, todayStr]);
 
+  // All employees required to clock in (any role), excluding those explicitly excluded from attendance
+  const attendanceRequiredEmployees = React.useMemo(() =>
+    users.filter((u: any) => !u.terminationDate && u.attendanceRequired !== false && (!u.startDate || u.startDate <= todayStr)),
+  [users, todayStr]);
+
   const sevenDayTrend = React.useMemo(() => {
-    const allWorkers = activeEmployees.filter((u: any) => u.role === 'worker');
     return Array.from({ length: 7 }, (_, i) => {
       const d = subDays(new Date(), 6 - i);
       const dayStr = format(d, 'yyyy-MM-dd');
       const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-      // Only count workers who had started on or before this day
-      const workersForDay = allWorkers.filter((u: any) => !u.startDate || u.startDate <= dayStr);
-      const clockedInWorkerIds = new Set(
+      // All attendance-required employees who had started on or before this day
+      const employeesForDay = attendanceRequiredEmployees.filter((u: any) => !u.startDate || u.startDate <= dayStr);
+      const clockedInIds = new Set(
         (weekAttendance as AttendanceRecord[])
-          .filter(r => r.type === 'in' && format(new Date(r.timestamp), 'yyyy-MM-dd') === dayStr && workersForDay.some((u: any) => u.id === r.userId))
+          .filter(r => r.type === 'in' && format(new Date(r.timestamp), 'yyyy-MM-dd') === dayStr && employeesForDay.some((u: any) => u.id === r.userId))
           .map(r => r.userId)
       );
-      const count = clockedInWorkerIds.size;
+      const count = clockedInIds.size;
       const missingUsers = isWeekend
         ? []
-        : workersForDay
-            .filter((u: any) => !clockedInWorkerIds.has(u.id))
+        : employeesForDay
+            .filter((u: any) => !clockedInIds.has(u.id))
             .map((u: any) => `${u.firstName} ${u.surname}`);
-      return { dayStr, label: format(d, 'EEE'), count, total: workersForDay.length, isToday: dayStr === todayStr, isWeekend, missingUsers };
+      return { dayStr, label: format(d, 'EEE'), count, total: employeesForDay.length, isToday: dayStr === todayStr, isWeekend, missingUsers };
     });
-  }, [weekAttendance, todayStr, activeEmployees]);
+  }, [weekAttendance, todayStr, attendanceRequiredEmployees]);
 
   const pendingCounts = React.useMemo(() => {
     const pending = leaveRequests.filter((r: LeaveRequest) => 
@@ -276,7 +280,7 @@ export default function DashboardSection({
             </div>
           </TooltipProvider>
           <p className="text-xs text-muted-foreground mt-2 text-right">
-            Total active workers: {activeEmployees.filter((u: any) => u.role === 'worker').length}
+            Total attendance-required employees: {attendanceRequiredEmployees.length}
           </p>
         </CardContent>
       </Card>
