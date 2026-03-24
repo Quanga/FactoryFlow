@@ -552,7 +552,7 @@ export default function LeaveRequestsSection() {
                               <Badge variant="secondary">{request.leaveType}</Badge>
                             </TableCell>
                             <TableCell className="text-sm">
-                              {format(start, 'd MMM yyyy')} – {format(end, 'd MMM yyyy')}
+                              {format(new Date(request.startDate), 'd MMM yyyy')} – {format(new Date(request.endDate), 'd MMM yyyy')}
                             </TableCell>
                             <TableCell>
                               <span className="font-semibold">{days}</span>
