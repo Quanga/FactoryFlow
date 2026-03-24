@@ -1692,10 +1692,9 @@ export default function PersonnelSection() {
               <Label htmlFor="startDate" className="text-right">Start Date</Label>
               <Input 
                 id="startDate" 
-                type="text"
-                placeholder="dd/mm/yyyy"
-                value={formatDateForDisplay(currentUser.startDate)} 
-                onChange={(e) => setCurrentUser({...currentUser, startDate: parseDateFromDisplay(e.target.value)})}
+                type="date"
+                value={currentUser.startDate ? currentUser.startDate.split('T')[0] : ''}
+                onChange={(e) => setCurrentUser({...currentUser, startDate: e.target.value})}
                 className="col-span-3"
                 data-testid="input-start-date"
               />
@@ -1705,10 +1704,9 @@ export default function PersonnelSection() {
                 <Label htmlFor="contractEndDate" className="text-right">Contract End Date</Label>
                 <Input 
                   id="contractEndDate" 
-                  type="text"
-                  placeholder="dd/mm/yyyy"
-                  value={formatDateForDisplay(currentUser.contractEndDate)} 
-                  onChange={(e) => setCurrentUser({...currentUser, contractEndDate: parseDateFromDisplay(e.target.value)})}
+                  type="date"
+                  value={currentUser.contractEndDate ? currentUser.contractEndDate.split('T')[0] : ''}
+                  onChange={(e) => setCurrentUser({...currentUser, contractEndDate: e.target.value})}
                   className="col-span-3 border-amber-300 bg-amber-50"
                   data-testid="input-contract-end-date"
                 />
@@ -1838,19 +1836,13 @@ export default function PersonnelSection() {
                 <div className="col-span-3">
                   <Input 
                     id="terminationDate" 
-                    type="text"
-                    placeholder="dd/mm/yyyy"
-                    value={formatDateForDisplay(currentUser.terminationDate)} 
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      if (isValidDateFormat(value) || value.length <= 10) {
-                        setCurrentUser({...currentUser, terminationDate: parseDateFromDisplay(value)});
-                      }
-                    }}
+                    type="date"
+                    value={currentUser.terminationDate ? currentUser.terminationDate.split('T')[0] : ''}
+                    onChange={(e) => setCurrentUser({...currentUser, terminationDate: e.target.value})}
                     data-testid="input-termination-date"
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    Format: dd/mm/yyyy - Leave blank for active personnel.
+                    Leave blank for active personnel.
                   </p>
                 </div>
               </div>
@@ -2122,10 +2114,9 @@ export default function PersonnelSection() {
                 <Label htmlFor="newEndDate" className="text-right">New End Date</Label>
                 <Input 
                   id="newEndDate" 
-                  type="text"
-                  placeholder="dd/mm/yyyy"
-                  value={formatDateForDisplay(contractNewEndDate)} 
-                  onChange={(e) => setContractNewEndDate(parseDateFromDisplay(e.target.value))}
+                  type="date"
+                  value={contractNewEndDate ? contractNewEndDate.split('T')[0] : ''}
+                  onChange={(e) => setContractNewEndDate(e.target.value)}
                   className="col-span-3"
                   data-testid="input-contract-new-end-date"
                 />
@@ -2163,10 +2154,9 @@ export default function PersonnelSection() {
                 <Label htmlFor="convertEndDate" className="text-right">New End Date</Label>
                 <Input 
                   id="convertEndDate" 
-                  type="text"
-                  placeholder="dd/mm/yyyy"
-                  value={formatDateForDisplay(contractNewEndDate)} 
-                  onChange={(e) => setContractNewEndDate(parseDateFromDisplay(e.target.value))}
+                  type="date"
+                  value={contractNewEndDate ? contractNewEndDate.split('T')[0] : ''}
+                  onChange={(e) => setContractNewEndDate(e.target.value)}
                   className="col-span-3"
                   data-testid="input-contract-convert-end-date"
                 />
@@ -2221,10 +2211,9 @@ export default function PersonnelSection() {
               <Label htmlFor="terminationDateInput" className="text-right text-xs">Termination Date</Label>
               <Input 
                 id="terminationDateInput" 
-                type="text"
-                placeholder="dd/mm/yyyy"
-                value={formatDateForDisplay(terminationDate)} 
-                onChange={(e) => setTerminationDate(parseDateFromDisplay(e.target.value))}
+                type="date"
+                value={terminationDate ? terminationDate.split('T')[0] : ''}
+                onChange={(e) => setTerminationDate(e.target.value)}
                 className="col-span-3"
                 data-testid="input-termination-date-dialog"
               />
