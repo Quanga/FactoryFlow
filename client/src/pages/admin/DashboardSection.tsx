@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { 
   Users, 
   FileText, 
@@ -106,17 +107,25 @@ export default function DashboardSection({
   [users]);
 
   const sevenDayTrend = React.useMemo(() => {
+    const workers = activeEmployees.filter((u: any) => u.role === 'worker');
     return Array.from({ length: 7 }, (_, i) => {
       const d = subDays(new Date(), 6 - i);
       const dayStr = format(d, 'yyyy-MM-dd');
-      const count = new Set(
+      const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+      const clockedInIds = new Set(
         (weekAttendance as AttendanceRecord[])
           .filter(r => r.type === 'in' && format(new Date(r.timestamp), 'yyyy-MM-dd') === dayStr)
           .map(r => r.userId)
-      ).size;
-      return { dayStr, label: format(d, 'EEE'), count, isToday: dayStr === todayStr };
+      );
+      const count = clockedInIds.size;
+      const missingUsers = isWeekend
+        ? []
+        : workers
+            .filter((u: any) => !clockedInIds.has(u.id))
+            .map((u: any) => `${u.firstName} ${u.surname}`);
+      return { dayStr, label: format(d, 'EEE'), count, isToday: dayStr === todayStr, isWeekend, missingUsers };
     });
-  }, [weekAttendance, todayStr]);
+  }, [weekAttendance, todayStr, activeEmployees]);
 
   const pendingCounts = React.useMemo(() => {
     const pending = leaveRequests.filter((r: LeaveRequest) => 
@@ -221,25 +230,50 @@ export default function DashboardSection({
           <CardDescription>Unique employees clocked in each day</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-end gap-2 h-28">
-            {sevenDayTrend.map(({ label, count, isToday }) => {
-              const maxCount = Math.max(...sevenDayTrend.map(d => d.count), 1);
-              const heightPct = Math.max((count / maxCount) * 100, 4);
-              return (
-                <div key={label} className="flex-1 flex flex-col items-center gap-1">
-                  <span className="text-xs font-semibold text-muted-foreground">{count > 0 ? count : ''}</span>
-                  <div className="w-full flex items-end" style={{ height: '80px' }}>
-                    <div
-                      className={`w-full rounded-t transition-all ${isToday ? 'bg-green-500' : 'bg-green-200'}`}
-                      style={{ height: `${heightPct}%` }}
-                      title={`${count} clocked in`}
-                    />
-                  </div>
-                  <span className={`text-xs ${isToday ? 'font-bold text-green-700' : 'text-muted-foreground'}`}>{label}</span>
-                </div>
-              );
-            })}
-          </div>
+          <TooltipProvider delayDuration={200}>
+            <div className="flex items-end gap-2 h-28">
+              {sevenDayTrend.map(({ label, count, isToday, isWeekend, missingUsers }, idx) => {
+                const maxCount = Math.max(...sevenDayTrend.map(d => d.count), 1);
+                const heightPct = Math.max((count / maxCount) * 100, 4);
+                const workers = activeEmployees.filter((u: any) => u.role === 'worker');
+                const side = idx < 2 ? 'right' : idx > 4 ? 'left' : 'top';
+                return (
+                  <Tooltip key={label}>
+                    <TooltipTrigger asChild>
+                      <div className="flex-1 flex flex-col items-center gap-1 cursor-default">
+                        <span className="text-xs font-semibold text-muted-foreground">{count > 0 ? count : ''}</span>
+                        <div className="w-full flex items-end" style={{ height: '80px' }}>
+                          <div
+                            className={`w-full rounded-t transition-all ${isToday ? 'bg-green-500' : isWeekend ? 'bg-slate-100' : 'bg-green-200'}`}
+                            style={{ height: `${heightPct}%` }}
+                          />
+                        </div>
+                        <span className={`text-xs ${isToday ? 'font-bold text-green-700' : 'text-muted-foreground'}`}>{label}</span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side={side} className="max-w-[200px] p-3">
+                      <p className="font-semibold text-sm mb-1">
+                        {isWeekend ? 'Weekend' : `${count} / ${workers.length} clocked in`}
+                      </p>
+                      {!isWeekend && missingUsers.length > 0 && (
+                        <>
+                          <p className="text-xs text-muted-foreground mb-1">Missing ({missingUsers.length}):</p>
+                          <div className="space-y-0.5 max-h-48 overflow-y-auto">
+                            {missingUsers.map((name: string) => (
+                              <p key={name} className="text-xs">{name}</p>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                      {!isWeekend && missingUsers.length === 0 && count > 0 && (
+                        <p className="text-xs text-green-600">All workers present</p>
+                      )}
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              })}
+            </div>
+          </TooltipProvider>
           <p className="text-xs text-muted-foreground mt-2 text-right">
             Total active employees: {activeEmployees.length}
           </p>
