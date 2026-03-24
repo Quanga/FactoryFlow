@@ -96,14 +96,19 @@ export default function LeaveCalendarSection() {
               </div>
 
               {/* Legend */}
-              <div className="flex flex-wrap gap-3 mt-2 text-sm">
+              <div className="flex flex-wrap gap-3 mt-2 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1.5">
-                  <div className="w-3 h-3 bg-orange-200 border border-orange-400 rounded"></div>
+                  <div className="w-3 h-3 rounded ring-2 ring-primary ring-offset-1 bg-white"></div>
+                  Today
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 bg-orange-100 border border-orange-300 rounded"></div>
                   Public Holiday
                 </span>
+                <span className="text-slate-300 select-none">|</span>
                 {Object.entries(LEAVE_TYPE_COLORS).map(([type, colors]) => (
                   <span key={type} className="flex items-center gap-1.5">
-                    <div className={`w-3 h-3 ${colors.dot} rounded-full`}></div>
+                    <div className={`w-2.5 h-2.5 ${colors.dot} rounded-full`}></div>
                     {type}
                   </span>
                 ))}

@@ -920,6 +920,7 @@ import { formatDateForDisplay, parseDateFromDisplay } from './utils';
         
         {/* Trends Tab */}
         {attendanceTab === 'trends' && (
+          <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card>
               <CardHeader>
@@ -995,16 +996,136 @@ import { formatDateForDisplay, parseDateFromDisplay } from './utils';
             <Card>
               <CardHeader>
                 <CardTitle>Attendance Rate</CardTitle>
-                <CardDescription>Daily attendance percentage</CardDescription>
+                <CardDescription>% of expected clock-ins recorded per day (date range above)</CardDescription>
               </CardHeader>
-              <CardContent className="h-[200px] flex items-center justify-center text-muted-foreground">
-                <div className="text-center">
-                  <TrendingUp className="h-12 w-12 mx-auto mb-2 opacity-20" />
-                  <p>Attendance trend visualization</p>
-                  <p className="text-xs">(Data available in report exports)</p>
-                </div>
+              <CardContent>
+                {(() => {
+                  const activeReqUsers = users.filter((u: User) =>
+                    !u.terminationDate && (u as any).attendanceRequired !== false &&
+                    (!( u as any).startDate || (u as any).startDate <= attendanceEndDate)
+                  );
+                  // Build daily rate for each day in the range
+                  const days: string[] = [];
+                  const d = new Date(attendanceStartDate + 'T00:00:00');
+                  const end = new Date(attendanceEndDate + 'T00:00:00');
+                  while (d <= end && days.length < 31) {
+                    const ds = format(d, 'yyyy-MM-dd');
+                    if (d.getDay() !== 0 && d.getDay() !== 6) days.push(ds);
+                    d.setDate(d.getDate() + 1);
+                  }
+                  if (days.length === 0) {
+                    return <p className="text-sm text-muted-foreground">Select a date range with working days.</p>;
+                  }
+                  const clockedInByDay = new Map<string, Set<string>>();
+                  attendanceRecords.forEach((r: AttendanceRecord) => {
+                    if (r.type !== 'in') return;
+                    const ds = format(new Date(r.timestamp), 'yyyy-MM-dd');
+                    if (!clockedInByDay.has(ds)) clockedInByDay.set(ds, new Set());
+                    clockedInByDay.get(ds)!.add(r.userId);
+                  });
+                  const rows = days.map(ds => {
+                    const eligible = activeReqUsers.filter((u: User) => !( u as any).startDate || (u as any).startDate <= ds);
+                    const actual = clockedInByDay.get(ds)?.size || 0;
+                    const pct = eligible.length > 0 ? Math.round((actual / eligible.length) * 100) : 0;
+                    return { ds, actual, total: eligible.length, pct };
+                  });
+                  return (
+                    <div className="space-y-2">
+                      {rows.map(({ ds, actual, total, pct }) => (
+                        <div key={ds} className="flex items-center gap-2">
+                          <span className="text-xs w-16 text-muted-foreground">{format(new Date(ds + 'T00:00:00'), 'dd MMM')}</span>
+                          <div className="flex-1 bg-slate-100 rounded-full h-2">
+                            <div className={`h-2 rounded-full ${pct >= 90 ? 'bg-green-500' : pct >= 70 ? 'bg-amber-400' : 'bg-red-400'}`} style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="text-xs w-20 text-right text-muted-foreground">{actual}/{total} · {pct}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
+          </div>
+
+          {/* Department Attendance Summary (#23) */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-blue-500" />
+                Department Attendance Summary
+              </CardTitle>
+              <CardDescription>Attendance rate by department for the selected period</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {(() => {
+                const activeReqUsers = users.filter((u: User) =>
+                  !u.terminationDate && (u as any).attendanceRequired !== false &&
+                  (!(u as any).startDate || (u as any).startDate <= attendanceEndDate)
+                );
+                const depts = Array.from(new Set(activeReqUsers.map((u: User) => (u as any).department || 'No Department'))).sort() as string[];
+                const days: string[] = [];
+                const d = new Date(attendanceStartDate + 'T00:00:00');
+                const end = new Date(attendanceEndDate + 'T00:00:00');
+                while (d <= end && days.length < 100) {
+                  if (d.getDay() !== 0 && d.getDay() !== 6) days.push(format(d, 'yyyy-MM-dd'));
+                  d.setDate(d.getDate() + 1);
+                }
+                const clockedInByDayUser = new Set<string>();
+                attendanceRecords.forEach((r: AttendanceRecord) => {
+                  if (r.type !== 'in') return;
+                  const ds = format(new Date(r.timestamp), 'yyyy-MM-dd');
+                  clockedInByDayUser.add(`${r.userId}|${ds}`);
+                });
+                const rows = depts.map(dept => {
+                  const deptUsers = activeReqUsers.filter((u: User) => ((u as any).department || 'No Department') === dept);
+                  let expected = 0;
+                  let actual = 0;
+                  days.forEach(ds => {
+                    const eligible = deptUsers.filter((u: User) => !(u as any).startDate || (u as any).startDate <= ds);
+                    expected += eligible.length;
+                    actual += eligible.filter((u: User) => clockedInByDayUser.has(`${u.id}|${ds}`)).length;
+                  });
+                  const pct = expected > 0 ? Math.round((actual / expected) * 100) : null;
+                  return { dept, headcount: deptUsers.length, expected, actual, pct };
+                }).sort((a, b) => (b.pct ?? 0) - (a.pct ?? 0));
+                if (rows.length === 0) {
+                  return <p className="text-sm text-muted-foreground">No data for selected period.</p>;
+                }
+                return (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Department</TableHead>
+                        <TableHead className="text-right">Headcount</TableHead>
+                        <TableHead className="text-right">Expected Day-Attendances</TableHead>
+                        <TableHead className="text-right">Actual Clock-Ins</TableHead>
+                        <TableHead className="text-right">Attendance Rate</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {rows.map(({ dept, headcount, expected, actual, pct }) => (
+                        <TableRow key={dept}>
+                          <TableCell className="font-medium">{dept}</TableCell>
+                          <TableCell className="text-right">{headcount}</TableCell>
+                          <TableCell className="text-right text-muted-foreground">{expected}</TableCell>
+                          <TableCell className="text-right">{actual}</TableCell>
+                          <TableCell className="text-right">
+                            {pct === null ? (
+                              <span className="text-muted-foreground text-xs">—</span>
+                            ) : (
+                              <span className={`font-semibold ${pct >= 90 ? 'text-green-600' : pct >= 70 ? 'text-amber-600' : 'text-red-600'}`}>
+                                {pct}%
+                              </span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                );
+              })()}
+            </CardContent>
+          </Card>
           </div>
         )}
 

@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { userApi, departmentApi, userGroupApi, leaveBalanceApi, employeeTypeApi, contractHistoryApi, faceDescriptorApi, orgPositionApi, companyApi } from '@/lib/api';
 import type { User, Department, UserGroup, LeaveBalance, EmployeeType, OrgPosition } from '@shared/schema';
-import { Plus, Pencil, Trash2, Mail, Camera, Loader2, CheckCircle2, UserCog, Shield, Check, X, Search, UserX, Network, ChevronDown, ChevronRight, ArrowUp, ArrowDown, ChevronsUpDown, FileText, ClipboardList } from 'lucide-react';
+import { Plus, Pencil, Trash2, Mail, Camera, Loader2, CheckCircle2, UserCog, Shield, Check, X, Search, UserX, Network, ChevronDown, ChevronRight, ArrowUp, ArrowDown, ChevronsUpDown, FileText, ClipboardList, AlertTriangle } from 'lucide-react';
 import jsPDF from 'jspdf';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/lib/auth-context';
@@ -956,6 +956,44 @@ export default function PersonnelSection() {
           </div>
         </CardHeader>
         <CardContent>
+          {/* #24: In-app missing-info summary (mirrors what the PDF report shows) */}
+          {(() => {
+            const FIELDS: { key: string; label: string }[] = [
+              { key: 'nationalId',      label: 'National ID' },
+              { key: 'taxNumber',       label: 'Tax Number' },
+              { key: 'mobile',          label: 'Mobile' },
+              { key: 'email',           label: 'Email' },
+              { key: 'homeAddress',     label: 'Address' },
+              { key: 'nextOfKin',       label: 'Next of Kin' },
+              { key: 'emergencyNumber', label: 'Emergency Contact' },
+              { key: 'photoUrl',        label: 'Photo' },
+            ];
+            const activeEmployees = users.filter((u: any) => !u.terminationDate && !u.excludeFromLeave);
+            const withMissing = activeEmployees
+              .map((emp: any) => ({ emp, missing: FIELDS.filter(f => !emp[f.key] || String(emp[f.key]).trim() === '').map(f => f.label) }))
+              .filter(({ missing }) => missing.length > 0)
+              .sort((a: any, b: any) => `${a.emp.firstName} ${a.emp.surname}`.localeCompare(`${b.emp.firstName} ${b.emp.surname}`));
+            if (withMissing.length === 0) return null;
+            return (
+              <div className="mb-4 border border-amber-200 rounded-lg bg-amber-50 p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+                  <span className="text-sm font-semibold text-amber-800">{withMissing.length} employee(s) have incomplete records</span>
+                  <Button variant="ghost" size="sm" className="ml-auto h-7 text-xs text-amber-700" onClick={handleExportMissingInfoPdf}>
+                    Export PDF
+                  </Button>
+                </div>
+                <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
+                  {withMissing.map(({ emp, missing }: any) => (
+                    <div key={emp.id} className="flex items-center gap-1 bg-white border border-amber-200 rounded px-2 py-0.5 text-xs" title={`Missing: ${missing.join(', ')}`}>
+                      <span className="font-medium">{emp.firstName} {emp.surname}</span>
+                      <span className="text-amber-600">· {missing.length} field{missing.length > 1 ? 's' : ''}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
           <Table>
             <TableHeader>
               <TableRow>

@@ -40,6 +40,7 @@ interface OrgNodeData {
   isVacant?: boolean;
   isOutsourced?: boolean;
   positionTitle?: string;
+  tier?: number; // Visual tier: 1 = normal level, higher numbers push node down within siblings
 }
 
 const NODE_WIDTH = 240;
@@ -740,6 +741,7 @@ export default function OrgChart() {
             isVacant,
             isOutsourced: isVacant && !!(pos as any).isOutsourced,
             positionTitle: pos.title,
+            tier: (pos as any).tier || 1,
           } as OrgNodeData,
           children,
         };
@@ -774,6 +776,16 @@ export default function OrgChart() {
         .nodeSize([NODE_WIDTH + HORIZONTAL_GAP, (maxNodeHeight + VERTICAL_GAP) / 2])
         .separation(() => 1);
       const tree = treeLayout(h);
+
+      // Apply tier-based vertical offsets — higher tiers push a node down within its sibling group
+      const tierStep = maxNodeHeight + VERTICAL_GAP * 6;
+      tree.descendants().forEach(node => {
+        const nodeTier = node.data.data.tier || 1;
+        if (nodeTier > 1) {
+          node.y += (nodeTier - 1) * tierStep;
+        }
+      });
+
       const nodes = tree.descendants();
       const minX = Math.min(...nodes.map(n => n.x));
       const maxX = Math.max(...nodes.map(n => n.x));

@@ -26,10 +26,10 @@ Preferred communication style: Simple, everyday language.
 **Admin Dashboard Modular Architecture**
 - `client/src/pages/AdminDashboard.tsx` is a thin shell (~426 lines) with sidebar navigation and photo setup dialog
 - All admin sections are extracted into `client/src/pages/admin/` as self-contained components:
-  - `DashboardSection.tsx` - Overview stats, pending requests, low balance alerts
-  - `PersonnelSection.tsx` - Employee CRUD, face registration, contracts, terminations
+  - `DashboardSection.tsx` - Overview stats, pending requests, low balance alerts, 7-day attendance trend sparkline
+  - `PersonnelSection.tsx` - Employee CRUD, face registration, contracts, terminations, in-app missing-info summary banner
   - `LeaveRequestsSection.tsx` - Multi-stage leave approval workflow
-  - `AttendanceSection.tsx` - Records, manual entry, trends, PDF export
+  - `AttendanceSection.tsx` - Records, manual entry, trends (with daily attendance rate + department breakdown), PDF export with department filter, AWOL tab
   - `DepartmentsSection.tsx` - Department CRUD
   - `EmployeeTypesSection.tsx` - Employee type CRUD
   - `LeaveRulesSection.tsx` - Leave rules and tiered accrual phases

@@ -35,7 +35,7 @@ export default function OrgPositionsSection() {
 
   const [positionDialogOpen, setPositionDialogOpen] = useState(false);
   const [editingPosition, setEditingPosition] = useState<OrgPosition | null>(null);
-  const [positionForm, setPositionForm] = useState({ title: '', department: '', parentPositionId: '', sortOrder: '0', isOutsourced: false });
+  const [positionForm, setPositionForm] = useState({ title: '', department: '', parentPositionId: '', sortOrder: '0', isOutsourced: false, tier: '1' });
 
   const createPositionMutation = useMutation({
     mutationFn: (data: any) => orgPositionApi.create(data),
@@ -65,7 +65,7 @@ export default function OrgPositionsSection() {
 
   const handleOpenCreatePosition = () => {
     setEditingPosition(null);
-    setPositionForm({ title: '', department: '', parentPositionId: '', sortOrder: '0', isOutsourced: false });
+    setPositionForm({ title: '', department: '', parentPositionId: '', sortOrder: '0', isOutsourced: false, tier: '1' });
     setPositionDialogOpen(true);
   };
 
@@ -77,6 +77,7 @@ export default function OrgPositionsSection() {
       parentPositionId: pos.parentPositionId ? String(pos.parentPositionId) : '',
       sortOrder: String(pos.sortOrder || 0),
       isOutsourced: (pos as any).isOutsourced || false,
+      tier: String((pos as any).tier || 1),
     });
     setPositionDialogOpen(true);
   };
@@ -93,6 +94,7 @@ export default function OrgPositionsSection() {
       parentPositionId: positionForm.parentPositionId ? parseInt(positionForm.parentPositionId) : null,
       sortOrder: parseInt(positionForm.sortOrder) || 0,
       isOutsourced: positionForm.isOutsourced,
+      tier: parseInt(positionForm.tier) || 1,
     };
 
     if (editingPosition) {
@@ -124,6 +126,7 @@ export default function OrgPositionsSection() {
               <TableHead>Title</TableHead>
               <TableHead>Department</TableHead>
               <TableHead>Parent Position</TableHead>
+              <TableHead>Tier</TableHead>
               <TableHead>Assigned Employee(s)</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
@@ -140,6 +143,14 @@ export default function OrgPositionsSection() {
                   <TableCell className="font-medium">{pos.title}</TableCell>
                   <TableCell>{pos.department || '-'}</TableCell>
                   <TableCell>{parentPos ? parentPos.title : <span className="text-muted-foreground italic">Root</span>}</TableCell>
+                  <TableCell>
+                    {(() => {
+                      const t = (pos as any).tier || 1;
+                      return t > 1
+                        ? <Badge variant="outline" className="text-xs border-slate-400 text-slate-600">Tier {t}</Badge>
+                        : <span className="text-muted-foreground text-xs">1</span>;
+                    })()}
+                  </TableCell>
                   <TableCell>
                     {isFilled ? (
                       <div className="space-y-0.5">
@@ -275,17 +286,35 @@ export default function OrgPositionsSection() {
                 <p className="text-xs text-muted-foreground mt-0.5">When no employee is assigned, the org chart will show this position as "Outsourced" (amber) instead of "Vacant" (red).</p>
               </div>
             </div>
-            <div>
-              <Label htmlFor="pos-sort">Sort Order</Label>
-              <Input
-                id="pos-sort"
-                type="number"
-                value={positionForm.sortOrder}
-                onChange={(e) => setPositionForm(f => ({ ...f, sortOrder: e.target.value }))}
-                placeholder="0"
-                data-testid="input-position-sort"
-              />
-              <p className="text-xs text-muted-foreground mt-1">Lower numbers appear first among siblings</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="pos-sort">Sort Order</Label>
+                <Input
+                  id="pos-sort"
+                  type="number"
+                  value={positionForm.sortOrder}
+                  onChange={(e) => setPositionForm(f => ({ ...f, sortOrder: e.target.value }))}
+                  placeholder="0"
+                  data-testid="input-position-sort"
+                />
+                <p className="text-xs text-muted-foreground mt-1">Lower = left among siblings</p>
+              </div>
+              <div>
+                <Label htmlFor="pos-tier">Org Chart Tier</Label>
+                <Select value={positionForm.tier} onValueChange={(v) => setPositionForm(f => ({ ...f, tier: v }))}>
+                  <SelectTrigger id="pos-tier" data-testid="select-position-tier">
+                    <SelectValue placeholder="Tier 1 (normal)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map(t => (
+                      <SelectItem key={t} value={String(t)}>
+                        Tier {t}{t === 1 ? ' (normal)' : ` (${t - 1} row${t - 1 > 1 ? 's' : ''} lower)`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">Higher = pushed down in chart</p>
+              </div>
             </div>
           </div>
           <DialogFooter>

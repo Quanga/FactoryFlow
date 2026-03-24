@@ -372,6 +372,7 @@ export const orgPositions = pgTable("org_positions", {
   parentPositionId: integer("parent_position_id"),
   sortOrder: integer("sort_order").default(0),
   isOutsourced: boolean("is_outsourced").default(false),
+  tier: integer("tier").default(1), // Visual tier within siblings: 1 = normal level, higher = pushed down
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
