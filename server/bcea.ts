@@ -3,6 +3,35 @@
  * Exported as a shared module used by routes and startup recalculation.
  */
 
+/**
+ * Calculate the date by which carry-over annual leave must be taken.
+ * Under BCEA, unused leave must be taken within 6 months of the anniversary date
+ * on which it was carried over. After that it is forfeited.
+ *
+ * @param startDate  Employee employment start date ('yyyy-MM-dd')
+ * @returns  Expiry date string ('yyyy-MM-dd') — 6 months after the most recent anniversary
+ */
+export function getCarryOverExpiryDate(startDate: string): string {
+  const start = new Date(startDate + 'T00:00:00');
+  const today = new Date();
+
+  const totalMonths =
+    (today.getFullYear() - start.getFullYear()) * 12 +
+    (today.getMonth() - start.getMonth()) +
+    (today.getDate() >= start.getDate() ? 0 : -1);
+
+  // Most recent anniversary = start + N complete years
+  const completedYears = Math.floor(Math.max(0, totalMonths) / 12);
+  const anniversary = new Date(start);
+  anniversary.setFullYear(anniversary.getFullYear() + completedYears);
+
+  // Carry-over expires 6 months after the anniversary
+  const expiry = new Date(anniversary);
+  expiry.setMonth(expiry.getMonth() + 6);
+
+  return expiry.toISOString().split('T')[0];
+}
+
 export interface BceaEntitlements {
   annualLeave: number;
   sickLeave: number;

@@ -1185,11 +1185,23 @@ export default function PersonnelSection() {
                                           </div>
                                           <div className="flex justify-between"><span>Taken:</span><span>{balance.taken}</span></div>
                                           <div className="flex justify-between"><span>Pending:</span><span>{balance.pending}</span></div>
-                                          {balance.carryOverDays > 0 && (
-                                            <div className="flex justify-between text-blue-600 font-medium">
-                                              <span>Carried over:</span><span>+{balance.carryOverDays}</span>
-                                            </div>
-                                          )}
+                                          {balance.carryOverDays > 0 && (() => {
+                                            const expiry = (balance as any).carryOverExpiry as string | null;
+                                            const today = new Date().toISOString().split('T')[0];
+                                            const expiringSoon = expiry && expiry > today && new Date(expiry).getTime() - Date.now() < 30 * 24 * 60 * 60 * 1000;
+                                            return (
+                                              <div className="space-y-0.5">
+                                                <div className="flex justify-between text-blue-600 font-medium">
+                                                  <span>Carried over:</span><span>+{balance.carryOverDays}</span>
+                                                </div>
+                                                {expiry && (
+                                                  <div className={`text-xs ${expiringSoon ? 'text-orange-600 font-medium' : 'text-muted-foreground'}`}>
+                                                    {expiringSoon ? '⚠ Expires: ' : 'Use by: '}{new Date(expiry).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            );
+                                          })()}
                                         </div>
                                       </>
                                     ) : (

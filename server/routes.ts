@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { z } from "zod";
 import { insertUserSchema, insertLeaveRequestSchema, insertAttendanceRecordSchema, insertDepartmentSchema, insertUserGroupSchema, insertEmployeeTypeSchema, insertLeaveRuleSchema, insertLeaveRulePhaseSchema, insertGrievanceSchema } from "@shared/schema";
 import { sendLeaveRequestNotification, sendLateAttendanceNotification, sendAdminWelcomeEmail, sendLeaveStatusNotification, sendPasswordResetEmail, sendAdminCredentialsEmail, sendManagerMissedClockOutAlert, sendLeaveStageNotification, sendLeaveEscalationReminder, sendAWOLAlert } from "./email";
-import { calculateBceaEntitlements } from "./bcea";
+import { calculateBceaEntitlements, getCarryOverExpiryDate } from "./bcea";
 import crypto from "crypto";
 import bcrypt from "bcrypt";
 
@@ -491,13 +491,25 @@ export async function registerRoutes(
 
         const upsertAnnualBalance = async (newTotal: number) => {
           const existing = existingBalances.find(b => b.leaveType === 'Annual Leave');
+          const todayStr = new Date().toISOString().split('T')[0];
           if (existing) {
             const currentCarryOver = existing.carryOverDays || 0;
+            const carryOverExpiry = (existing as any).carryOverExpiry as string | null;
+
+            // Forfeit carry-over if the 6-month window has passed
+            if (currentCarryOver > 0 && carryOverExpiry && todayStr > carryOverExpiry) {
+              const safeTaken = existing.taken + existing.pending;
+              const safeTotal = Math.max(newTotal, safeTaken);
+              await storage.updateLeaveBalance(existing.id, { total: safeTotal, carryOverDays: 0, carryOverExpiry: null } as any);
+              return;
+            }
+
             const purePrev = existing.total - currentCarryOver;
             const cycleReset = purePrev > newTotal + 5;
             if (cycleReset) {
               const unusedDays = Math.max(0, Math.round((existing.total - existing.taken - existing.pending) * 10) / 10);
-              await storage.updateLeaveBalance(existing.id, { total: newTotal + unusedDays, carryOverDays: unusedDays });
+              const expiry = getCarryOverExpiryDate(user.startDate!);
+              await storage.updateLeaveBalance(existing.id, { total: newTotal + unusedDays, carryOverDays: unusedDays, carryOverExpiry: expiry } as any);
             } else if (Math.abs((existing.total - currentCarryOver) - newTotal) >= 0.05) {
               await storage.updateLeaveBalance(existing.id, { total: newTotal + currentCarryOver });
             }
@@ -670,15 +682,26 @@ export async function registerRoutes(
 
           const upsertAnnual = async (total: number) => {
             const existing = existingBalances.find((b) => b.leaveType === 'Annual Leave');
+            const todayStr = new Date().toISOString().split('T')[0];
             if (existing) {
               const currentCarryOver = existing.carryOverDays || 0;
+              const carryOverExpiry = (existing as any).carryOverExpiry as string | null;
+
+              // Forfeit carry-over if the 6-month window has passed
+              if (currentCarryOver > 0 && carryOverExpiry && todayStr > carryOverExpiry) {
+                const safeTaken = existing.taken + existing.pending;
+                const safeTotal = Math.max(total, safeTaken);
+                await storage.updateLeaveBalance(existing.id, { total: safeTotal, carryOverDays: 0, carryOverExpiry: null } as any);
+                return;
+              }
+
               const purePrevTotal = existing.total - currentCarryOver;
               // Detect cycle reset: pure entitlement dropped by more than 5 days
               const cycleReset = purePrevTotal > total + 5;
               if (cycleReset) {
                 const unusedDays = Math.max(0, Math.round((existing.total - existing.taken - existing.pending) * 10) / 10);
-                const newCarryOver = unusedDays;
-                await storage.updateLeaveBalance(existing.id, { total: total + newCarryOver, carryOverDays: newCarryOver });
+                const expiry = getCarryOverExpiryDate(user.startDate!);
+                await storage.updateLeaveBalance(existing.id, { total: total + unusedDays, carryOverDays: unusedDays, carryOverExpiry: expiry } as any);
               } else {
                 await storage.updateLeaveBalance(existing.id, { total: total + currentCarryOver });
               }
