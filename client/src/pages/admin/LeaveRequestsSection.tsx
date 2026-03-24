@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { format } from 'date-fns';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/lib/auth-context';
-import { leaveRequestApi, leaveBalanceApi, userApi } from '@/lib/api';
+import { leaveRequestApi, leaveBalanceApi, userApi, publicHolidayApi } from '@/lib/api';
 import type { LeaveRequest, LeaveBalance } from '@shared/schema';
 import { FileText, Check, X, Trash2, ChevronDown, ChevronRight, Loader2, Plus, Pencil, BookOpen, Lock } from 'lucide-react';
 import { formatLeaveStatus, canTakeAction } from './utils';
@@ -58,6 +58,37 @@ export default function LeaveRequestsSection() {
     queryKey: ['users'],
     queryFn: userApi.getAll,
   });
+
+  const { data: publicHolidays = [] } = useQuery({
+    queryKey: ['public-holidays'],
+    queryFn: () => publicHolidayApi.getAll(),
+  });
+
+  // Count Mon–Fri working days between two date strings, excluding public holidays
+  function countWorkingDays(startStr: string, endStr: string): number {
+    const recurringMmDd = new Set<string>();
+    const specificYmd = new Set<string>();
+    for (const h of publicHolidays as any[]) {
+      const d = new Date(h.date + 'T00:00:00');
+      const mmdd = `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      if (h.isRecurring) recurringMmDd.add(mmdd);
+      else specificYmd.add(h.date);
+    }
+    const start = new Date(startStr + 'T00:00:00');
+    const end = new Date(endStr + 'T00:00:00');
+    let count = 0;
+    const cur = new Date(start);
+    while (cur <= end) {
+      const dow = cur.getDay();
+      if (dow !== 0 && dow !== 6) {
+        const ymd = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
+        const mmdd = `${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
+        if (!recurringMmDd.has(mmdd) && !specificYmd.has(ymd)) count++;
+      }
+      cur.setDate(cur.getDate() + 1);
+    }
+    return count;
+  }
 
   // Mutations
   const managerDecisionMutation = useMutation({
@@ -504,9 +535,7 @@ export default function LeaveRequestsSection() {
                     <TableBody>
                       {historicRequests.map((request: any) => {
                         const employee = users.find((u: any) => u.id === request.userId);
-                        const start = new Date(request.startDate);
-                        const end = new Date(request.endDate);
-                        const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                        const days = countWorkingDays(request.startDate, request.endDate);
                         return (
                           <TableRow key={request.id} data-testid={`row-historic-${request.id}`}>
                             <TableCell>
@@ -1033,7 +1062,8 @@ export default function LeaveRequestsSection() {
 
             {historicForm.startDate && historicForm.endDate && historicForm.startDate <= historicForm.endDate && (
               <div className="text-sm text-muted-foreground bg-slate-50 px-3 py-2 rounded border">
-                Duration: <strong>{Math.ceil((new Date(historicForm.endDate).getTime() - new Date(historicForm.startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1} calendar day(s)</strong>
+                Duration: <strong>{countWorkingDays(historicForm.startDate, historicForm.endDate)} working day(s)</strong>
+                <span className="ml-1 text-xs">(weekends &amp; public holidays excluded)</span>
               </div>
             )}
 

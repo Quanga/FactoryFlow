@@ -14,6 +14,42 @@ async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, BCRYPT_ROUNDS);
 }
 
+/**
+ * Count working days (Mon–Fri) between two date strings (inclusive),
+ * excluding any public holidays stored in the database.
+ * Recurring holidays match on month+day across any year.
+ */
+async function countWorkingDays(startStr: string, endStr: string): Promise<number> {
+  const holidays = await storage.getAllPublicHolidays();
+  const recurringMmDd = new Set<string>();
+  const specificYmd = new Set<string>();
+  for (const h of holidays) {
+    const d = new Date(h.date + 'T00:00:00');
+    const mmdd = `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    if (h.isRecurring) {
+      recurringMmDd.add(mmdd);
+    } else {
+      specificYmd.add(h.date);
+    }
+  }
+  const start = new Date(startStr + 'T00:00:00');
+  const end = new Date(endStr + 'T00:00:00');
+  let count = 0;
+  const cur = new Date(start);
+  while (cur <= end) {
+    const dow = cur.getDay();
+    if (dow !== 0 && dow !== 6) {
+      const ymd = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
+      const mmdd = `${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
+      if (!recurringMmDd.has(mmdd) && !specificYmd.has(ymd)) {
+        count++;
+      }
+    }
+    cur.setDate(cur.getDate() + 1);
+  }
+  return count;
+}
+
 async function verifyPassword(password: string, hash: string): Promise<boolean> {
   if (!hash.startsWith('$2')) {
     return password === hash;
@@ -1175,10 +1211,8 @@ export async function registerRoutes(
       
       // If the leave was already approved, we need to credit back the leave balance
       if (wasApproved && updatedRequest) {
-        // Calculate number of days
-        const startDate = new Date(request.startDate);
-        const endDate = new Date(request.endDate);
-        const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        // Calculate working days (Mon–Fri, excluding public holidays)
+        const days = await countWorkingDays(request.startDate, request.endDate);
         
         // Credit back the taken days
         const balances = await storage.getLeaveBalances(request.userId);
@@ -1241,7 +1275,7 @@ export async function registerRoutes(
         return res.status(400).json({ error: "End date must be on or after start date" });
       }
 
-      const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      const days = await countWorkingDays(startDate, endDate);
 
       const newRequest = await storage.createLeaveRequest({
         userId,
@@ -1257,7 +1291,7 @@ export async function registerRoutes(
         finalizedAt: new Date(),
       } as any);
 
-      // Deduct taken days from balance
+      // Deduct working days from balance
       const balances = await storage.getLeaveBalances(userId);
       const balance = balances.find((b: any) => b.leaveType === leaveType);
       if (balance) {
@@ -1284,10 +1318,8 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Historic leave request not found" });
       }
 
-      // Credit back old taken days
-      const oldStart = new Date(existingRequest.startDate);
-      const oldEnd = new Date(existingRequest.endDate);
-      const oldDays = Math.ceil((oldEnd.getTime() - oldStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      // Credit back old working days
+      const oldDays = await countWorkingDays(existingRequest.startDate, existingRequest.endDate);
 
       const oldBalances = await storage.getLeaveBalances(existingRequest.userId);
       const oldBalance = oldBalances.find((b: any) => b.leaveType === existingRequest.leaveType);
@@ -1302,11 +1334,9 @@ export async function registerRoutes(
       const newStartDate = startDate || existingRequest.startDate;
       const newEndDate = endDate || existingRequest.endDate;
 
-      const newStart = new Date(newStartDate);
-      const newEnd = new Date(newEndDate);
-      const newDays = Math.ceil((newEnd.getTime() - newStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      const newDays = await countWorkingDays(newStartDate, newEndDate);
 
-      // Deduct new taken days
+      // Deduct new working days
       const newBalances = await storage.getLeaveBalances(newUserId);
       const newBalance = newBalances.find((b: any) => b.leaveType === newLeaveType);
       if (newBalance) {
@@ -1346,9 +1376,7 @@ export async function registerRoutes(
       
       // If the leave was approved, credit back the balance before deleting
       if (request.status === 'approved') {
-        const startDate = new Date(request.startDate);
-        const endDate = new Date(request.endDate);
-        const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        const days = await countWorkingDays(request.startDate, request.endDate);
         
         const balances = await storage.getLeaveBalances(request.userId);
         const balance = balances.find(b => b.leaveType === request.leaveType);
