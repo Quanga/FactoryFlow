@@ -38,6 +38,7 @@ interface OrgNodeData {
   workers?: WorkerData[];
   nodeHeight: number;
   isVacant?: boolean;
+  isOutsourced?: boolean;
   positionTitle?: string;
 }
 
@@ -71,9 +72,10 @@ function getDepartmentColor(department: string | null): string {
 function ManagerNode({ data, x, y, showAttendance, clockedInUserIds }: { data: OrgNodeData; x: number; y: number } & AttendanceProps) {
   const isRoot = data.isRoot;
   const isVacant = data.isVacant;
+  const isOutsourced = data.isOutsourced;
   const deptColor = getDepartmentColor(data.department);
   const isClockedIn = data.userId ? clockedInUserIds.has(data.userId) : false;
-  const opacity = showAttendance ? (isClockedIn || isVacant ? 1 : 0.3) : 1;
+  const opacity = showAttendance ? (isClockedIn || isVacant || isOutsourced ? 1 : 0.3) : 1;
   
   return (
     <g transform={`translate(${x - NODE_WIDTH / 2}, ${y})`} style={{ opacity }}>
@@ -81,13 +83,14 @@ function ManagerNode({ data, x, y, showAttendance, clockedInUserIds }: { data: O
         <div 
           className={`h-full rounded-lg border-2 shadow-md overflow-hidden ${
             isVacant ? 'border-dashed border-red-400 bg-red-50' :
+            isOutsourced ? 'border-dashed border-amber-400 bg-amber-50' :
             isRoot ? 'border-amber-500 bg-amber-50' : 'border-primary bg-primary/5'
           }`}
         >
           {/* Department header at top */}
           <div 
             className="px-2 py-0.5 text-white text-[11px] font-medium truncate"
-            style={{ backgroundColor: isVacant ? '#dc2626' : deptColor }}
+            style={{ backgroundColor: isVacant ? '#dc2626' : isOutsourced ? '#d97706' : deptColor }}
           >
             {data.positionTitle || data.department || 'No Department'}
           </div>
@@ -97,6 +100,10 @@ function ManagerNode({ data, x, y, showAttendance, clockedInUserIds }: { data: O
             {isVacant ? (
               <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-red-200 text-red-600 border-2 border-dashed border-red-400">
                 <UserIcon className="h-4 w-4" />
+              </div>
+            ) : isOutsourced ? (
+              <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-amber-200 text-amber-700 border-2 border-dashed border-amber-400">
+                <Briefcase className="h-4 w-4" />
               </div>
             ) : data.photoUrl ? (
               <img 
@@ -112,11 +119,14 @@ function ManagerNode({ data, x, y, showAttendance, clockedInUserIds }: { data: O
               </div>
             )}
             <div className="flex-1 min-w-0 overflow-hidden">
-              <p className={`font-semibold text-[15px] truncate leading-tight ${isVacant ? 'text-red-600 italic' : ''}`}>
-                {isVacant ? 'VACANT' : data.name}
+              <p className={`font-semibold text-[15px] truncate leading-tight ${isVacant ? 'text-red-600 italic' : isOutsourced ? 'text-amber-700 italic' : ''}`}>
+                {isVacant ? 'VACANT' : isOutsourced ? 'OUTSOURCED' : data.name}
               </p>
-              <Badge variant={isVacant ? "destructive" : "default"} className="text-[10px] px-1.5 py-0 h-4 mt-1">
-                {isVacant ? 'Vacant' : 'Manager'}
+              <Badge 
+                variant={isVacant ? "destructive" : "default"} 
+                className={`text-[10px] px-1.5 py-0 h-4 mt-1 ${isOutsourced ? 'bg-amber-500 text-white' : ''}`}
+              >
+                {isVacant ? 'Vacant' : isOutsourced ? 'Outsourced' : 'Manager'}
               </Badge>
             </div>
           </div>
@@ -308,15 +318,16 @@ export default function OrgChart() {
       
       if (d.kind === 'manager') {
         const isVacant = d.isVacant;
+        const isOutsourced = d.isOutsourced;
         // Manager node background
         const rect = document.createElementNS(svgNs, 'rect');
         rect.setAttribute('width', String(NODE_WIDTH));
         rect.setAttribute('height', String(MANAGER_NODE_HEIGHT));
         rect.setAttribute('rx', '8');
-        rect.setAttribute('fill', isVacant ? '#fef2f2' : d.isRoot ? '#fef3c7' : '#eff6ff');
-        rect.setAttribute('stroke', isVacant ? '#dc2626' : d.isRoot ? '#f59e0b' : '#3b82f6');
+        rect.setAttribute('fill', isVacant ? '#fef2f2' : isOutsourced ? '#fffbeb' : d.isRoot ? '#fef3c7' : '#eff6ff');
+        rect.setAttribute('stroke', isVacant ? '#dc2626' : isOutsourced ? '#d97706' : d.isRoot ? '#f59e0b' : '#3b82f6');
         rect.setAttribute('stroke-width', '2');
-        if (isVacant) rect.setAttribute('stroke-dasharray', '6,3');
+        if (isVacant || isOutsourced) rect.setAttribute('stroke-dasharray', '6,3');
         nodeGroup.appendChild(rect);
         
         // Department header bar
@@ -324,7 +335,7 @@ export default function OrgChart() {
         deptBar.setAttribute('width', String(NODE_WIDTH));
         deptBar.setAttribute('height', '16');
         deptBar.setAttribute('rx', '8');
-        deptBar.setAttribute('fill', isVacant ? '#dc2626' : deptColor);
+        deptBar.setAttribute('fill', isVacant ? '#dc2626' : isOutsourced ? '#d97706' : deptColor);
         nodeGroup.appendChild(deptBar);
         
         // Cover bottom corners of dept bar
@@ -351,24 +362,25 @@ export default function OrgChart() {
         nameText.setAttribute('x', String(NODE_WIDTH / 2));
         nameText.setAttribute('y', '40');
         nameText.setAttribute('text-anchor', 'middle');
-        nameText.setAttribute('fill', isVacant ? '#dc2626' : '#1e293b');
+        nameText.setAttribute('fill', isVacant ? '#dc2626' : isOutsourced ? '#b45309' : '#1e293b');
         nameText.setAttribute('font-size', '14');
         nameText.setAttribute('font-weight', 'bold');
         nameText.setAttribute('font-family', 'Arial, sans-serif');
-        if (isVacant) nameText.setAttribute('font-style', 'italic');
-        const nameDisplay = isVacant ? 'VACANT' : d.name;
+        if (isVacant || isOutsourced) nameText.setAttribute('font-style', 'italic');
+        const nameDisplay = isVacant ? 'VACANT' : isOutsourced ? 'OUTSOURCED' : d.name;
         nameText.textContent = nameDisplay.length > 22 ? nameDisplay.substring(0, 20) + '...' : nameDisplay;
         nodeGroup.appendChild(nameText);
         
         // Manager badge
-        const badgeLabel = isVacant ? 'Vacant' : 'Manager';
+        const badgeLabel = isVacant ? 'Vacant' : isOutsourced ? 'Outsourced' : 'Manager';
+        const badgeWidth = isOutsourced ? 76 : 56;
         const badgeRect = document.createElementNS(svgNs, 'rect');
-        badgeRect.setAttribute('x', String((NODE_WIDTH - 56) / 2));
+        badgeRect.setAttribute('x', String((NODE_WIDTH - badgeWidth) / 2));
         badgeRect.setAttribute('y', '50');
-        badgeRect.setAttribute('width', '56');
+        badgeRect.setAttribute('width', String(badgeWidth));
         badgeRect.setAttribute('height', '18');
         badgeRect.setAttribute('rx', '4');
-        badgeRect.setAttribute('fill', isVacant ? '#dc2626' : '#3b82f6');
+        badgeRect.setAttribute('fill', isVacant ? '#dc2626' : isOutsourced ? '#d97706' : '#3b82f6');
         nodeGroup.appendChild(badgeRect);
         
         const badgeText = document.createElementNS(svgNs, 'text');
@@ -726,6 +738,7 @@ export default function OrgChart() {
             kind: 'manager' as const,
             nodeHeight: MANAGER_NODE_HEIGHT,
             isVacant,
+            isOutsourced: isVacant && !!(pos as any).isOutsourced,
             positionTitle: pos.title,
           } as OrgNodeData,
           children,

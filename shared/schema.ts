@@ -370,6 +370,7 @@ export const orgPositions = pgTable("org_positions", {
   department: text("department"),
   parentPositionId: integer("parent_position_id"),
   sortOrder: integer("sort_order").default(0),
+  isOutsourced: boolean("is_outsourced").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

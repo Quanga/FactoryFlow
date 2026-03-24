@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Pencil, Trash2, Save } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { orgPositionApi, departmentApi, userApi } from '@/lib/api';
@@ -34,7 +35,7 @@ export default function OrgPositionsSection() {
 
   const [positionDialogOpen, setPositionDialogOpen] = useState(false);
   const [editingPosition, setEditingPosition] = useState<OrgPosition | null>(null);
-  const [positionForm, setPositionForm] = useState({ title: '', department: '', parentPositionId: '', sortOrder: '0' });
+  const [positionForm, setPositionForm] = useState({ title: '', department: '', parentPositionId: '', sortOrder: '0', isOutsourced: false });
 
   const createPositionMutation = useMutation({
     mutationFn: (data: any) => orgPositionApi.create(data),
@@ -64,7 +65,7 @@ export default function OrgPositionsSection() {
 
   const handleOpenCreatePosition = () => {
     setEditingPosition(null);
-    setPositionForm({ title: '', department: '', parentPositionId: '', sortOrder: '0' });
+    setPositionForm({ title: '', department: '', parentPositionId: '', sortOrder: '0', isOutsourced: false });
     setPositionDialogOpen(true);
   };
 
@@ -74,7 +75,8 @@ export default function OrgPositionsSection() {
       title: pos.title,
       department: pos.department || '',
       parentPositionId: pos.parentPositionId ? String(pos.parentPositionId) : '',
-      sortOrder: String(pos.sortOrder || 0)
+      sortOrder: String(pos.sortOrder || 0),
+      isOutsourced: (pos as any).isOutsourced || false,
     });
     setPositionDialogOpen(true);
   };
@@ -89,7 +91,8 @@ export default function OrgPositionsSection() {
       title: positionForm.title,
       department: positionForm.department || null,
       parentPositionId: positionForm.parentPositionId ? parseInt(positionForm.parentPositionId) : null,
-      sortOrder: parseInt(positionForm.sortOrder) || 0
+      sortOrder: parseInt(positionForm.sortOrder) || 0,
+      isOutsourced: positionForm.isOutsourced,
     };
 
     if (editingPosition) {
@@ -131,6 +134,7 @@ export default function OrgPositionsSection() {
               const parentPos = orgPositions.find(p => p.id === pos.parentPositionId);
               const assignedUsers = users.filter(u => u.orgPositionId === pos.id && !u.terminationDate);
               const isFilled = assignedUsers.length > 0;
+              const isOutsourced = !isFilled && (pos as any).isOutsourced;
               return (
                 <TableRow key={pos.id} data-testid={`row-position-${pos.id}`}>
                   <TableCell className="font-medium">{pos.title}</TableCell>
@@ -145,6 +149,8 @@ export default function OrgPositionsSection() {
                             <div key={u.id} className="text-sm">{u.firstName} {u.surname}</div>
                           ))}
                       </div>
+                    ) : isOutsourced ? (
+                      <span className="text-amber-600 italic">Outsourced</span>
                     ) : (
                       <span className="text-red-500 italic">Vacant</span>
                     )}
@@ -152,6 +158,8 @@ export default function OrgPositionsSection() {
                   <TableCell>
                     {isFilled ? (
                       <Badge variant="default" className="bg-green-600">{assignedUsers.length} assigned</Badge>
+                    ) : isOutsourced ? (
+                      <Badge className="bg-amber-500 text-white">Outsourced</Badge>
                     ) : (
                       <Badge variant="destructive">Vacant</Badge>
                     )}
@@ -253,6 +261,19 @@ export default function OrgPositionsSection() {
               <p className="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded p-2">
                 Employees are assigned to positions from the employee edit page, not here. This page is for defining position names and hierarchy only.
               </p>
+            </div>
+            <div className="flex items-start gap-3 p-3 border rounded-lg bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800">
+              <Checkbox
+                id="pos-outsourced"
+                checked={positionForm.isOutsourced}
+                onCheckedChange={(checked) => setPositionForm(f => ({ ...f, isOutsourced: !!checked }))}
+                data-testid="checkbox-position-outsourced"
+                className="mt-0.5"
+              />
+              <div>
+                <Label htmlFor="pos-outsourced" className="font-medium cursor-pointer">Mark as Outsourced</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">When no employee is assigned, the org chart will show this position as "Outsourced" (amber) instead of "Vacant" (red).</p>
+              </div>
             </div>
             <div>
               <Label htmlFor="pos-sort">Sort Order</Label>
