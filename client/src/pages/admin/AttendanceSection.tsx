@@ -696,8 +696,11 @@ import { formatDateForDisplay, parseDateFromDisplay } from './utils';
                         const clockOutTime = record.clockOutRecord ? format(new Date(record.clockOutRecord.timestamp), 'HH:mm') : null;
                         
                         const issues: string[] = [];
+                        const notYetClockedIn = !record.clockInRecord && !record.isNonAttendance;
                         if (record.isNonAttendance) {
                           issues.push('No Attendance');
+                        } else if (!record.clockInRecord) {
+                          // Work day still ongoing — not an infringement yet, handled separately
                         } else {
                           if (clockInTime && clockInTime > clockInCutoffTime) {
                             issues.push('Late Arrival');
@@ -715,7 +718,10 @@ import { formatDateForDisplay, parseDateFromDisplay } from './utils';
                         
                         const hasIssue = issues.length > 0;
                         
-                        if (attendanceInfringementFilter && !hasIssue) {
+                        if (attendanceInfringementFilter && !hasIssue && !notYetClockedIn) {
+                          return null;
+                        }
+                        if (attendanceInfringementFilter && notYetClockedIn) {
                           return null;
                         }
                         
@@ -770,6 +776,10 @@ import { formatDateForDisplay, parseDateFromDisplay } from './utils';
                                       {issue}
                                     </Badge>
                                   ))
+                                ) : notYetClockedIn ? (
+                                  <Badge variant="outline" className="border-amber-400 text-amber-600">
+                                    Not Clocked In
+                                  </Badge>
                                 ) : (
                                   <Badge variant="default" className="bg-green-500 hover:bg-green-600">
                                     On Time
