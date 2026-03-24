@@ -480,7 +480,7 @@ export default function PersonnelSection() {
 
   const filteredUsers = users
     .filter(u => {
-      if (employeeStatusFilter === 'active') return !u.terminationDate;
+      if (employeeStatusFilter === 'active') return !u.terminationDate && !(u as any).excludeFromLeave;
       if (employeeStatusFilter === 'terminated') return !!u.terminationDate;
       return true;
     })
@@ -1232,6 +1232,116 @@ export default function PersonnelSection() {
         </CardContent>
       </Card>
 
+      {users.filter(u => !u.terminationDate && (u as any).excludeFromLeave).length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <UserX className="h-5 w-5 text-slate-500" />
+              Excluded from Leave
+            </CardTitle>
+            <CardDescription>
+              {users.filter(u => !u.terminationDate && (u as any).excludeFromLeave).length} employee{users.filter(u => !u.terminationDate && (u as any).excludeFromLeave).length !== 1 ? 's' : ''} excluded from leave tracking
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>ID Number</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Department</TableHead>
+                  <TableHead>Start Date</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {users.filter(u => !u.terminationDate && (u as any).excludeFromLeave).map((emp) => (
+                  <TableRow key={emp.id} className="bg-slate-50/50">
+                    <TableCell className="font-mono font-medium text-muted-foreground">{emp.id}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-full overflow-hidden bg-slate-100">
+                          <img src={emp.photoUrl || 'https://github.com/shadcn.png'} alt={`${emp.firstName} ${emp.surname}`} className="h-full w-full object-cover" />
+                        </div>
+                        <span className="text-slate-600">{emp.firstName} {emp.surname}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{emp.department || '-'}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {emp.startDate ? formatDateForDisplay(emp.startDate) : '-'}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="icon" onClick={() => handleOpenEdit(emp)} title="Edit" data-testid={`button-edit-excluded-${emp.id}`}>
+                        <Pencil className="h-4 w-4 text-slate-400" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => handleDeleteUser(emp.id)} title="Delete" data-testid={`button-delete-excluded-${emp.id}`}>
+                        <Trash2 className="h-4 w-4 text-red-400" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Personnel Overview</CardTitle>
+          <CardDescription>High-level summary of personnel status</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-2 gap-4 col-span-2">
+              {['Annual Leave', 'Sick Leave', 'Family Responsibility'].map(leaveType => {
+                const typeBalances = leaveBalances.filter((b: LeaveBalance) => b.leaveType === leaveType);
+                const totalDays = typeBalances.reduce((sum: number, b: LeaveBalance) => sum + (b.total ?? 0), 0);
+                const takenDays = typeBalances.reduce((sum: number, b: LeaveBalance) => sum + (b.taken ?? 0), 0);
+                const pendingDays = typeBalances.reduce((sum: number, b: LeaveBalance) => sum + (b.pending ?? 0), 0);
+                const available = Math.round(totalDays - takenDays - pendingDays);
+                return (
+                  <div key={leaveType} className="p-4 bg-slate-50 rounded-lg border">
+                    <p className="text-sm text-muted-foreground">{leaveType}</p>
+                    <p className="text-2xl font-bold">{available}</p>
+                    <p className="text-xs text-muted-foreground">Available ({Math.round(takenDays)} taken, {Math.round(pendingDays)} pending)</p>
+                  </div>
+                );
+              })}
+            </div>
+            
+            <div>
+              <p className="text-sm font-medium mb-2 text-amber-600">Low Leave Balance Alerts</p>
+              <div className="space-y-2">
+                {users.filter(u => u.role === 'worker').map(emp => {
+                  const empBalances = leaveBalances.filter((b: LeaveBalance) => b.userId === emp.id);
+                  const lowBalances = empBalances.filter((b: LeaveBalance) => ((b.total ?? 0) - (b.taken ?? 0) - (b.pending ?? 0)) <= 2 && (b.total ?? 0) > 0);
+                  if (lowBalances.length === 0) return null;
+                  return (
+                    <div key={emp.id} className="flex items-center justify-between p-2 bg-amber-50 rounded border border-amber-200">
+                      <span className="font-medium text-sm">{emp.firstName} {emp.surname}</span>
+                      <div className="flex gap-2">
+                        {lowBalances.map((b: LeaveBalance) => (
+                          <Badge key={b.id} variant="outline" className="border-amber-400 text-amber-700 text-[10px]">
+                            {b.leaveType}: {Math.round((b.total ?? 0) - (b.taken ?? 0) - (b.pending ?? 0))} left
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }).filter(Boolean)}
+                {users.filter(u => u.role === 'worker').every(emp => {
+                  const empBalances = leaveBalances.filter((b: LeaveBalance) => b.userId === emp.id);
+                  return empBalances.every((b: LeaveBalance) => ((b.total ?? 0) - (b.taken ?? 0) - (b.pending ?? 0)) > 2 || (b.total ?? 0) === 0);
+                }) && (
+                  <p className="text-sm text-muted-foreground">No personnel with low leave balances.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {users.filter(u => u.terminationDate).length > 0 && (
         <Card>
           <CardHeader>
@@ -1305,61 +1415,6 @@ export default function PersonnelSection() {
           </CardContent>
         </Card>
       )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Personnel Overview</CardTitle>
-          <CardDescription>High-level summary of personnel status</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="grid grid-cols-2 gap-4 col-span-2">
-              {['Annual Leave', 'Sick Leave', 'Family Responsibility'].map(leaveType => {
-                const typeBalances = leaveBalances.filter((b: LeaveBalance) => b.leaveType === leaveType);
-                const totalDays = typeBalances.reduce((sum: number, b: LeaveBalance) => sum + b.total, 0);
-                const takenDays = typeBalances.reduce((sum: number, b: LeaveBalance) => sum + b.taken, 0);
-                const pendingDays = typeBalances.reduce((sum: number, b: LeaveBalance) => sum + b.pending, 0);
-                return (
-                  <div key={leaveType} className="p-4 bg-slate-50 rounded-lg border">
-                    <p className="text-sm text-muted-foreground">{leaveType}</p>
-                    <p className="text-2xl font-bold">{totalDays - takenDays - pendingDays}</p>
-                    <p className="text-xs text-muted-foreground">Available ({takenDays} taken, {pendingDays} pending)</p>
-                  </div>
-                );
-              })}
-            </div>
-            
-            <div>
-              <p className="text-sm font-medium mb-2 text-amber-600">Low Leave Balance Alerts</p>
-              <div className="space-y-2">
-                {users.filter(u => u.role === 'worker').map(emp => {
-                  const empBalances = leaveBalances.filter((b: LeaveBalance) => b.userId === emp.id);
-                  const lowBalances = empBalances.filter((b: LeaveBalance) => ((b.total ?? 0) - (b.taken ?? 0) - (b.pending ?? 0)) <= 2 && (b.total ?? 0) > 0);
-                  if (lowBalances.length === 0) return null;
-                  return (
-                    <div key={emp.id} className="flex items-center justify-between p-2 bg-amber-50 rounded border border-amber-200">
-                      <span className="font-medium text-sm">{emp.firstName} {emp.surname}</span>
-                      <div className="flex gap-2">
-                        {lowBalances.map((b: LeaveBalance) => (
-                          <Badge key={b.id} variant="outline" className="border-amber-400 text-amber-700 text-[10px]">
-                            {b.leaveType}: {(b.total ?? 0) - (b.taken ?? 0) - (b.pending ?? 0)} left
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                }).filter(Boolean)}
-                {users.filter(u => u.role === 'worker').every(emp => {
-                  const empBalances = leaveBalances.filter((b: LeaveBalance) => b.userId === emp.id);
-                  return empBalances.every((b: LeaveBalance) => ((b.total ?? 0) - (b.taken ?? 0) - (b.pending ?? 0)) > 2 || (b.total ?? 0) === 0);
-                }) && (
-                  <p className="text-sm text-muted-foreground">No personnel with low leave balances.</p>
-                )}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* User Dialog */}
       <Dialog open={isUserDialogOpen} onOpenChange={setIsUserDialogOpen}>
