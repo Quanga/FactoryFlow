@@ -276,7 +276,7 @@ export default function DashboardSection({
             </div>
           </TooltipProvider>
           <p className="text-xs text-muted-foreground mt-2 text-right">
-            Total active employees: {activeEmployees.length}
+            Total active workers: {activeEmployees.filter((u: any) => u.role === 'worker').length}
           </p>
         </CardContent>
       </Card>
