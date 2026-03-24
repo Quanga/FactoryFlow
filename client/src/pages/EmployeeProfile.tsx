@@ -163,7 +163,7 @@ export default function EmployeeProfile() {
                     <div key={balance.id} className="flex justify-between items-center" data-testid={`leave-balance-${balance.id}`}>
                       <span className="font-medium capitalize">{balance.leaveType.replace('_', ' ')}</span>
                       <div className="text-right">
-                        <span className="text-green-600 font-bold">{balance.total - balance.taken - balance.pending}</span>
+                        <span className="text-green-600 font-bold">{(balance.total ?? 0) - (balance.taken ?? 0) - (balance.pending ?? 0)}</span>
                         <span className="text-gray-500 text-sm"> / {balance.total} days</span>
                       </div>
                     </div>

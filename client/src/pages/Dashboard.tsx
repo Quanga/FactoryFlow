@@ -171,7 +171,7 @@ export default function Dashboard() {
         {/* Balance Cards */}
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           {balances.map((balance) => {
-            const available = balance.total - balance.taken - balance.pending;
+            const available = (balance.total ?? 0) - (balance.taken ?? 0) - (balance.pending ?? 0);
             return (
               <Card key={balance.id} className="industrial-card relative overflow-hidden group">
                 <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">

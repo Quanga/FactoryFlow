@@ -431,7 +431,7 @@ export default function LeaveRequestsSection() {
                         </TableRow>
                         
                         {isExpanded && balances.map((balance) => {
-                          const available = balance.total - balance.taken - balance.pending;
+                          const available = (balance.total ?? 0) - (balance.taken ?? 0) - (balance.pending ?? 0);
                           return (
                             <TableRow key={balance.id} className="bg-slate-50/50" data-testid={`row-balance-detail-${balance.id}`}>
                               <TableCell></TableCell>
@@ -580,7 +580,7 @@ export default function LeaveRequestsSection() {
             const employee = users.find(u => u.id === selectedLeaveRequest.userId);
             const employeeLeaveBalances = leaveBalances.filter((b: LeaveBalance) => b.userId === selectedLeaveRequest.userId);
             const relevantBalance = employeeLeaveBalances.find((b: LeaveBalance) => b.leaveType === selectedLeaveRequest.leaveType);
-            const availableDays = relevantBalance ? relevantBalance.total - relevantBalance.taken - relevantBalance.pending : 0;
+            const availableDays = relevantBalance ? (relevantBalance.total ?? 0) - (relevantBalance.taken ?? 0) - (relevantBalance.pending ?? 0) : 0;
             
             return (
               <div className="space-y-6">

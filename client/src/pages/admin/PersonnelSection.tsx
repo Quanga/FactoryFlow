@@ -515,8 +515,8 @@ export default function PersonnelSection() {
           return dir * (aDate - bDate);
         }
         case 'leave': {
-          const aBalance = leaveBalances.filter((lb: LeaveBalance) => lb.userId === a.id).reduce((s: number, lb: LeaveBalance) => s + (lb.total - lb.taken - lb.pending), 0);
-          const bBalance = leaveBalances.filter((lb: LeaveBalance) => lb.userId === b.id).reduce((s: number, lb: LeaveBalance) => s + (lb.total - lb.taken - lb.pending), 0);
+          const aBalance = leaveBalances.filter((lb: LeaveBalance) => lb.userId === a.id).reduce((s: number, lb: LeaveBalance) => s + ((lb.total ?? 0) - (lb.taken ?? 0) - (lb.pending ?? 0)), 0);
+          const bBalance = leaveBalances.filter((lb: LeaveBalance) => lb.userId === b.id).reduce((s: number, lb: LeaveBalance) => s + ((lb.total ?? 0) - (lb.taken ?? 0) - (lb.pending ?? 0)), 0);
           return dir * (aBalance - bBalance);
         }
         case 'role':
@@ -625,7 +625,7 @@ export default function PersonnelSection() {
       pdf.line(margin, y - 1, margin + usableWidth, y - 1);
 
       const empBalances = leaveBalances.filter((b: LeaveBalance) => b.userId === emp.id);
-      const totalAvailable = empBalances.reduce((sum: number, b: LeaveBalance) => sum + (b.total - b.taken - b.pending), 0);
+      const totalAvailable = empBalances.reduce((sum: number, b: LeaveBalance) => sum + ((b.total ?? 0) - (b.taken ?? 0) - (b.pending ?? 0)), 0);
 
       // ── Row 1: primary info ────────────────────────────────────────────────
       pdf.setFontSize(8);
@@ -985,7 +985,7 @@ export default function PersonnelSection() {
             <TableBody>
               {filteredUsers.map((emp) => {
                 const empBalances = leaveBalances.filter((b: LeaveBalance) => b.userId === emp.id);
-                const totalAvailable = empBalances.reduce((sum: number, b: LeaveBalance) => sum + (b.total - b.taken - b.pending), 0);
+                const totalAvailable = empBalances.reduce((sum: number, b: LeaveBalance) => sum + ((b.total ?? 0) - (b.taken ?? 0) - (b.pending ?? 0)), 0);
                 const isExpanded = expandedEmployees.has(emp.id);
                 return (
                   <React.Fragment key={emp.id}>
@@ -1157,7 +1157,7 @@ export default function PersonnelSection() {
                             <div className="grid grid-cols-4 gap-4">
                               {['Annual Leave', 'Sick Leave', 'Family Responsibility', 'Study Leave'].map(leaveType => {
                                 const balance = empBalances.find((b: LeaveBalance) => b.leaveType === leaveType);
-                                const available = balance ? balance.total - balance.taken - balance.pending : 0;
+                                const available = balance ? (balance.total ?? 0) - (balance.taken ?? 0) - (balance.pending ?? 0) : 0;
                                 return (
                                   <div key={leaveType} className="p-3 bg-white rounded-lg border">
                                     <p className="text-xs text-muted-foreground mb-1">{leaveType}</p>
@@ -1334,7 +1334,7 @@ export default function PersonnelSection() {
               <div className="space-y-2">
                 {users.filter(u => u.role === 'worker').map(emp => {
                   const empBalances = leaveBalances.filter((b: LeaveBalance) => b.userId === emp.id);
-                  const lowBalances = empBalances.filter((b: LeaveBalance) => (b.total - b.taken - b.pending) <= 2 && b.total > 0);
+                  const lowBalances = empBalances.filter((b: LeaveBalance) => ((b.total ?? 0) - (b.taken ?? 0) - (b.pending ?? 0)) <= 2 && (b.total ?? 0) > 0);
                   if (lowBalances.length === 0) return null;
                   return (
                     <div key={emp.id} className="flex items-center justify-between p-2 bg-amber-50 rounded border border-amber-200">
@@ -1342,7 +1342,7 @@ export default function PersonnelSection() {
                       <div className="flex gap-2">
                         {lowBalances.map((b: LeaveBalance) => (
                           <Badge key={b.id} variant="outline" className="border-amber-400 text-amber-700 text-[10px]">
-                            {b.leaveType}: {b.total - b.taken - b.pending} left
+                            {b.leaveType}: {(b.total ?? 0) - (b.taken ?? 0) - (b.pending ?? 0)} left
                           </Badge>
                         ))}
                       </div>
@@ -1351,7 +1351,7 @@ export default function PersonnelSection() {
                 }).filter(Boolean)}
                 {users.filter(u => u.role === 'worker').every(emp => {
                   const empBalances = leaveBalances.filter((b: LeaveBalance) => b.userId === emp.id);
-                  return empBalances.every((b: LeaveBalance) => (b.total - b.taken - b.pending) > 2 || b.total === 0);
+                  return empBalances.every((b: LeaveBalance) => ((b.total ?? 0) - (b.taken ?? 0) - (b.pending ?? 0)) > 2 || (b.total ?? 0) === 0);
                 }) && (
                   <p className="text-sm text-muted-foreground">No personnel with low leave balances.</p>
                 )}
@@ -2038,7 +2038,7 @@ export default function PersonnelSection() {
                 ) : (
                   <div className="space-y-3">
                     {employeeBalances.map((balance: LeaveBalance) => {
-                      const available = balance.total - balance.taken - balance.pending;
+                      const available = (balance.total ?? 0) - (balance.taken ?? 0) - (balance.pending ?? 0);
                       return (
                         <div key={balance.id} className="p-4 bg-slate-50 rounded-lg border">
                           <div className="flex items-center justify-between mb-2">

@@ -201,7 +201,7 @@ export default function DashboardSection({
                 <p className="text-2xl font-bold">
                   {activeEmployees.filter((emp: any) => {
                     const empBalances = leaveBalances.filter((b: LeaveBalance) => b.userId === emp.id);
-                    return empBalances.some((b: LeaveBalance) => (b.total - b.taken - b.pending) <= 2 && b.total > 0);
+                    return empBalances.some((b: LeaveBalance) => ((b.total ?? 0) - (b.taken ?? 0) - (b.pending ?? 0)) <= 2 && (b.total ?? 0) > 0);
                   }).length}
                 </p>
                 <p className="text-sm text-muted-foreground">Low Leave Balance</p>
@@ -349,7 +349,7 @@ export default function DashboardSection({
           <div className="space-y-2">
             {activeEmployees.map((emp: any) => {
               const empBalances = leaveBalances.filter((b: LeaveBalance) => b.userId === emp.id);
-              const lowBalances = empBalances.filter((b: LeaveBalance) => (b.total - b.taken - b.pending) <= 2 && b.total > 0);
+              const lowBalances = empBalances.filter((b: LeaveBalance) => ((b.total ?? 0) - (b.taken ?? 0) - (b.pending ?? 0)) <= 2 && (b.total ?? 0) > 0);
               if (lowBalances.length === 0) return null;
               return (
                 <div key={emp.id} className="flex items-center justify-between p-3 bg-amber-50 rounded-lg border border-amber-200">
@@ -362,7 +362,7 @@ export default function DashboardSection({
                   <div className="flex gap-2">
                     {lowBalances.map((b: LeaveBalance) => (
                       <Badge key={b.id} variant="outline" className="border-amber-400 text-amber-700">
-                        {b.leaveType}: {b.total - b.taken - b.pending} left
+                        {b.leaveType}: {(b.total ?? 0) - (b.taken ?? 0) - (b.pending ?? 0)} left
                       </Badge>
                     ))}
                   </div>
@@ -371,7 +371,7 @@ export default function DashboardSection({
             }).filter(Boolean)}
             {users.filter(u => u.role === 'worker').every(emp => {
               const empBalances = leaveBalances.filter((b: LeaveBalance) => b.userId === emp.id);
-              return empBalances.every((b: LeaveBalance) => (b.total - b.taken - b.pending) > 2 || b.total === 0);
+              return empBalances.every((b: LeaveBalance) => ((b.total ?? 0) - (b.taken ?? 0) - (b.pending ?? 0)) > 2 || (b.total ?? 0) === 0);
             }) && (
               <p className="text-muted-foreground text-center py-4">No personnel with low leave balances</p>
             )}
