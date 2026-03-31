@@ -15,7 +15,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/lib/auth-context';
 import { leaveRequestApi, leaveBalanceApi, userApi, publicHolidayApi } from '@/lib/api';
 import type { LeaveRequest, LeaveBalance } from '@shared/schema';
-import { FileText, Check, X, Trash2, ChevronDown, ChevronRight, Loader2, Plus, Pencil, BookOpen, Lock, CalendarIcon } from 'lucide-react';
+import { FileText, Check, X, Trash2, ChevronDown, ChevronRight, Loader2, Plus, Pencil, BookOpen, Lock, CalendarIcon, Users } from 'lucide-react';
+import { Switch } from "@/components/ui/switch";
 import { formatLeaveStatus, canTakeAction } from './utils';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
@@ -260,7 +261,15 @@ export default function LeaveRequestsSection() {
     });
   };
 
-  const historicRequests = (leaveRequests as any[]).filter((r: any) => r.isHistoric);
+  const [historicShowCurrentOnly, setHistoricShowCurrentOnly] = useState(true);
+
+  const historicRequestsAll = (leaveRequests as any[]).filter((r: any) => r.isHistoric);
+  const historicRequests = historicShowCurrentOnly
+    ? historicRequestsAll.filter((r: any) => {
+        const emp = users.find((u: any) => u.id === r.userId);
+        return emp && !emp.terminationDate;
+      })
+    : historicRequestsAll;
   const activeRequests = (leaveRequests as any[]).filter((r: any) => !r.isHistoric);
   const isAdmin = user?.role === 'manager' || user?.role === 'maintainer';
 
@@ -501,7 +510,7 @@ export default function LeaveRequestsSection() {
           <TabsContent value="historic">
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-4">
                   <div>
                     <CardTitle className="flex items-center gap-2">
                       <BookOpen className="h-5 w-5 text-amber-600" />
@@ -511,10 +520,29 @@ export default function LeaveRequestsSection() {
                       Backfill past leave records from physical books. These bypass the approval workflow and immediately affect leave balances.
                     </CardDescription>
                   </div>
-                  <Button onClick={openAddHistoric} data-testid="button-add-historic">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Historic Entry
-                  </Button>
+                  <div className="flex items-center gap-4 shrink-0">
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="historic-current-only"
+                        checked={historicShowCurrentOnly}
+                        onCheckedChange={setHistoricShowCurrentOnly}
+                        data-testid="switch-historic-current-only"
+                      />
+                      <Label htmlFor="historic-current-only" className="flex items-center gap-1.5 text-sm cursor-pointer whitespace-nowrap">
+                        <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                        Current employees only
+                        {historicShowCurrentOnly && (
+                          <Badge variant="secondary" className="text-xs ml-1">
+                            {historicRequests.length} / {historicRequestsAll.length}
+                          </Badge>
+                        )}
+                      </Label>
+                    </div>
+                    <Button onClick={openAddHistoric} data-testid="button-add-historic">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Historic Entry
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
