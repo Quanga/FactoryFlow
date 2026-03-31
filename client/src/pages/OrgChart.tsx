@@ -747,7 +747,7 @@ export default function OrgChart() {
             kind: 'manager' as const,
             nodeHeight: MANAGER_NODE_HEIGHT,
             isVacant,
-            isOutsourced: isVacant && !!(pos as any).isOutsourced,
+            isOutsourced: !!(pos as any).isOutsourced,
             positionTitle: pos.title,
             tier: (pos as any).tier || 1,
           } as OrgNodeData,
