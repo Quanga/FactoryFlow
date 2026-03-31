@@ -9,15 +9,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Pencil, Trash2, Save } from 'lucide-react';
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Plus, Pencil, Trash2, Save, CheckCircle2, X } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
-import { orgPositionApi, departmentApi, userApi } from '@/lib/api';
-import type { OrgPosition, Department, User } from '@shared/schema';
+import { orgPositionApi, departmentApi, userApi, employeeTypeApi } from '@/lib/api';
+import type { OrgPosition, Department, User, EmployeeType } from '@shared/schema';
 
 export default function OrgPositionsSection() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // ── Shared queries ──────────────────────────────────────────────────────────
   const { data: orgPositions = [] } = useQuery<OrgPosition[]>({
     queryKey: ['org-positions'],
     queryFn: () => orgPositionApi.getAll(),
@@ -33,6 +36,12 @@ export default function OrgPositionsSection() {
     queryFn: userApi.getAll,
   });
 
+  const { data: employeeTypes = [] } = useQuery<EmployeeType[]>({
+    queryKey: ['employeeTypes'],
+    queryFn: employeeTypeApi.getAll,
+  });
+
+  // ── Positions state & mutations ─────────────────────────────────────────────
   const [positionDialogOpen, setPositionDialogOpen] = useState(false);
   const [editingPosition, setEditingPosition] = useState<OrgPosition | null>(null);
   const [positionForm, setPositionForm] = useState({ title: '', department: '', parentPositionId: '', sortOrder: '0', isOutsourced: false, tier: '1' });
@@ -87,7 +96,6 @@ export default function OrgPositionsSection() {
       toast({ variant: 'destructive', title: 'Error', description: 'Position title is required' });
       return;
     }
-
     const payload = {
       title: positionForm.title,
       department: positionForm.department || null,
@@ -96,7 +104,6 @@ export default function OrgPositionsSection() {
       isOutsourced: positionForm.isOutsourced,
       tier: parseInt(positionForm.tier) || 1,
     };
-
     if (editingPosition) {
       updatePositionMutation.mutate({ id: editingPosition.id, ...payload });
     } else {
@@ -192,33 +199,307 @@ export default function OrgPositionsSection() {
     </Card>
   );
 
+  // ── Departments state & mutations ───────────────────────────────────────────
+  const [isDeptDialogOpen, setIsDeptDialogOpen] = useState(false);
+  const [currentDept, setCurrentDept] = useState<Partial<Department>>({});
+  const [isEditingDept, setIsEditingDept] = useState(false);
+
+  const createDeptMutation = useMutation({
+    mutationFn: departmentApi.create,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['departments'] });
+      toast({ title: "Department Created", description: "Department has been added successfully." });
+      setIsDeptDialogOpen(false);
+      setCurrentDept({});
+      setIsEditingDept(false);
+    },
+    onError: (error: Error) => toast({ variant: "destructive", title: "Error", description: error.message }),
+  });
+
+  const updateDeptMutation = useMutation({
+    mutationFn: ({ id, ...data }: any) => departmentApi.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['departments'] });
+      toast({ title: "Department Updated", description: "Department has been updated successfully." });
+      setIsDeptDialogOpen(false);
+      setCurrentDept({});
+      setIsEditingDept(false);
+    },
+    onError: (error: Error) => toast({ variant: "destructive", title: "Error", description: error.message }),
+  });
+
+  const deleteDeptMutation = useMutation({
+    mutationFn: departmentApi.delete,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['departments'] });
+      toast({ title: "Department Deleted", description: "Department has been removed." });
+    },
+    onError: (error: Error) => toast({ variant: "destructive", title: "Error", description: error.message }),
+  });
+
+  const handleSaveDept = () => {
+    if (!currentDept.name) {
+      toast({ variant: "destructive", title: "Error", description: "Department name is required" });
+      return;
+    }
+    if (isEditingDept && currentDept.id) {
+      updateDeptMutation.mutate({ id: currentDept.id, name: currentDept.name, description: currentDept.description });
+    } else {
+      createDeptMutation.mutate({ name: currentDept.name!, description: currentDept.description || undefined });
+    }
+  };
+
+  const handleOpenEditDept = (dept: Department) => {
+    setCurrentDept(dept);
+    setIsEditingDept(true);
+    setIsDeptDialogOpen(true);
+  };
+
+  const handleOpenCreateDept = () => {
+    setCurrentDept({});
+    setIsEditingDept(false);
+    setIsDeptDialogOpen(true);
+  };
+
+  // ── Employee Types state & mutations ────────────────────────────────────────
+  const [isTypeDialogOpen, setIsTypeDialogOpen] = useState(false);
+  const [currentType, setCurrentType] = useState<Partial<EmployeeType>>({});
+  const [isEditingType, setIsEditingType] = useState(false);
+
+  const createTypeMutation = useMutation({
+    mutationFn: employeeTypeApi.create,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employeeTypes'] });
+      toast({ title: "Employee Type Created", description: "Employee type has been added successfully." });
+      setIsTypeDialogOpen(false);
+      setCurrentType({});
+      setIsEditingType(false);
+    },
+    onError: (error: Error) => toast({ variant: "destructive", title: "Error", description: error.message }),
+  });
+
+  const updateTypeMutation = useMutation({
+    mutationFn: ({ id, ...data }: any) => employeeTypeApi.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employeeTypes'] });
+      toast({ title: "Employee Type Updated", description: "Employee type has been updated successfully." });
+      setIsTypeDialogOpen(false);
+      setCurrentType({});
+      setIsEditingType(false);
+    },
+    onError: (error: Error) => toast({ variant: "destructive", title: "Error", description: error.message }),
+  });
+
+  const deleteTypeMutation = useMutation({
+    mutationFn: employeeTypeApi.delete,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['employeeTypes'] });
+      toast({ title: "Employee Type Deleted", description: "Employee type has been removed." });
+    },
+    onError: (error: Error) => toast({ variant: "destructive", title: "Error", description: error.message }),
+  });
+
+  const handleSaveType = () => {
+    if (!currentType.name) {
+      toast({ variant: "destructive", title: "Error", description: "Type name is required" });
+      return;
+    }
+    const payload = {
+      name: currentType.name,
+      description: currentType.description || null,
+      leaveLabel: currentType.leaveLabel || 'leave',
+      hasLeaveEntitlement: currentType.hasLeaveEntitlement || 'true',
+      isPermanent: currentType.isPermanent || 'yes',
+    };
+    if (isEditingType && currentType.id) {
+      updateTypeMutation.mutate({ id: currentType.id, ...payload });
+    } else {
+      createTypeMutation.mutate(payload as any);
+    }
+  };
+
+  const handleOpenEditType = (type: EmployeeType) => {
+    setCurrentType(type);
+    setIsEditingType(true);
+    setIsTypeDialogOpen(true);
+  };
+
+  const handleOpenCreateType = () => {
+    setCurrentType({ leaveLabel: 'leave', hasLeaveEntitlement: 'true', isPermanent: 'yes' });
+    setIsEditingType(false);
+    setIsTypeDialogOpen(true);
+  };
+
+  // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-heading font-bold text-slate-900 dark:text-slate-100">Org Positions</h1>
-          <p className="text-muted-foreground">Define the position-based hierarchy for the org chart. When positions exist, the org chart uses them instead of the manager-based tree.</p>
-        </div>
-        <Button onClick={handleOpenCreatePosition} data-testid="button-add-position">
-          <Plus className="h-4 w-4 mr-2" /> Add Position
-        </Button>
+      <div>
+        <h1 className="text-3xl font-heading font-bold text-slate-900 dark:text-slate-100">Organisation Setup</h1>
+        <p className="text-muted-foreground">Manage positions, departments, and employee classifications.</p>
       </div>
-      
-      {orgPositions.length === 0 ? (
-        <Card>
-          <CardContent className="py-8">
-            <div className="text-center text-muted-foreground">
-              No positions defined yet. The org chart will use the manager-based hierarchy. Add positions to switch to a position-based org chart.
-            </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <>
-          {renderPositionTable(managerPositions, 'Manager Positions')}
-          {renderPositionTable(staffPositions, 'Staff Positions')}
-        </>
-      )}
 
+      <Tabs defaultValue="positions">
+        <TabsList className="mb-4">
+          <TabsTrigger value="positions" data-testid="tab-positions">Org Positions</TabsTrigger>
+          <TabsTrigger value="departments" data-testid="tab-departments">Departments</TabsTrigger>
+          <TabsTrigger value="employee-types" data-testid="tab-employee-types">Employee Types</TabsTrigger>
+        </TabsList>
+
+        {/* ── Positions tab ─────────────────────────────────────────────────── */}
+        <TabsContent value="positions" className="space-y-4">
+          <div className="flex justify-between items-center">
+            <p className="text-sm text-muted-foreground">Define the position-based hierarchy for the org chart. When positions exist, the org chart uses them instead of the manager-based tree.</p>
+            <Button onClick={handleOpenCreatePosition} data-testid="button-add-position">
+              <Plus className="h-4 w-4 mr-2" /> Add Position
+            </Button>
+          </div>
+
+          {orgPositions.length === 0 ? (
+            <Card>
+              <CardContent className="py-8">
+                <div className="text-center text-muted-foreground">
+                  No positions defined yet. The org chart will use the manager-based hierarchy. Add positions to switch to a position-based org chart.
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              {renderPositionTable(managerPositions, 'Manager Positions')}
+              {renderPositionTable(staffPositions, 'Staff Positions')}
+            </>
+          )}
+        </TabsContent>
+
+        {/* ── Departments tab ───────────────────────────────────────────────── */}
+        <TabsContent value="departments" className="space-y-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Departments</CardTitle>
+                <CardDescription>Manage departments for employee organisation</CardDescription>
+              </div>
+              <Button onClick={handleOpenCreateDept} data-testid="button-add-department">
+                <Plus className="mr-2 h-4 w-4" /> Add Department
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {departments.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No departments created yet. Click "Add Department" to create your first one.
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Personnel</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {departments.map((dept) => {
+                      const employeeCount = users.filter((u: User) => u.department === dept.name).length;
+                      return (
+                        <TableRow key={dept.id} data-testid={`row-department-${dept.id}`}>
+                          <TableCell className="font-medium">{dept.name}</TableCell>
+                          <TableCell className="text-muted-foreground">{dept.description || '-'}</TableCell>
+                          <TableCell>
+                            <Badge variant="secondary">{employeeCount}</Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="ghost" size="icon" onClick={() => handleOpenEditDept(dept)} data-testid={`button-edit-dept-${dept.id}`}>
+                              <Pencil className="h-4 w-4 text-slate-500" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => deleteDeptMutation.mutate(dept.id)}
+                              disabled={employeeCount > 0}
+                              title={employeeCount > 0 ? "Cannot delete department with personnel" : "Delete department"}
+                              data-testid={`button-delete-dept-${dept.id}`}
+                            >
+                              <Trash2 className={`h-4 w-4 ${employeeCount > 0 ? 'text-slate-300' : 'text-red-500'}`} />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── Employee Types tab ────────────────────────────────────────────── */}
+        <TabsContent value="employee-types" className="space-y-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Employee Types</CardTitle>
+                <CardDescription>Define different categories of personnel (e.g., permanent, contractor, consultant)</CardDescription>
+              </div>
+              <Button onClick={handleOpenCreateType} data-testid="button-create-type">
+                <Plus className="h-4 w-4 mr-2" /> Add Employee Type
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Leave Label</TableHead>
+                    <TableHead>Has Leave Entitlement</TableHead>
+                    <TableHead>Default</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {employeeTypes.map((type) => (
+                    <TableRow key={type.id} data-testid={`row-type-${type.id}`}>
+                      <TableCell className="font-medium">{type.name}</TableCell>
+                      <TableCell>{type.description || '-'}</TableCell>
+                      <TableCell>
+                        <Badge variant={type.leaveLabel === 'unavailable' ? 'secondary' : 'default'}>
+                          {type.leaveLabel || 'leave'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {type.hasLeaveEntitlement === 'true' ? (
+                          <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        ) : (
+                          <X className="h-4 w-4 text-red-500" />
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {type.isDefault === 'true' && <Badge variant="outline">Default</Badge>}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="icon" onClick={() => handleOpenEditType(type)} data-testid={`button-edit-type-${type.id}`}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => deleteTypeMutation.mutate(type.id)}
+                          disabled={type.isDefault === 'true'}
+                          data-testid={`button-delete-type-${type.id}`}
+                        >
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* ── Position Dialog ──────────────────────────────────────────────────── */}
       <Dialog open={positionDialogOpen} onOpenChange={setPositionDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -321,6 +602,128 @@ export default function OrgPositionsSection() {
             <Button variant="outline" onClick={() => setPositionDialogOpen(false)}>Cancel</Button>
             <Button onClick={handleSavePosition} data-testid="button-save-position">
               <Save className="h-4 w-4 mr-2" /> {editingPosition ? 'Update' : 'Create'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Department Dialog ────────────────────────────────────────────────── */}
+      <Dialog open={isDeptDialogOpen} onOpenChange={setIsDeptDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{isEditingDept ? 'Edit Department' : 'Add New Department'}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="deptName" className="text-right">Name</Label>
+              <Input
+                id="deptName"
+                value={currentDept.name || ''}
+                onChange={(e) => setCurrentDept({ ...currentDept, name: e.target.value })}
+                className="col-span-3"
+                placeholder="e.g., Assembly Line"
+                data-testid="input-dept-name"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="deptDesc" className="text-right">Description</Label>
+              <Input
+                id="deptDesc"
+                value={currentDept.description || ''}
+                onChange={(e) => setCurrentDept({ ...currentDept, description: e.target.value })}
+                className="col-span-3"
+                placeholder="Optional description"
+                data-testid="input-dept-description"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleSaveDept} data-testid="button-save-department">
+              {isEditingDept ? 'Save Changes' : 'Create Department'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Employee Type Dialog ─────────────────────────────────────────────── */}
+      <Dialog open={isTypeDialogOpen} onOpenChange={setIsTypeDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{isEditingType ? 'Edit Employee Type' : 'Add New Employee Type'}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="typeName" className="text-right">Name</Label>
+              <Input
+                id="typeName"
+                value={currentType.name || ''}
+                onChange={(e) => setCurrentType({ ...currentType, name: e.target.value })}
+                className="col-span-3"
+                placeholder="e.g., Permanent Employee"
+                data-testid="input-type-name"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="typeDesc" className="text-right">Description</Label>
+              <Input
+                id="typeDesc"
+                value={currentType.description || ''}
+                onChange={(e) => setCurrentType({ ...currentType, description: e.target.value })}
+                className="col-span-3"
+                placeholder="Optional description"
+                data-testid="input-type-description"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="leaveLabel" className="text-right">Leave Label</Label>
+              <div className="col-span-3">
+                <Select
+                  value={currentType.leaveLabel || 'leave'}
+                  onValueChange={(value) => setCurrentType({ ...currentType, leaveLabel: value })}
+                >
+                  <SelectTrigger data-testid="select-leave-label">
+                    <SelectValue placeholder="Select leave label" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="leave">Leave (for permanent staff)</SelectItem>
+                    <SelectItem value="unavailable">Unavailable (for contractors)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">"Leave" for permanent staff, "Unavailable" for contractors</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="hasLeaveEntitlement" className="text-right">Has Leave Entitlement</Label>
+              <div className="col-span-3 flex items-center gap-2">
+                <Switch
+                  id="hasLeaveEntitlement"
+                  checked={currentType.hasLeaveEntitlement === 'true'}
+                  onCheckedChange={(checked) => setCurrentType({ ...currentType, hasLeaveEntitlement: checked ? 'true' : 'false' })}
+                  data-testid="switch-has-leave"
+                />
+                <span className="text-sm text-muted-foreground">
+                  {currentType.hasLeaveEntitlement === 'true' ? 'Yes - Can accrue leave' : 'No - Cannot accrue leave'}
+                </span>
+              </div>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="isPermanent" className="text-right">Permanent Position</Label>
+              <div className="col-span-3 flex items-center gap-2">
+                <Switch
+                  id="isPermanent"
+                  checked={currentType.isPermanent === 'yes'}
+                  onCheckedChange={(checked) => setCurrentType({ ...currentType, isPermanent: checked ? 'yes' : 'no' })}
+                  data-testid="switch-is-permanent"
+                />
+                <span className="text-sm text-muted-foreground">
+                  {currentType.isPermanent === 'yes' ? 'Yes - No contract end date required' : 'No - Requires contract end date'}
+                </span>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleSaveType} data-testid="button-save-type">
+              {isEditingType ? 'Save Changes' : 'Create Employee Type'}
             </Button>
           </DialogFooter>
         </DialogContent>

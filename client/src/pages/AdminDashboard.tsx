@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Users, Settings, Camera, Building2, Loader2, CheckCircle2, UserCog, Calendar, Clock, FileText, LayoutDashboard, LogOut, Network, MessageSquareWarning, CalendarDays, TrendingUp, Briefcase } from 'lucide-react';
+import { Users, Settings, Camera, Building2, Loader2, CheckCircle2, Calendar, Clock, FileText, LayoutDashboard, LogOut, Network, MessageSquareWarning, CalendarDays, TrendingUp, Briefcase } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { NotificationBell } from '@/components/NotificationBell';
 import { useToast } from "@/hooks/use-toast";
@@ -19,8 +19,6 @@ import DashboardSection from './admin/DashboardSection';
 import PersonnelSection from './admin/PersonnelSection';
 import LeaveRequestsSection from './admin/LeaveRequestsSection';
 import { AttendanceSection } from './admin/AttendanceSection';
-import DepartmentsSection from './admin/DepartmentsSection';
-import EmployeeTypesSection from './admin/EmployeeTypesSection';
 import LeaveRulesSection from './admin/LeaveRulesSection';
 import { GrievancesSection } from './admin/GrievancesSection';
 import LeaveCalendarSection from './admin/LeaveCalendarSection';
@@ -246,6 +244,15 @@ export default function AdminDashboard() {
                 <Network className="h-4 w-4" /> Organization Chart
               </button>
               <button
+                onClick={() => setActiveSection('positions')}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
+                  activeSection === 'positions' ? 'bg-primary text-white' : 'hover:bg-slate-100 text-slate-700'
+                }`}
+                data-testid="nav-positions"
+              >
+                <Network className="h-4 w-4" /> Organisation Setup
+              </button>
+              <button
                 onClick={() => setActiveSection('leave-requests')}
                 className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
                   activeSection === 'leave-requests' ? 'bg-primary text-white' : 'hover:bg-slate-100 text-slate-700'
@@ -276,24 +283,6 @@ export default function AdminDashboard() {
                 <TrendingUp className="h-4 w-4" /> Attendance Reports
               </button>
               <button
-                onClick={() => setActiveSection('departments')}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
-                  activeSection === 'departments' ? 'bg-primary text-white' : 'hover:bg-slate-100 text-slate-700'
-                }`}
-                data-testid="nav-departments"
-              >
-                <Building2 className="h-4 w-4" /> Departments
-              </button>
-              <button
-                onClick={() => setActiveSection('employee-types')}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
-                  activeSection === 'employee-types' ? 'bg-primary text-white' : 'hover:bg-slate-100 text-slate-700'
-                }`}
-                data-testid="nav-employee-types"
-              >
-                <UserCog className="h-4 w-4" /> Employee Types
-              </button>
-              <button
                 onClick={() => setActiveSection('companies')}
                 className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
                   activeSection === 'companies' ? 'bg-primary text-white' : 'hover:bg-slate-100 text-slate-700'
@@ -319,15 +308,6 @@ export default function AdminDashboard() {
                 data-testid="nav-leave-calendar-inline"
               >
                 <CalendarDays className="h-4 w-4" /> Leave Calendar
-              </button>
-              <button
-                onClick={() => setActiveSection('positions')}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
-                  activeSection === 'positions' ? 'bg-primary text-white' : 'hover:bg-slate-100 text-slate-700'
-                }`}
-                data-testid="nav-positions"
-              >
-                <Network className="h-4 w-4" /> Org Positions
               </button>
               <button
                 onClick={() => setActiveSection('settings')}
