@@ -644,6 +644,7 @@ export default function OrgChart() {
 
       const isWorkerPosition = (posId: number): boolean => {
         const pos = positionMap.get(posId)!;
+        if ((pos as any).isOutsourced) return false; // outsourced positions always get their own node
         const hasChildren = orgPositions.some(p => p.parentPositionId === posId);
         if (hasChildren) return false;
         const assignedUsers = getUsersForPosition(posId);
@@ -711,7 +712,7 @@ export default function OrgChart() {
         }
         
         const hasMultipleUsers = assignedUsers.length > 1;
-        const isVacant = assignedUsers.length === 0;
+        const isVacant = assignedUsers.length === 0 && !(pos as any).isOutsourced;
         
         if (hasMultipleUsers) {
           const workerEntries = assignedUsers.map(u => ({
