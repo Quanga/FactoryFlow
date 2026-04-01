@@ -39,6 +39,7 @@ import type {
   InsertOrgPosition,
   Company,
   InsertCompany,
+  AdminLoginLog,
 } from "@shared/schema";
 
 const pool = new Pool({
@@ -195,6 +196,10 @@ export interface IStorage {
   createPasswordResetToken(token: string, email: string, expiry: Date): Promise<void>;
   getPasswordResetToken(token: string): Promise<{ email: string; expiry: Date } | undefined>;
   deletePasswordResetToken(token: string): Promise<void>;
+
+  // Admin Login Log operations
+  createAdminLoginLog(entry: { userId?: string; email: string; name?: string; success: boolean; ipAddress?: string; userAgent?: string }): Promise<AdminLoginLog>;
+  getAdminLoginLogs(limit?: number): Promise<AdminLoginLog[]>;
 }
 
 export class DrizzleStorage implements IStorage {
@@ -1188,6 +1193,22 @@ export class DrizzleStorage implements IStorage {
 
   async deletePasswordResetToken(token: string): Promise<void> {
     await db.delete(schema.passwordResetTokens).where(eq(schema.passwordResetTokens.token, token));
+  }
+
+  async createAdminLoginLog(entry: { userId?: string; email: string; name?: string; success: boolean; ipAddress?: string; userAgent?: string }): Promise<AdminLoginLog> {
+    const rows = await db.insert(schema.adminLoginLogs).values({
+      userId: entry.userId ?? null,
+      email: entry.email,
+      name: entry.name ?? null,
+      success: entry.success,
+      ipAddress: entry.ipAddress ?? null,
+      userAgent: entry.userAgent ?? null,
+    }).returning();
+    return rows[0];
+  }
+
+  async getAdminLoginLogs(limit = 200): Promise<AdminLoginLog[]> {
+    return db.select().from(schema.adminLoginLogs).orderBy(desc(schema.adminLoginLogs.timestamp)).limit(limit);
   }
 }
 

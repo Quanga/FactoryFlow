@@ -14,12 +14,13 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/lib/auth-context';
 import { 
   Settings, Shield, Palette, Mail, Download, Upload, Save, 
-  UserCog, Plus, Pencil, Trash2, Key, Copy, RefreshCw, Eye, EyeOff
+  UserCog, Plus, Pencil, Trash2, Key, Copy, RefreshCw, Eye, EyeOff,
+  CheckCircle2, XCircle, MonitorSmartphone
 } from 'lucide-react';
 import { 
-  settingsApi, userApi, userGroupApi, leaveBalanceApi 
+  settingsApi, userApi, userGroupApi, leaveBalanceApi, loginLogApi
 } from '@/lib/api';
-import type { User, UserGroup } from '@shared/schema';
+import type { User, UserGroup, AdminLoginLog } from '@shared/schema';
 import { generatePassword } from './utils';
 
 export default function SettingsSection() {
@@ -123,6 +124,12 @@ export default function SettingsSection() {
   const { data: companyLogoSetting } = useQuery({
     queryKey: ['settings', 'company_logo'],
     queryFn: () => settingsApi.get('company_logo'),
+  });
+
+  const { data: loginLogs = [] } = useQuery<AdminLoginLog[]>({
+    queryKey: ['admin-login-logs'],
+    queryFn: () => loginLogApi.getAll(200),
+    refetchInterval: 30000,
   });
 
   const { data: primaryColorSetting } = useQuery({
@@ -1204,6 +1211,62 @@ export default function SettingsSection() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Admin Login History */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MonitorSmartphone className="h-5 w-5 text-primary" />
+            Admin Login History
+          </CardTitle>
+          <CardDescription>
+            Every admin login attempt — successful or failed — is recorded here. Updates every 30 seconds.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loginLogs.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">No login attempts recorded yet. Logins will appear here after your next sign-in.</p>
+          ) : (
+            <div className="overflow-auto max-h-[420px] rounded-lg border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-8"></TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Date &amp; Time</TableHead>
+                    <TableHead>IP Address</TableHead>
+                    <TableHead>Device / Browser</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loginLogs.map((log) => (
+                    <TableRow key={log.id} className={log.success ? '' : 'bg-red-50/50 dark:bg-red-900/10'}>
+                      <TableCell>
+                        {log.success
+                          ? <CheckCircle2 className="h-4 w-4 text-green-500" />
+                          : <XCircle className="h-4 w-4 text-red-500" />}
+                      </TableCell>
+                      <TableCell className="font-medium">{log.name || <span className="text-muted-foreground text-xs">Unknown</span>}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{log.email}</TableCell>
+                      <TableCell className="text-sm whitespace-nowrap">
+                        {new Date(log.timestamp).toLocaleString('en-ZA', { dateStyle: 'medium', timeStyle: 'short' })}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground font-mono">{log.ipAddress || '—'}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate" title={log.userAgent || ''}>
+                        {log.userAgent
+                          ? log.userAgent.replace(/\(.*?\)/g, '').replace(/AppleWebKit.*/, '').trim().slice(0, 60)
+                          : '—'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground mt-2">Showing the last {loginLogs.length} login attempts</p>
+        </CardContent>
+      </Card>
     </div>
   );
 }

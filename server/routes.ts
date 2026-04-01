@@ -121,6 +121,8 @@ export async function registerRoutes(
 
   // Admin login by email/password
   app.post("/api/auth/admin-login", async (req, res) => {
+    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || '';
+    const ua = req.headers['user-agent'] || '';
     try {
       const { email, password } = req.body;
       
@@ -132,11 +134,13 @@ export async function registerRoutes(
       
       // Check for valid admin role (manager or maintainer)
       if (!user || !user.adminRole || !['manager', 'maintainer'].includes(user.adminRole)) {
+        await storage.createAdminLoginLog({ email, success: false, ipAddress: ip, userAgent: ua });
         return res.status(401).json({ error: "Invalid credentials" });
       }
 
       const passwordValid = await verifyPassword(password, user.password || '');
       if (!passwordValid) {
+        await storage.createAdminLoginLog({ email, userId: user.id, name: `${user.firstName} ${user.surname}`, success: false, ipAddress: ip, userAgent: ua });
         return res.status(401).json({ error: "Invalid credentials" });
       }
 
@@ -145,10 +149,24 @@ export async function registerRoutes(
         await storage.updateUser(user.id, { password: hashed });
       }
 
+      await storage.createAdminLoginLog({ email, userId: user.id, name: `${user.firstName} ${user.surname}`, success: true, ipAddress: ip, userAgent: ua });
       return res.json(user);
     } catch (error) {
       console.error("Admin login error:", error);
+      await storage.createAdminLoginLog({ email: req.body?.email || '', success: false, ipAddress: ip, userAgent: ua }).catch(() => {});
       return res.status(500).json({ error: "Login failed" });
+    }
+  });
+
+  // Get admin login logs
+  app.get("/api/admin-login-logs", async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 200;
+      const logs = await storage.getAdminLoginLogs(limit);
+      return res.json(logs);
+    } catch (error) {
+      console.error("Get login logs error:", error);
+      return res.status(500).json({ error: "Failed to fetch login logs" });
     }
   });
 

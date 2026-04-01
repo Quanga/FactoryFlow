@@ -1148,3 +1148,11 @@ export const backupApi = {
     return res.json();
   },
 };
+
+export const loginLogApi = {
+  async getAll(limit = 200) {
+    const res = await fetch(`${API_BASE}/admin-login-logs?limit=${limit}`);
+    if (!res.ok) throw new Error("Failed to fetch login logs");
+    return res.json();
+  },
+};

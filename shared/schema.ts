@@ -392,6 +392,20 @@ export const passwordResetTokens = pgTable("password_reset_tokens", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Admin Login Logs Table
+export const adminLoginLogs = pgTable("admin_login_logs", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id"),
+  email: text("email").notNull(),
+  name: text("name"),
+  success: boolean("success").notNull(),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+});
+
+export type AdminLoginLog = typeof adminLoginLogs.$inferSelect;
+
 // Face Descriptors Table (for storing multiple face photos per user to improve recognition)
 export const faceDescriptors = pgTable("face_descriptors", {
   id: serial("id").primaryKey(),
