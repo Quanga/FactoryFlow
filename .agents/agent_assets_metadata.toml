@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "lEXcR9DSIILU5d8yQCDmH"
+uri = "file://attached_assets/AECE_Scope_Compliance_Report.pdf"
+type = "pdf"
+title = "AECE Checkpoint — Scope Compliance Report"
