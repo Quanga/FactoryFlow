@@ -1,0 +1,14 @@
+node_modules
+dist
+.git
+.gitignore
+.env
+.replit
+.cache
+.config
+.local
+.upm
+.agents
+attached_assets/*.pdf
+*.md
+!DEPLOY.md

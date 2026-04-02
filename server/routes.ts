@@ -194,9 +194,8 @@ export async function registerRoutes(
 
       // Send reset email
       const senderEmail = "noreply@aece.co.za";
-      const baseUrl = process.env.REPLIT_DEV_DOMAIN 
-        ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
-        : 'http://localhost:5000';
+      const baseUrl = process.env.APP_URL
+        || (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : 'http://localhost:5000');
       const resetUrl = `${baseUrl}/reset-password?token=${token}`;
 
       await sendPasswordResetEmail(email, senderEmail, {
@@ -868,9 +867,10 @@ export async function registerRoutes(
         const senderEmail = "noreply@aece.co.za";
         
         // Construct the app URL from the request
-        const appUrl = process.env.REPLIT_DEV_DOMAIN 
-          ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-          : process.env.REPLIT_DEPLOYMENT_URL || 'https://aece-checkpoint.replit.app';
+        const appUrl = process.env.APP_URL
+          || (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : null)
+          || process.env.REPLIT_DEPLOYMENT_URL
+          || 'http://localhost:5000';
         
         const emailData = {
           employeeName: user ? `${user.firstName} ${user.surname}` : 'Unknown',
@@ -2512,9 +2512,9 @@ export async function registerRoutes(
       const fromEmailSetting = await storage.getSetting('from_email');
       const fromEmail = fromEmailSetting?.value || 'noreply@aece.co.za';
       
-      const baseUrl = process.env.REPLIT_DEV_DOMAIN 
-        ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
-        : 'https://factory-flow--quanga01.replit.app';
+      const baseUrl = process.env.APP_URL
+        || (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : null)
+        || 'http://localhost:5000';
       
       const resetToken = crypto.randomBytes(32).toString('hex');
       const expiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
